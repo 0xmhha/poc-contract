@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {ECDSAValidator, ECDSAValidatorStorage} from "../../src/erc7579-validators/ECDSAValidator.sol";
+import {ECDSAValidator} from "../../src/erc7579-validators/ECDSAValidator.sol";
 import {PackedUserOperation} from "../../src/erc7579-smartaccount/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_SUCCESS_UINT,

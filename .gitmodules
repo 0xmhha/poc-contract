@@ -10,3 +10,18 @@
 [submodule "lib/ExcessivelySafeCall"]
 	path = lib/ExcessivelySafeCall
 	url = https://github.com/nomad-xyz/ExcessivelySafeCall
+[submodule "lib/v3-core"]
+	path = lib/v3-core
+	url = https://github.com/Uniswap/v3-core.git
+[submodule "lib/v3-periphery"]
+	path = lib/v3-periphery
+	url = https://github.com/Uniswap/v3-periphery.git
+[submodule "lib/openzeppelin-contracts-v3"]
+	path = lib/openzeppelin-contracts-v3
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts.git
+[submodule "lib/uniswap-lib"]
+	path = lib/uniswap-lib
+	url = https://github.com/Uniswap/solidity-lib.git
+[submodule "lib/base64-sol"]
+	path = lib/base64-sol
+	url = https://github.com/Brechtpd/base64.git

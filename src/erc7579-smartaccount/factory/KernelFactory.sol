@@ -16,6 +16,7 @@ contract KernelFactory {
     }
 
     function createAccount(bytes calldata data, bytes32 salt) public payable returns (address) {
+        // forge-lint: disable-next-line(asm-keccak256)
         bytes32 actualSalt = keccak256(abi.encodePacked(data, salt));
         (bool alreadyDeployed, address account) =
             LibClone.createDeterministicERC1967(msg.value, IMPLEMENTATION, actualSalt);
@@ -29,6 +30,7 @@ contract KernelFactory {
     }
 
     function getAddress(bytes calldata data, bytes32 salt) public view virtual returns (address) {
+        // forge-lint: disable-next-line(asm-keccak256)
         bytes32 actualSalt = keccak256(abi.encodePacked(data, salt));
         return LibClone.predictDeterministicAddressERC1967(IMPLEMENTATION, actualSalt, address(this));
     }

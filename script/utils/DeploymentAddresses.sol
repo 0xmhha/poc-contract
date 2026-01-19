@@ -1,0 +1,408 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {Script, console} from "forge-std/Script.sol";
+
+/**
+ * @title DeploymentAddresses
+ * @notice Helper library for managing deployment addresses across scripts
+ * @dev Provides functions to save/load deployed contract addresses to/from JSON files
+ *
+ * Deployment Dependency Graph:
+ *
+ * Layer 0 (No Dependencies):
+ *   - EntryPoint
+ *   - Validators (ECDSA, WeightedECDSA, MultiChain)
+ *   - Executors (SessionKey, RecurringPayment)
+ *   - Hooks (Audit, SpendingLimit)
+ *   - Fallbacks (TokenReceiver, FlashLoan)
+ *   - WKRW
+ *   - PriceOracle
+ *   - ERC5564Announcer, ERC6538Registry
+ *   - BridgeRateLimiter, FraudProofVerifier
+ *   - ERC7715PermissionManager
+ *   - KYCRegistry, AuditLogger, ProofOfReserve, RegulatoryRegistry
+ *
+ * Layer 1 (Depends on Layer 0):
+ *   - Kernel -> EntryPoint
+ *   - VerifyingPaymaster -> EntryPoint
+ *   - ERC20Paymaster -> EntryPoint, PriceOracle
+ *   - PrivateBank -> ERC5564Announcer, ERC6538Registry
+ *   - BridgeValidator, BridgeGuardian, OptimisticVerifier (signers/guardians config)
+ *
+ * Layer 2 (Depends on Layer 1):
+ *   - KernelFactory -> Kernel
+ *   - Permit2Paymaster -> EntryPoint, PriceOracle, Permit2
+ *   - SubscriptionManager -> ERC7715PermissionManager
+ *   - DEXIntegration -> WKRW, external DEX addresses
+ *   - SecureBridge -> BridgeValidator, OptimisticVerifier, BridgeRateLimiter, BridgeGuardian
+ */
+library DeploymentAddresses {
+    // File path constants
+    string constant DEPLOYMENTS_DIR = "deployments/";
+    string constant ADDRESSES_FILE = "addresses.json";
+
+    // Contract name constants for JSON keys
+    string constant KEY_ENTRYPOINT = "entryPoint";
+    string constant KEY_KERNEL = "kernel";
+    string constant KEY_KERNEL_FACTORY = "kernelFactory";
+
+    // Validators
+    string constant KEY_ECDSA_VALIDATOR = "ecdsaValidator";
+    string constant KEY_WEIGHTED_VALIDATOR = "weightedEcdsaValidator";
+    string constant KEY_MULTICHAIN_VALIDATOR = "multiChainValidator";
+
+    // Paymasters
+    string constant KEY_VERIFYING_PAYMASTER = "verifyingPaymaster";
+    string constant KEY_ERC20_PAYMASTER = "erc20Paymaster";
+    string constant KEY_PERMIT2_PAYMASTER = "permit2Paymaster";
+
+    // Executors
+    string constant KEY_SESSION_KEY_EXECUTOR = "sessionKeyExecutor";
+    string constant KEY_RECURRING_PAYMENT_EXECUTOR = "recurringPaymentExecutor";
+
+    // Hooks
+    string constant KEY_AUDIT_HOOK = "auditHook";
+    string constant KEY_SPENDING_LIMIT_HOOK = "spendingLimitHook";
+
+    // Fallbacks
+    string constant KEY_TOKEN_RECEIVER_FALLBACK = "tokenReceiverFallback";
+    string constant KEY_FLASH_LOAN_FALLBACK = "flashLoanFallback";
+
+    // Tokens & DeFi
+    string constant KEY_WKRW = "wkrw";
+    string constant KEY_PRICE_ORACLE = "priceOracle";
+    string constant KEY_DEX_INTEGRATION = "dexIntegration";
+
+    // Privacy
+    string constant KEY_ANNOUNCER = "erc5564Announcer";
+    string constant KEY_REGISTRY = "erc6538Registry";
+    string constant KEY_PRIVATE_BANK = "privateBank";
+
+    // Bridge
+    string constant KEY_BRIDGE_VALIDATOR = "bridgeValidator";
+    string constant KEY_BRIDGE_GUARDIAN = "bridgeGuardian";
+    string constant KEY_BRIDGE_RATE_LIMITER = "bridgeRateLimiter";
+    string constant KEY_OPTIMISTIC_VERIFIER = "optimisticVerifier";
+    string constant KEY_FRAUD_PROOF_VERIFIER = "fraudProofVerifier";
+    string constant KEY_SECURE_BRIDGE = "secureBridge";
+
+    // Compliance
+    string constant KEY_KYC_REGISTRY = "kycRegistry";
+    string constant KEY_AUDIT_LOGGER = "auditLogger";
+    string constant KEY_PROOF_OF_RESERVE = "proofOfReserve";
+    string constant KEY_REGULATORY_REGISTRY = "regulatoryRegistry";
+
+    // Subscription
+    string constant KEY_PERMISSION_MANAGER = "erc7715PermissionManager";
+    string constant KEY_SUBSCRIPTION_MANAGER = "subscriptionManager";
+}
+
+/**
+ * @title DeploymentHelper
+ * @notice Base contract for deployment scripts with address persistence
+ * @dev Inherit from this contract to get automatic address saving/loading
+ */
+abstract contract DeploymentHelper is Script {
+    // Chain ID for deployment file naming
+    uint256 public chainId;
+
+    // Cached addresses
+    mapping(string => address) internal _addresses;
+
+    /**
+     * @notice Initialize the deployment helper
+     * @dev Call this at the start of run() function
+     */
+    function _initDeployment() internal {
+        chainId = block.chainid;
+        _loadAddresses();
+    }
+
+    /**
+     * @notice Get the deployment file path for current chain
+     */
+    function _getDeploymentPath() internal view returns (string memory) {
+        return string.concat(
+            DeploymentAddresses.DEPLOYMENTS_DIR,
+            vm.toString(chainId),
+            "/",
+            DeploymentAddresses.ADDRESSES_FILE
+        );
+    }
+
+    /**
+     * @notice Load existing addresses from JSON file
+     */
+    function _loadAddresses() internal {
+        string memory path = _getDeploymentPath();
+
+        // Check if file exists
+        // forge-lint: disable-next-line(unsafe-cheatcode)
+        try vm.readFile(path) returns (string memory json) {
+            if (bytes(json).length > 0) {
+                // Parse core addresses
+                _tryParseAddress(json, DeploymentAddresses.KEY_ENTRYPOINT);
+                _tryParseAddress(json, DeploymentAddresses.KEY_KERNEL);
+                _tryParseAddress(json, DeploymentAddresses.KEY_KERNEL_FACTORY);
+
+                // Validators
+                _tryParseAddress(json, DeploymentAddresses.KEY_ECDSA_VALIDATOR);
+                _tryParseAddress(json, DeploymentAddresses.KEY_WEIGHTED_VALIDATOR);
+                _tryParseAddress(json, DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR);
+
+                // Paymasters
+                _tryParseAddress(json, DeploymentAddresses.KEY_VERIFYING_PAYMASTER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_ERC20_PAYMASTER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_PERMIT2_PAYMASTER);
+
+                // Executors
+                _tryParseAddress(json, DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR);
+                _tryParseAddress(json, DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR);
+
+                // Hooks
+                _tryParseAddress(json, DeploymentAddresses.KEY_AUDIT_HOOK);
+                _tryParseAddress(json, DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK);
+
+                // Fallbacks
+                _tryParseAddress(json, DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK);
+                _tryParseAddress(json, DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK);
+
+                // Tokens & DeFi
+                _tryParseAddress(json, DeploymentAddresses.KEY_WKRW);
+                _tryParseAddress(json, DeploymentAddresses.KEY_PRICE_ORACLE);
+                _tryParseAddress(json, DeploymentAddresses.KEY_DEX_INTEGRATION);
+
+                // Privacy
+                _tryParseAddress(json, DeploymentAddresses.KEY_ANNOUNCER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_REGISTRY);
+                _tryParseAddress(json, DeploymentAddresses.KEY_PRIVATE_BANK);
+
+                // Bridge
+                _tryParseAddress(json, DeploymentAddresses.KEY_BRIDGE_VALIDATOR);
+                _tryParseAddress(json, DeploymentAddresses.KEY_BRIDGE_GUARDIAN);
+                _tryParseAddress(json, DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_SECURE_BRIDGE);
+
+                // Compliance
+                _tryParseAddress(json, DeploymentAddresses.KEY_KYC_REGISTRY);
+                _tryParseAddress(json, DeploymentAddresses.KEY_AUDIT_LOGGER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_PROOF_OF_RESERVE);
+                _tryParseAddress(json, DeploymentAddresses.KEY_REGULATORY_REGISTRY);
+
+                // Subscription
+                _tryParseAddress(json, DeploymentAddresses.KEY_PERMISSION_MANAGER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER);
+
+                console.log("Loaded existing deployment addresses from:", path);
+            }
+        } catch {
+            console.log("No existing deployment file found, starting fresh");
+        }
+    }
+
+    /**
+     * @notice Try to parse an address from JSON
+     */
+    function _tryParseAddress(string memory json, string memory key) internal {
+        try vm.parseJsonAddress(json, string.concat(".", key)) returns (address addr) {
+            if (addr != address(0)) {
+                _addresses[key] = addr;
+            }
+        } catch {
+            // Key doesn't exist, skip
+        }
+    }
+
+    /**
+     * @notice Save all addresses to JSON file
+     */
+    function _saveAddresses() internal {
+        string memory obj = "deployment";
+
+        // Build JSON object with all addresses
+        if (_addresses[DeploymentAddresses.KEY_ENTRYPOINT] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_ENTRYPOINT, _addresses[DeploymentAddresses.KEY_ENTRYPOINT]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_KERNEL] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_KERNEL, _addresses[DeploymentAddresses.KEY_KERNEL]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_KERNEL_FACTORY] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_KERNEL_FACTORY, _addresses[DeploymentAddresses.KEY_KERNEL_FACTORY]);
+        }
+
+        // Validators
+        if (_addresses[DeploymentAddresses.KEY_ECDSA_VALIDATOR] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_ECDSA_VALIDATOR, _addresses[DeploymentAddresses.KEY_ECDSA_VALIDATOR]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_WEIGHTED_VALIDATOR] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_WEIGHTED_VALIDATOR, _addresses[DeploymentAddresses.KEY_WEIGHTED_VALIDATOR]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR, _addresses[DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR]);
+        }
+
+        // Paymasters
+        if (_addresses[DeploymentAddresses.KEY_VERIFYING_PAYMASTER] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_VERIFYING_PAYMASTER, _addresses[DeploymentAddresses.KEY_VERIFYING_PAYMASTER]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_ERC20_PAYMASTER] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_ERC20_PAYMASTER, _addresses[DeploymentAddresses.KEY_ERC20_PAYMASTER]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_PERMIT2_PAYMASTER] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_PERMIT2_PAYMASTER, _addresses[DeploymentAddresses.KEY_PERMIT2_PAYMASTER]);
+        }
+
+        // Executors
+        if (_addresses[DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR, _addresses[DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR, _addresses[DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR]);
+        }
+
+        // Hooks
+        if (_addresses[DeploymentAddresses.KEY_AUDIT_HOOK] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_AUDIT_HOOK, _addresses[DeploymentAddresses.KEY_AUDIT_HOOK]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK, _addresses[DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK]);
+        }
+
+        // Fallbacks
+        if (_addresses[DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK, _addresses[DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK, _addresses[DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK]);
+        }
+
+        // Tokens & DeFi
+        if (_addresses[DeploymentAddresses.KEY_WKRW] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_WKRW, _addresses[DeploymentAddresses.KEY_WKRW]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_PRICE_ORACLE] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_PRICE_ORACLE, _addresses[DeploymentAddresses.KEY_PRICE_ORACLE]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_DEX_INTEGRATION] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_DEX_INTEGRATION, _addresses[DeploymentAddresses.KEY_DEX_INTEGRATION]);
+        }
+
+        // Privacy
+        if (_addresses[DeploymentAddresses.KEY_ANNOUNCER] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_ANNOUNCER, _addresses[DeploymentAddresses.KEY_ANNOUNCER]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_REGISTRY] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_REGISTRY, _addresses[DeploymentAddresses.KEY_REGISTRY]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_PRIVATE_BANK] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_PRIVATE_BANK, _addresses[DeploymentAddresses.KEY_PRIVATE_BANK]);
+        }
+
+        // Bridge
+        if (_addresses[DeploymentAddresses.KEY_BRIDGE_VALIDATOR] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_BRIDGE_VALIDATOR, _addresses[DeploymentAddresses.KEY_BRIDGE_VALIDATOR]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_BRIDGE_GUARDIAN] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_BRIDGE_GUARDIAN, _addresses[DeploymentAddresses.KEY_BRIDGE_GUARDIAN]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER, _addresses[DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER, _addresses[DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER, _addresses[DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_SECURE_BRIDGE] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_SECURE_BRIDGE, _addresses[DeploymentAddresses.KEY_SECURE_BRIDGE]);
+        }
+
+        // Compliance
+        if (_addresses[DeploymentAddresses.KEY_KYC_REGISTRY] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_KYC_REGISTRY, _addresses[DeploymentAddresses.KEY_KYC_REGISTRY]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_AUDIT_LOGGER] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_AUDIT_LOGGER, _addresses[DeploymentAddresses.KEY_AUDIT_LOGGER]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_PROOF_OF_RESERVE] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_PROOF_OF_RESERVE, _addresses[DeploymentAddresses.KEY_PROOF_OF_RESERVE]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_REGULATORY_REGISTRY] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_REGULATORY_REGISTRY, _addresses[DeploymentAddresses.KEY_REGULATORY_REGISTRY]);
+        }
+
+        // Subscription (last to get final JSON output)
+        if (_addresses[DeploymentAddresses.KEY_PERMISSION_MANAGER] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_PERMISSION_MANAGER, _addresses[DeploymentAddresses.KEY_PERMISSION_MANAGER]);
+        }
+
+        string memory finalJson;
+        if (_addresses[DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER] != address(0)) {
+            finalJson = vm.serializeAddress(obj, DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER, _addresses[DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER]);
+        } else {
+            // Create a dummy entry if subscription manager not set
+            finalJson = vm.serializeString(obj, "_chainId", vm.toString(chainId));
+        }
+
+        // Ensure directory exists and write file
+        string memory path = _getDeploymentPath();
+        vm.writeJson(finalJson, path);
+        console.log("Saved deployment addresses to:", path);
+    }
+
+    /**
+     * @notice Get a previously deployed address
+     * @param key The address key from DeploymentAddresses
+     * @return The address, or address(0) if not found
+     */
+    function _getAddress(string memory key) internal view returns (address) {
+        return _addresses[key];
+    }
+
+    /**
+     * @notice Set an address after deployment
+     * @param key The address key from DeploymentAddresses
+     * @param addr The deployed contract address
+     */
+    function _setAddress(string memory key, address addr) internal {
+        _addresses[key] = addr;
+    }
+
+    /**
+     * @notice Require a dependency address to exist
+     * @param key The address key to check
+     * @param dependencyName Human readable name for error message
+     */
+    function _requireDependency(string memory key, string memory dependencyName) internal view {
+        require(
+            _addresses[key] != address(0),
+            string.concat("Missing dependency: ", dependencyName, ". Deploy it first or set ", key, " in the addresses file.")
+        );
+    }
+
+    /**
+     * @notice Get address with fallback to environment variable
+     * @param key The address key from DeploymentAddresses
+     * @param envVar The environment variable name to use as fallback
+     * @return The address from cache, env var, or address(0)
+     */
+    function _getAddressOrEnv(string memory key, string memory envVar) internal returns (address) {
+        address cached = _addresses[key];
+        if (cached != address(0)) {
+            return cached;
+        }
+
+        // Try environment variable
+        address envAddr = vm.envOr(envVar, address(0));
+        if (envAddr != address(0)) {
+            _addresses[key] = envAddr;
+            return envAddr;
+        }
+
+        return address(0);
+    }
+}

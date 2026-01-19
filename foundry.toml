@@ -8,15 +8,44 @@ optimizer_runs = 200
 via_ir = true
 evm_version = "prague"
 
+# Exclude Uniswap V3 contracts (Solidity 0.7.6) from default compilation
+skip = ["lib/v3-core/*", "lib/v3-periphery/*"]
+
 # Load environment variables from .env file
 dotenv = true
 
 # Remappings
 remappings = [
     "forge-std/=lib/forge-std/src/",
+    # OZ v3 drafts for Uniswap V3 compatibility (must be before general OZ mapping)
+    "@openzeppelin/contracts/drafts/=lib/openzeppelin-contracts-v3/contracts/drafts/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "solady/=lib/solady/src/",
     "ExcessivelySafeCall/=lib/ExcessivelySafeCall/src/",
+    "@uniswap/v3-core/=lib/v3-core/",
+    "@uniswap/v3-periphery/=lib/v3-periphery/",
+    "@uniswap/lib/=lib/uniswap-lib/contracts/",
+    "base64-sol/=lib/base64-sol/",
+]
+
+# Profile for Uniswap V3 deployment (Solidity 0.7.6)
+[profile.uniswap]
+src = "script/uniswap"
+out = "out/uniswap"
+libs = ["lib"]
+solc = "0.7.6"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+evm_version = "istanbul"
+auto_detect_remappings = false
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@uniswap/v3-core/=lib/v3-core/",
+    "@uniswap/v3-periphery/=lib/v3-periphery/",
+    "@uniswap/lib/=lib/uniswap-lib/contracts/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts-v3/contracts/",
+    "base64-sol/=lib/base64-sol/",
 ]
 
 # File system permissions for deployment recording
@@ -55,6 +84,10 @@ max_test_rejects = 65536
 runs = 256
 depth = 15
 fail_on_revert = false
+
+# Linter
+[lint]
+exclude_lints = ["asm-keccak256"]
 
 # Documentation
 [doc]

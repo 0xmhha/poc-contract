@@ -14,14 +14,14 @@ import {
     ERC1271_INVALID
 } from "../erc7579-smartaccount/types/Constants.sol";
 
-struct ECDSAValidatorStorage {
+struct EcdsaValidatorStorage {
     address owner;
 }
 
 contract ECDSAValidator is IValidator, IHook {
     event OwnerRegistered(address indexed kernel, address indexed owner);
 
-    mapping(address => ECDSAValidatorStorage) public ecdsaValidatorStorage;
+    mapping(address => EcdsaValidatorStorage) public ecdsaValidatorStorage;
 
     function onInstall(bytes calldata _data) external payable override {
         address owner = address(bytes20(_data[0:20]));

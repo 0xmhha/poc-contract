@@ -81,6 +81,7 @@ contract VerifyingPaymaster is BasePaymaster {
         uint48 validAfter
     ) public view returns (bytes32) {
         // Hash the operation data excluding the paymaster signature
+        // forge-lint: disable-next-line(asm-keccak256)
         return keccak256(
             abi.encode(
                 userOp.sender,

@@ -344,6 +344,7 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
         pure
         returns (bytes32)
     {
+        // forge-lint: disable-next-line(asm-keccak256)
         return keccak256(
             abi.encode(
                 keccak256(
@@ -483,6 +484,7 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
                 state.validationConfig[vId].nonce == state.currentNonce ? state.currentNonce + 1 : state.currentNonce;
         }
 
+        // forge-lint: disable-next-line(asm-keccak256)
         bytes32 structHash = keccak256(
             abi.encode(
                 ENABLE_TYPE_HASH,
@@ -632,6 +634,7 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
     }
 
     function _toWrappedHash(bytes32 hash, bool isReplayable) internal view returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256)
         bytes32 structHash = keccak256(abi.encode(KERNEL_WRAPPER_TYPE_HASH, hash));
         return isReplayable ? _chainAgnosticHashTypedData(structHash) : _hashTypedData(structHash);
     }

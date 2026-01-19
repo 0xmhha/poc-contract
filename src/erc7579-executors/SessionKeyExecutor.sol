@@ -465,6 +465,7 @@ contract SessionKeyExecutor is IExecutor {
     }
 
     function _getPermissionHash(address target, bytes4 selector) internal pure returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256)
         return keccak256(abi.encodePacked(target, selector));
     }
 
@@ -475,6 +476,7 @@ contract SessionKeyExecutor is IExecutor {
         bytes calldata data,
         uint256 nonce
     ) internal view returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256)
         return keccak256(abi.encodePacked(
             block.chainid,
             address(this),

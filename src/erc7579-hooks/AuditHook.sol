@@ -432,6 +432,7 @@ contract AuditHook is IHook {
         uint256 value,
         bytes calldata data
     ) internal pure returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256)
         return keccak256(abi.encodePacked(account, target, value, data));
     }
 }

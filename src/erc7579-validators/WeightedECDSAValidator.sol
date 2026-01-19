@@ -14,7 +14,7 @@ import {
     MODULE_TYPE_VALIDATOR
 } from "../erc7579-smartaccount/types/Constants.sol";
 
-struct WeightedECDSAValidatorStorage {
+struct WeightedEcdsaValidatorStorage {
     uint24 totalWeight;
     uint24 threshold;
     uint48 delay;
@@ -48,7 +48,7 @@ struct VoteStorage {
 }
 
 contract WeightedECDSAValidator is EIP712, IValidator {
-    mapping(address kernel => WeightedECDSAValidatorStorage) public weightedStorage;
+    mapping(address kernel => WeightedEcdsaValidatorStorage) public weightedStorage;
     mapping(address guardian => mapping(address kernel => GuardianStorage)) public guardian;
     mapping(bytes32 callDataAndNonceHash => mapping(address kernel => ProposalStorage)) public proposalStatus;
     mapping(bytes32 callDataAndNonceHash => mapping(address guardian => mapping(address kernel => VoteStorage))) public
@@ -191,9 +191,10 @@ contract WeightedECDSAValidator is EIP712, IValidator {
         override
         returns (uint256)
     {
+        // forge-lint: disable-next-line(asm-keccak256)
         bytes32 callDataAndNonceHash = keccak256(abi.encode(userOp.sender, userOp.callData, userOp.nonce));
         ProposalStorage storage proposal = proposalStatus[callDataAndNonceHash][msg.sender];
-        WeightedECDSAValidatorStorage storage strg = weightedStorage[msg.sender];
+        WeightedEcdsaValidatorStorage storage strg = weightedStorage[msg.sender];
         if (strg.threshold == 0) {
             return SIG_VALIDATION_FAILED_UINT;
         }
@@ -258,7 +259,7 @@ contract WeightedECDSAValidator is EIP712, IValidator {
     }
 
     function getApproval(address kernel, bytes32 hash) public view returns (uint256 approvals, bool passed) {
-        WeightedECDSAValidatorStorage storage strg = weightedStorage[kernel];
+        WeightedEcdsaValidatorStorage storage strg = weightedStorage[kernel];
         for (
             address currentGuardian = strg.firstGuardian;
             currentGuardian != address(0);
@@ -277,7 +278,7 @@ contract WeightedECDSAValidator is EIP712, IValidator {
     }
 
     function isValidSignatureWithSender(address, bytes32 hash, bytes calldata data) external view returns (bytes4) {
-        WeightedECDSAValidatorStorage storage strg = weightedStorage[msg.sender];
+        WeightedEcdsaValidatorStorage storage strg = weightedStorage[msg.sender];
         if (strg.threshold == 0) {
             return ERC1271_INVALID;
         }

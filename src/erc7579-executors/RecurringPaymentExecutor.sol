@@ -245,7 +245,7 @@ contract RecurringPaymentExecutor is IExecutor {
         bytes[] memory result;
         if (schedule.token == address(0)) {
             // ETH payment
-            result = _executeETHPayment(account, schedule.recipient, schedule.amount);
+            result = _executeEthPayment(account, schedule.recipient, schedule.amount);
         } else {
             // ERC-20 payment
             result = _executeTokenPayment(account, schedule.token, schedule.recipient, schedule.amount);
@@ -432,7 +432,7 @@ contract RecurringPaymentExecutor is IExecutor {
         );
     }
 
-    function _executeETHPayment(
+    function _executeEthPayment(
         address account,
         address recipient,
         uint256 amount

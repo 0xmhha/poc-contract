@@ -74,9 +74,15 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         _;
     }
 
+    // Modifier requires local variable to pass data from pre to post hook
+    // forge-lint: disable-next-line(unwrapped-modifier-logic)
     modifier onlyEntryPointOrSelfOrRoot() {
         bytes memory hookRet = _checkEntryPointOrSelfOrRoot();
         _;
+        _postCheckHook(hookRet);
+    }
+
+    function _postCheckHook(bytes memory hookRet) internal {
         if (hookRet.length > 0) {
             IValidator validator = ValidatorLib.getValidator(_validationStorage().rootValidator);
             IHook(address(validator)).postCheck(hookRet);
