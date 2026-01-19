@@ -1,0 +1,23 @@
+{
+  "name": "poc-contract",
+  "version": "1.0.0",
+  "description": "StableNet POC Smart Contracts - ERC-4337 EntryPoint",
+  "scripts": {
+    "deploy": "node scripts/deploy.js",
+    "deploy:local": "NETWORK=local node scripts/deploy.js",
+    "deploy:sepolia": "NETWORK=sepolia node scripts/deploy.js",
+    "deploy:stablenet-testnet": "NETWORK=stablenet-testnet node scripts/deploy.js",
+    "deploy:stablenet": "NETWORK=stablenet node scripts/deploy.js",
+    "build": "forge build",
+    "test": "forge test",
+    "clean": "forge clean"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}
