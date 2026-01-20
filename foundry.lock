@@ -1,4 +1,10 @@
 {
+  "lib/ExcessivelySafeCall": {
+    "rev": "81cd99ce3e69117d665d7601c330ea03b97acce0"
+  },
+  "lib/base64-sol": {
+    "rev": "4d85607b18d981acff392d2e99ba654305552a97"
+  },
   "lib/forge-std": {
     "tag": {
       "name": "v1.14.0",
@@ -11,10 +17,31 @@
       "rev": "fcbae5394ae8ad52d8e580a3477db99814b9d565"
     }
   },
+  "lib/openzeppelin-contracts-v3": {
+    "rev": "8e0296096449d9b1cd7c5631e917330635244c37"
+  },
+  "lib/permit2": {
+    "rev": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+  },
   "lib/solady": {
     "tag": {
       "name": "v0.1.26",
       "rev": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
     }
+  },
+  "lib/solmate": {
+    "rev": "89365b880c4f3c786bdd453d4b8e8fe410344a69"
+  },
+  "lib/uniswap-lib": {
+    "rev": "c01640b0f0f1d8a85cba8de378cc48469fcfd9a6"
+  },
+  "lib/v3-core": {
+    "rev": "d8b1c635c275d2a9450bd6a78f3fa2484fef73eb"
+  },
+  "lib/v3-periphery": {
+    "rev": "0682387198a24c7cd63566a2c58398533860a5d1"
+  },
+  "lib/v4-periphery": {
+    "rev": "3779387e5d296f39df543d23524b050f89a62917"
   }
 }

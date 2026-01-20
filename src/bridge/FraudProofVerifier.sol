@@ -5,6 +5,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {BridgeValidator} from "./BridgeValidator.sol";
 
 /**
  * @title FraudProofVerifier
@@ -412,23 +413,58 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
 
     /**
      * @notice Verify invalid signature proof
-     * @param proof The fraud proof
-     * @return isValid Whether the proof is valid
+     * @dev Fraud proof is valid if signatures do NOT pass BridgeValidator verification
+     * @param proof The fraud proof containing BridgeMessage and signatures
+     * @return isValid True if fraud is proven (signatures are invalid)
+     *
+     * Evidence format: abi.encode(BridgeValidator.BridgeMessage, bytes[] signatures)
+     * - BridgeMessage: The bridge message that was supposedly validated
+     * - signatures: The signatures that were used to validate the message
+     *
+     * This proves fraud if:
+     * 1. The signatures do not meet the threshold requirement
+     * 2. The signatures are from unauthorized signers
+     * 3. The message was altered after signing
      */
     function _verifyInvalidSignatureProof(FraudProof calldata proof) internal view returns (bool) {
-        // Decode evidence: (bytes32 messageHash, bytes[] signatures, address[] expectedSigners)
         if (proof.evidence.length == 0) return false;
+        if (bridgeValidator == address(0)) revert ZeroAddress();
 
-        (bytes32 messageHash, bytes[] memory signatures, address[] memory expectedSigners) =
-            abi.decode(proof.evidence, (bytes32, bytes[], address[]));
+        // Decode evidence: BridgeMessage struct and signatures array
+        (
+            BridgeValidator.BridgeMessage memory message,
+            bytes[] memory signatures
+        ) = abi.decode(proof.evidence, (BridgeValidator.BridgeMessage, bytes[]));
 
-        // In a real implementation, this would call BridgeValidator to verify
-        // For now, we check if signatures don't match expected signers
-        if (signatures.length == 0 || expectedSigners.length == 0) return false;
+        // Basic validation
+        if (signatures.length == 0) return false;
 
-        // Placeholder: actual verification would call bridgeValidator.verifySignaturesView()
-        // and check if it returns false
-        return true;
+        // Call BridgeValidator to verify signatures
+        // If verification returns false, fraud is proven (signatures are invalid)
+        try BridgeValidator(bridgeValidator).verifySignaturesView(message, signatures) returns (
+            bool valid,
+            uint256 validCount
+        ) {
+            // Fraud is proven if signatures are NOT valid
+            // validCount helps understand how many signatures were actually valid
+            if (!valid) {
+                return true; // Fraud proven: insufficient valid signatures
+            }
+
+            // Additional check: verify the requestId matches
+            if (message.requestId != proof.requestId) {
+                return true; // Fraud proven: message requestId mismatch
+            }
+
+            return false; // No fraud: signatures are valid
+        } catch {
+            // If the call reverts, it could indicate:
+            // 1. Expired message (deadline passed)
+            // 2. Nonce already used
+            // 3. Other validation errors
+            // In these cases, we consider it as potential fraud evidence
+            return true;
+        }
     }
 
     /**
