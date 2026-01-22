@@ -1,45 +1,79 @@
-# Compiler files
+# =============================================================================
+# FOUNDRY BUILD ARTIFACTS (Ignore: regeneratable)
+# =============================================================================
 cache/
 out/
-
-# Ignores development broadcast logs
-!/broadcast
-/broadcast/*/31337/
-/broadcast/**/dry-run/
-
-# Foundry auto-generated docs (forge doc)
-docs/reference/
-
-# Dotenv file
-.env
-
-# Coverage
-lcov.info
-coverage/
-
-# Node modules (for scripts)
-node_modules/
-
-# IDE
-.idea/
-.vscode/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Claude Code
-claudedocs/
-
-# Foundry artifacts
-artifacts/
-typechain/
-typechain-types/
-
-# Gas snapshots
 .gas-snapshot
 
-# Deployment artifacts
-# Keep deployment records for production chains, ignore local test deployments
+# =============================================================================
+# FOUNDRY BROADCAST LOGS
+# =============================================================================
+# Track production network broadcasts, ignore local/dry-run
+/broadcast/*/31337/
+/broadcast/*/localhost/
+/broadcast/**/dry-run/
+
+# =============================================================================
+# DEPLOYMENTS
+# =============================================================================
+# Ignore local testnet deployment records
 deployments/31337/
 deployments/localhost/
+deployments/local.json
+
+# =============================================================================
+# ENVIRONMENT & SECRETS (Ignore: contains sensitive data)
+# =============================================================================
+.env
+.env.local
+.env.*.local
+# .env.example is tracked (template)
+
+# =============================================================================
+# DEPENDENCIES (Ignore: reinstallable via package.json)
+# =============================================================================
+node_modules/
+
+# Typechain/Hardhat artifacts (if used)
+typechain/
+typechain-types/
+artifacts/
+
+# =============================================================================
+# IDE & EDITOR (Ignore: personal settings)
+# =============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# =============================================================================
+# OS GENERATED FILES (Ignore: system files)
+# =============================================================================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =============================================================================
+# LOGS (Ignore: temporary debug files)
+# =============================================================================
+*.log
+
+# =============================================================================
+# TESTING & COVERAGE (Ignore: regeneratable)
+# =============================================================================
+lcov.info
+coverage/
+coverage.json
+
+# =============================================================================
+# DOCUMENTATION - AUTO GENERATED (Ignore: regeneratable via forge doc)
+# =============================================================================
+docs/reference/
+
+# =============================================================================
+# AI TOOLS (Ignore: personal workspace files)
+# =============================================================================
+claudedocs/

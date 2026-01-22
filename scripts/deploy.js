@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { execSync } = require("child_process");
+const fs = require("fs");
 const path = require("path");
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
@@ -242,6 +243,110 @@ function collectEnv(step, baseEnv) {
     return env;
 }
 
+function parseDeployedContracts(output) {
+    const contracts = [];
+    const seen = new Set(); // Avoid duplicates
+    const lines = output.split("\n");
+    
+    // Pattern 1: "ContractName deployed at: 0x..."
+    const deployedAtPattern = /(\w+(?:\s+\w+)*)\s+deployed\s+at:\s+(0x[a-fA-F0-9]{40})/i;
+    
+    // Pattern 2: "ContractName: 0x..." (in summary sections)
+    const summaryPattern = /^(\w+(?:\s+\w+)*):\s+(0x[a-fA-F0-9]{40})$/;
+    
+    // Pattern 3: "Contract deployed to: 0x..."
+    const deployedToPattern = /(\w+)\s+deployed\s+to:\s+(0x[a-fA-F0-9]{40})/i;
+    
+    // Pattern 4: "Deployed ContractName at 0x..."
+    const deployedAtPattern2 = /Deployed\s+(\w+(?:\s+\w+)*)\s+at\s+(0x[a-fA-F0-9]{40})/i;
+    
+    let inSummary = false;
+    
+    for (const line of lines) {
+        // Check for summary section start
+        if (line.includes("=== Deployment Summary ===") || 
+            line.includes("Deployment Summary") ||
+            line.includes("Summary:")) {
+            inSummary = true;
+            continue;
+        }
+        
+        // Stop summary section at empty line or next section
+        if (inSummary && (line.trim() === "" || line.startsWith("==="))) {
+            inSummary = false;
+        }
+        
+        // Try all patterns
+        let match = null;
+        if (inSummary) {
+            match = line.match(summaryPattern);
+        }
+        
+        if (!match) {
+            match = line.match(deployedAtPattern) || 
+                   line.match(deployedToPattern) || 
+                   line.match(deployedAtPattern2);
+        }
+        
+        if (match) {
+            const name = match[1].trim();
+            const address = match[2].toLowerCase();
+            const key = `${name}:${address}`;
+            
+            if (!seen.has(key)) {
+                seen.add(key);
+                contracts.push({ name, address: match[2] }); // Keep original case for address
+            }
+        }
+    }
+    
+    return contracts;
+}
+
+function getDeploymentFilePath(chainId) {
+    const deploymentsDir = path.join(__dirname, "..", "deployments");
+    const chainDir = path.join(deploymentsDir, chainId.toString());
+    const addressesFile = path.join(chainDir, "addresses.json");
+    return addressesFile;
+}
+
+function readDeploymentFile(chainId) {
+    const filePath = getDeploymentFilePath(chainId);
+    try {
+        if (fs.existsSync(filePath)) {
+            const content = fs.readFileSync(filePath, "utf8");
+            const data = JSON.parse(content);
+            
+            // Handle two different JSON structures:
+            // 1. Direct key-value: {"entryPoint": "0x...", "kernel": "0x..."}
+            // 2. Nested with contracts: {"contracts": {"EntryPoint": "0x..."}, ...}
+            
+            if (data.contracts) {
+                // Convert to flat structure for easier comparison
+                return { contracts: data.contracts };
+            } else {
+                // Already flat, wrap it
+                return { contracts: data };
+            }
+        }
+    } catch (error) {
+        // File doesn't exist or invalid JSON, that's okay
+    }
+    return null;
+}
+
+function displayDeployedContracts(contracts, stepLabel) {
+    if (contracts.length === 0) {
+        console.log("  ⚠️  No contracts detected in output");
+        return;
+    }
+    
+    console.log(`\n  📦 Deployed Contracts (${contracts.length}):`);
+    contracts.forEach((contract, idx) => {
+        console.log(`     ${idx + 1}. ${contract.name.padEnd(30)} ${contract.address}`);
+    });
+}
+
 function runStep(step, config, baseEnv) {
     const env = collectEnv(step, baseEnv);
     const command = formatCommand(step.target, config);
@@ -251,11 +356,84 @@ function runStep(step, config, baseEnv) {
     console.log(step.description);
     console.log("Command:", command);
 
-    execSync(command, {
-        cwd: path.join(__dirname, ".."),
-        stdio: "inherit",
-        env,
-    });
+    // Read deployment file before step (if exists)
+    const deploymentBefore = readDeploymentFile(config.chainId);
+    
+    let output = "";
+    let deployedContracts = [];
+    
+    try {
+        // Capture output while still showing it in real-time
+        // Use stdio: 'pipe' to capture, but we'll also inherit to show output
+        output = execSync(command, {
+            cwd: path.join(__dirname, ".."),
+            encoding: "utf8",
+            stdio: 'pipe', // Capture output
+            env,
+        });
+        
+        // Display the captured output
+        console.log(output);
+        
+        // Parse deployed contracts from output
+        deployedContracts = parseDeployedContracts(output);
+        
+        // Also check deployment file for new contracts
+        const deploymentAfter = readDeploymentFile(config.chainId);
+        if (deploymentAfter && deploymentAfter.contracts) {
+            const newContracts = [];
+            for (const [name, address] of Object.entries(deploymentAfter.contracts)) {
+                if (!address || typeof address !== 'string') continue;
+                
+                // Check if this is a new contract
+                const beforeAddr = deploymentBefore?.contracts?.[name];
+                const isNew = !beforeAddr || 
+                             beforeAddr.toLowerCase() !== address.toLowerCase();
+                
+                if (isNew) {
+                    // Avoid duplicates by checking both name and address
+                    const addrLower = address.toLowerCase();
+                    const isDuplicate = deployedContracts.some(
+                        c => c.name === name || c.address.toLowerCase() === addrLower
+                    );
+                    
+                    if (!isDuplicate) {
+                        newContracts.push({ name, address });
+                    }
+                }
+            }
+            deployedContracts.push(...newContracts);
+        }
+        
+    } catch (error) {
+        // execSync puts output in error.output array: [stdin, stdout, stderr]
+        if (error.output) {
+            const stdout = error.output[1] ? error.output[1].toString() : '';
+            const stderr = error.output[2] ? error.output[2].toString() : '';
+            output = stdout + stderr;
+            
+            // Display output even on error
+            if (stdout) console.log(stdout);
+            if (stderr) console.error(stderr);
+            
+            // Try to parse contracts from output
+            deployedContracts = parseDeployedContracts(output);
+        } else {
+            // Fallback: show error message
+            console.error(error.message || error);
+        }
+        // Re-throw to maintain error behavior
+        throw error;
+    }
+    
+    // Display deployed contracts summary
+    if (deployedContracts.length > 0) {
+        displayDeployedContracts(deployedContracts, step.label);
+    } else {
+        console.log("\n  ℹ️  No new contracts detected (may already be deployed)");
+    }
+    
+    return deployedContracts;
 }
 
 function main() {
@@ -287,14 +465,45 @@ function main() {
     const baseEnv = { ...process.env, NETWORK: network };
     const completed = new Set();
 
+    const allDeployedContracts = [];
+    
     steps.forEach((step) => {
         ensureDependencies(step, completed);
-        runStep(step, config, baseEnv);
+        const contracts = runStep(step, config, baseEnv);
+        if (contracts && contracts.length > 0) {
+            allDeployedContracts.push({ step: step.label, contracts });
+        }
         completed.add(step.id);
     });
 
     console.log("\n" + "=".repeat(60));
     console.log("Deployment plan completed successfully");
+    console.log("=".repeat(60));
+    
+    // Final summary of all deployed contracts
+    if (allDeployedContracts.length > 0) {
+        console.log("\n📋 Final Deployment Summary:");
+        console.log("-".repeat(60));
+        
+        let totalContracts = 0;
+        allDeployedContracts.forEach(({ step, contracts }) => {
+            console.log(`\n${step}:`);
+            contracts.forEach((contract) => {
+                console.log(`  • ${contract.name.padEnd(30)} ${contract.address}`);
+                totalContracts++;
+            });
+        });
+        
+        console.log("\n" + "-".repeat(60));
+        console.log(`Total contracts deployed: ${totalContracts}`);
+        
+        // Also show deployment file location if it exists
+        const deploymentFile = getDeploymentFilePath(config.chainId);
+        if (fs.existsSync(deploymentFile)) {
+            console.log(`\n💾 Deployment addresses saved to: ${path.relative(process.cwd(), deploymentFile)}`);
+        }
+    }
+    
     console.log("=".repeat(60));
 }
 

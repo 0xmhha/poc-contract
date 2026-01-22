@@ -6,8 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
-import {IQuoter} from "@uniswap/v3-periphery/contracts/interfaces/IQuoter.sol";
+import {IUniswapV3SwapRouter, IUniswapV3Quoter} from "./interfaces/UniswapV3.sol";
 
 /**
  * @title IWKRW
@@ -61,10 +60,10 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Uniswap V3 SwapRouter
-    ISwapRouter public swapRouter;
+    IUniswapV3SwapRouter public swapRouter;
 
     /// @notice Uniswap V3 Quoter
-    IQuoter public quoter;
+    IUniswapV3Quoter public quoter;
 
     /// @notice Wrapped native token (WKRW)
     IWKRW public wkrw;
@@ -96,8 +95,8 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         if (_swapRouter == address(0)) revert ZeroAddress();
         if (_wkrw == address(0)) revert ZeroAddress();
 
-        swapRouter = ISwapRouter(_swapRouter);
-        quoter = IQuoter(_quoter);
+        swapRouter = IUniswapV3SwapRouter(_swapRouter);
+        quoter = IUniswapV3Quoter(_quoter);
         wkrw = IWKRW(_wkrw);
     }
 
@@ -111,7 +110,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
      */
     function setSwapRouter(address _router) external onlyOwner {
         if (_router == address(0)) revert ZeroAddress();
-        swapRouter = ISwapRouter(_router);
+        swapRouter = IUniswapV3SwapRouter(_router);
         emit RouterUpdated(_router);
     }
 
@@ -120,7 +119,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
      * @param _quoter New quoter address
      */
     function setQuoter(address _quoter) external onlyOwner {
-        quoter = IQuoter(_quoter);
+        quoter = IUniswapV3Quoter(_quoter);
         emit QuoterUpdated(_quoter);
     }
 
@@ -181,7 +180,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         }
 
         // Execute swap
-        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+        IUniswapV3SwapRouter.ExactInputSingleParams memory params = IUniswapV3SwapRouter.ExactInputSingleParams({
             tokenIn: actualTokenIn,
             tokenOut: actualTokenOut,
             fee: fee,
@@ -249,7 +248,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         }
 
         // Execute swap
-        ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter.ExactOutputSingleParams({
+        IUniswapV3SwapRouter.ExactOutputSingleParams memory params = IUniswapV3SwapRouter.ExactOutputSingleParams({
             tokenIn: actualTokenIn,
             tokenOut: actualTokenOut,
             fee: fee,
@@ -321,7 +320,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
             IERC20(tokenIn).approve(address(swapRouter), amountIn);
         }
 
-        ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
+        IUniswapV3SwapRouter.ExactInputParams memory params = IUniswapV3SwapRouter.ExactInputParams({
             path: path,
             recipient: msg.sender,
             deadline: deadline,

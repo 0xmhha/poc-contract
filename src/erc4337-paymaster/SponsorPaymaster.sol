@@ -152,25 +152,25 @@ contract SponsorPaymaster is BasePaymaster {
     /**
      * @notice Add/remove address from whitelist
      * @param account The address
-     * @param isWhitelisted Whether to whitelist
+     * @param allowed Whether to whitelist
      */
-    function setWhitelist(address account, bool isWhitelisted) external onlyOwner {
-        whitelist[account] = isWhitelisted;
-        emit WhitelistUpdated(account, isWhitelisted);
+    function setWhitelist(address account, bool allowed) external onlyOwner {
+        whitelist[account] = allowed;
+        emit WhitelistUpdated(account, allowed);
     }
 
     /**
      * @notice Batch whitelist update
      * @param accounts Array of addresses
-     * @param isWhitelisted Whether to whitelist all
+     * @param allowed Whether to whitelist all
      */
     function setWhitelistBatch(
         address[] calldata accounts,
-        bool isWhitelisted
+        bool allowed
     ) external onlyOwner {
         for (uint256 i = 0; i < accounts.length; i++) {
-            whitelist[accounts[i]] = isWhitelisted;
-            emit WhitelistUpdated(accounts[i], isWhitelisted);
+            whitelist[accounts[i]] = allowed;
+            emit WhitelistUpdated(accounts[i], allowed);
         }
     }
 

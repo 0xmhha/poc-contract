@@ -350,8 +350,31 @@ abstract contract DeploymentHelper is Script {
 
         // Ensure directory exists and write file
         string memory path = _getDeploymentPath();
-        vm.writeJson(finalJson, path);
-        console.log("Saved deployment addresses to:", path);
+        
+        // Extract directory path from file path (e.g., "deployments/31337/addresses.json" -> "deployments/31337")
+        string memory dirPath = string.concat(
+            DeploymentAddresses.DEPLOYMENTS_DIR,
+            vm.toString(chainId)
+        );
+        
+        // Create directory if it doesn't exist (recursive = true to create parent dirs if needed)
+        // forge-lint: disable-next-line(unsafe-cheatcode)
+        try vm.createDir(dirPath, true) {
+            // Directory created successfully
+        } catch {
+            // Directory creation failed, but continue - vm.writeJson might still work
+            // or the directory might already exist
+        }
+        
+        // Write JSON file
+        // forge-lint: disable-next-line(unsafe-cheatcode)
+        try vm.writeJson(finalJson, path) {
+            console.log("Saved deployment addresses to:", path);
+        } catch {
+            console.log("Warning: Could not save addresses to file. Add fs_permissions to foundry.toml:");
+            console.log("  fs_permissions = [{ access = \"read-write\", path = \"./deployments\" }]");
+            console.log("Deployment was successful. Addresses are logged above.");
+        }
     }
 
     /**

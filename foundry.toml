@@ -7,6 +7,18 @@ optimizer = true
 optimizer_runs = 200
 via_ir = true
 evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+
+# Fast build profile for development (disable IR, lower optimizer runs)
+[profile.fast]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.28"
+optimizer = true
+optimizer_runs = 1
+via_ir = false
+evm_version = "prague"
 
 # Exclude Uniswap contracts, dex folder and nested libs from default compilation
 skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "lib/permit2/lib/*", "src/dex/*"]
@@ -95,11 +107,6 @@ remappings = [
     "@uniswap/lib/=lib/uniswap-lib/contracts/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts-v3/contracts/",
     "base64-sol/=lib/base64-sol/",
-]
-
-# File system permissions for deployment recording
-fs_permissions = [
-    { access = "read-write", path = "./deployments" }
 ]
 
 [rpc_endpoints]

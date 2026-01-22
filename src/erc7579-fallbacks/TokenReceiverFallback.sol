@@ -292,15 +292,15 @@ contract TokenReceiverFallback is IFallback {
     /**
      * @notice Batch update whitelist
      * @param tokens Token addresses
-     * @param isWhitelisted Whether each token is whitelisted
+     * @param whitelistFlags Whether each token is whitelisted
      */
-    function batchUpdateWhitelist(address[] calldata tokens, bool[] calldata isWhitelisted) external {
-        require(tokens.length == isWhitelisted.length, "Length mismatch");
+    function batchUpdateWhitelist(address[] calldata tokens, bool[] calldata whitelistFlags) external {
+        require(tokens.length == whitelistFlags.length, "Length mismatch");
 
         AccountStorage storage store = accountStorage[msg.sender];
         for (uint256 i = 0; i < tokens.length; i++) {
-            store.tokenWhitelist[tokens[i]] = isWhitelisted[i];
-            emit TokenWhitelistUpdated(msg.sender, tokens[i], isWhitelisted[i]);
+            store.tokenWhitelist[tokens[i]] = whitelistFlags[i];
+            emit TokenWhitelistUpdated(msg.sender, tokens[i], whitelistFlags[i]);
         }
     }
 

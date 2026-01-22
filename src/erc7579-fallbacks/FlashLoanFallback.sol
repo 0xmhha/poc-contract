@@ -338,15 +338,15 @@ contract FlashLoanFallback is IFallback {
     /**
      * @notice Batch update whitelist
      * @param protocols Protocol addresses
-     * @param isWhitelisted Whether each protocol is whitelisted
+     * @param whitelistFlags Whether each protocol is whitelisted
      */
-    function batchUpdateWhitelist(address[] calldata protocols, bool[] calldata isWhitelisted) external {
-        require(protocols.length == isWhitelisted.length, "Length mismatch");
+    function batchUpdateWhitelist(address[] calldata protocols, bool[] calldata whitelistFlags) external {
+        require(protocols.length == whitelistFlags.length, "Length mismatch");
 
         AccountStorage storage store = accountStorage[msg.sender];
         for (uint256 i = 0; i < protocols.length; i++) {
-            store.protocolWhitelist[protocols[i]] = isWhitelisted[i];
-            emit ProtocolWhitelistUpdated(msg.sender, protocols[i], isWhitelisted[i]);
+            store.protocolWhitelist[protocols[i]] = whitelistFlags[i];
+            emit ProtocolWhitelistUpdated(msg.sender, protocols[i], whitelistFlags[i]);
         }
     }
 

@@ -1,7 +1,7 @@
 {
   "name": "poc-contract",
-  "version": "1.0.0",
-  "description": "StableNet POC Smart Contracts - ERC-4337 EntryPoint",
+  "version": "0.1.0",
+  "description": "StableNet POC Smart Contracts",
   "scripts": {
     "deploy": "node scripts/deploy.js",
     "deploy:local": "NETWORK=local node scripts/deploy.js",
