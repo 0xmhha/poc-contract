@@ -8,7 +8,7 @@ import {ERC20Paymaster} from "../src/erc4337-paymaster/ERC20Paymaster.sol";
 import {VerifyingPaymaster} from "../src/erc4337-paymaster/VerifyingPaymaster.sol";
 import {Permit2Paymaster} from "../src/erc4337-paymaster/Permit2Paymaster.sol";
 import {IPriceOracle} from "../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
-import {IPermit2} from "../src/erc4337-paymaster/interfaces/IPermit2.sol";
+import {IPermit2} from "../src/permit2/interfaces/IPermit2.sol";
 
 /**
  * @title DeployPaymastersScript

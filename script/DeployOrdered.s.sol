@@ -42,7 +42,7 @@ import {BasePaymaster} from "../src/erc4337-paymaster/BasePaymaster.sol";
 import {VerifyingPaymaster} from "../src/erc4337-paymaster/VerifyingPaymaster.sol";
 import {ERC20Paymaster} from "../src/erc4337-paymaster/ERC20Paymaster.sol";
 import {Permit2Paymaster} from "../src/erc4337-paymaster/Permit2Paymaster.sol";
-import {IPermit2} from "../src/erc4337-paymaster/interfaces/IPermit2.sol";
+import {IPermit2} from "../src/permit2/interfaces/IPermit2.sol";
 import {SponsorPaymaster} from "../src/erc4337-paymaster/SponsorPaymaster.sol";
 
 // ============ ERC-7579 ============

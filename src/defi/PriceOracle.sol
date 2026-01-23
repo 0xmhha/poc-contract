@@ -4,7 +4,9 @@ pragma solidity ^0.8.0;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IUniswapV3Pool} from "./interfaces/UniswapV3.sol";
+import {IPriceOracle} from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
 
 /**
  * @title Chainlink Aggregator V3 Interface
@@ -35,7 +37,7 @@ interface AggregatorV3Interface {
  * @notice Unified price oracle supporting Chainlink feeds and Uniswap V3 TWAP
  * @dev Provides price data for tokens with configurable data sources
  */
-contract PriceOracle is Ownable {
+contract PriceOracle is Ownable, IPriceOracle {
     using SafeCast for int256;
     using SafeCast for int56;
 
@@ -48,6 +50,9 @@ contract PriceOracle is Ownable {
     error InvalidPrice(address token);
     error ZeroAddress();
     error InvalidStalenessThreshold();
+    error TickOverflow(address token, int256 tick);
+    error InvalidPoolConfiguration(address token);
+    error InvalidTick();
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -72,6 +77,9 @@ contract PriceOracle is Ownable {
         uint32 twapPeriod;
         bool isToken0;
         bool active;
+        uint8 tokenDecimals;      // decimals of the target token
+        uint8 quoteDecimals;      // decimals of the quote token in pool
+        address quoteToken;       // quote token address (address(0) if USD-pegged)
     }
 
     struct PriceData {
@@ -135,25 +143,60 @@ contract PriceOracle is Ownable {
      * @param token The token address to get price for
      * @param pool The Uniswap V3 pool address
      * @param twapPeriod The TWAP period in seconds
+     * @param quoteToken The quote token address (address(0) if quote is USD-pegged stablecoin)
      */
     function setUniswapPool(
         address token,
         address pool,
-        uint32 twapPeriod
+        uint32 twapPeriod,
+        address quoteToken
     ) external onlyOwner {
         if (pool == address(0)) revert ZeroAddress();
 
         IUniswapV3Pool uniPool = IUniswapV3Pool(pool);
-        bool isToken0 = uniPool.token0() == token;
+        address token0 = uniPool.token0();
+        address token1 = uniPool.token1();
+
+        // Validate token is in the pool
+        bool isToken0 = token0 == token;
+        bool isToken1 = token1 == token;
+        if (!isToken0 && !isToken1) revert InvalidPoolConfiguration(token);
+
+        // Get decimals for both tokens
+        uint8 tokenDecimals = _getTokenDecimals(token);
+        address otherToken = isToken0 ? token1 : token0;
+        uint8 quoteDecimals = _getTokenDecimals(otherToken);
+
+        // Validate quoteToken if provided
+        if (quoteToken != address(0) && quoteToken != otherToken) {
+            revert InvalidPoolConfiguration(token);
+        }
 
         uniswapPools[token] = UniswapConfig({
             pool: uniPool,
             twapPeriod: twapPeriod,
             isToken0: isToken0,
-            active: true
+            active: true,
+            tokenDecimals: tokenDecimals,
+            quoteDecimals: quoteDecimals,
+            quoteToken: quoteToken == address(0) ? address(0) : otherToken
         });
 
         emit UniswapPoolSet(token, pool, twapPeriod);
+    }
+
+    /**
+     * @notice Get token decimals safely
+     * @param token The token address
+     * @return decimals The token decimals (defaults to 18 for native token)
+     */
+    function _getTokenDecimals(address token) internal view returns (uint8) {
+        if (token == NATIVE_TOKEN) return 18;
+        try IERC20Metadata(token).decimals() returns (uint8 decimals) {
+            return decimals;
+        } catch {
+            return 18; // Default to 18 if decimals() fails
+        }
     }
 
     /**
@@ -193,9 +236,39 @@ contract PriceOracle is Ownable {
      * @param token The token address (address(0) for native token)
      * @return price The price scaled to PRICE_DECIMALS
      */
-    function getPrice(address token) external view returns (uint256 price) {
+    function getPrice(address token) external view override returns (uint256 price) {
         PriceData memory data = getPriceData(token);
         return data.price;
+    }
+
+    /**
+     * @notice Get the price and last update timestamp (IPriceOracle interface)
+     * @param token The token address
+     * @return price The price with 18 decimals precision
+     * @return updatedAt Timestamp of last price update
+     */
+    function getPriceWithTimestamp(
+        address token
+    ) external view override returns (uint256 price, uint256 updatedAt) {
+        PriceData memory data = getPriceData(token);
+        return (data.price, data.updatedAt);
+    }
+
+    /**
+     * @notice Check if the oracle has a valid price for a token (IPriceOracle interface)
+     * @param token The token address
+     * @return True if a valid price exists
+     */
+    function hasValidPrice(address token) external view override returns (bool) {
+        // Check if feed exists
+        if (!this.hasPriceFeed(token)) return false;
+
+        // Try to get price and check if it's valid
+        try this.getPrice(token) returns (uint256 price) {
+            return price > 0;
+        } catch {
+            return false;
+        }
     }
 
     /**
@@ -280,9 +353,13 @@ contract PriceOracle is Ownable {
         int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
         int56 twapPeriodInt56 = int56(int32(config.twapPeriod));
         int256 meanTickInt256 = int256(tickCumulativesDelta / twapPeriodInt56);
+
         // Validate int24 range before casting
-        require(meanTickInt256 >= type(int24).min && meanTickInt256 <= type(int24).max, "Tick overflow");
-        // Casting to int24 is safe: range validated by require above
+        if (meanTickInt256 < type(int24).min || meanTickInt256 > type(int24).max) {
+            revert TickOverflow(token, meanTickInt256);
+        }
+
+        // Casting to int24 is safe: range validated above
         // forge-lint: disable-next-line(unsafe-typecast)
         int24 arithmeticMeanTick = int24(meanTickInt256);
 
@@ -291,9 +368,23 @@ contract PriceOracle is Ownable {
             arithmeticMeanTick--;
         }
 
-        // Convert tick to price
-        // price = 1.0001^tick
-        uint256 price = _tickToPrice(arithmeticMeanTick, config.isToken0);
+        // Convert tick to raw price (Q192 format normalized)
+        uint256 rawPrice = _tickToPrice(arithmeticMeanTick, config.isToken0);
+
+        // Adjust for token decimals difference
+        // Uniswap V3 price = token1/token0, need to scale based on decimals
+        uint256 price = _adjustPriceForDecimals(
+            rawPrice,
+            config.tokenDecimals,
+            config.quoteDecimals,
+            config.isToken0
+        );
+
+        // If quote token is not USD-pegged, convert using quote token's USD price
+        if (config.quoteToken != address(0)) {
+            uint256 quotePrice = _getQuoteTokenPrice(config.quoteToken);
+            price = (price * quotePrice) / (10 ** PRICE_DECIMALS);
+        }
 
         return PriceData({
             price: price,
@@ -301,6 +392,64 @@ contract PriceOracle is Ownable {
             updatedAt: block.timestamp,
             source: "UniswapV3TWAP"
         });
+    }
+
+    /**
+     * @notice Adjust price for token decimals difference
+     * @dev Uniswap V3 tick represents price as token1/token0
+     * @param rawPrice The raw price from tick calculation
+     * @param tokenDecimals Decimals of the target token
+     * @param quoteDecimals Decimals of the quote token
+     * @param isToken0 Whether target token is token0 in the pool
+     */
+    function _adjustPriceForDecimals(
+        uint256 rawPrice,
+        uint8 tokenDecimals,
+        uint8 quoteDecimals,
+        bool isToken0
+    ) internal pure returns (uint256) {
+        // The tick-based price already accounts for the mathematical ratio
+        // We need to adjust for decimal differences between tokens
+        //
+        // If isToken0: price = quote/token = token1/token0
+        //   - Need to scale by 10^(tokenDecimals - quoteDecimals)
+        // If !isToken0: price = quote/token = token0/token1
+        //   - Need to scale by 10^(tokenDecimals - quoteDecimals)
+
+        if (isToken0) {
+            // Target is token0, quote is token1
+            // Adjust: multiply by 10^(token0Decimals) / 10^(token1Decimals)
+            if (tokenDecimals >= quoteDecimals) {
+                return rawPrice * (10 ** (tokenDecimals - quoteDecimals));
+            } else {
+                return rawPrice / (10 ** (quoteDecimals - tokenDecimals));
+            }
+        } else {
+            // Target is token1, quote is token0
+            // Adjust: multiply by 10^(token1Decimals) / 10^(token0Decimals)
+            if (tokenDecimals >= quoteDecimals) {
+                return rawPrice * (10 ** (tokenDecimals - quoteDecimals));
+            } else {
+                return rawPrice / (10 ** (quoteDecimals - tokenDecimals));
+            }
+        }
+    }
+
+    /**
+     * @notice Get USD price of a quote token (for non-USD pairs)
+     * @param quoteToken The quote token address
+     * @return price The USD price of the quote token
+     */
+    function _getQuoteTokenPrice(address quoteToken) internal view returns (uint256) {
+        // First try Chainlink for the quote token
+        ChainlinkConfig memory clConfig = chainlinkFeeds[quoteToken];
+        if (clConfig.active) {
+            PriceData memory data = _getChainlinkPrice(quoteToken, clConfig);
+            return data.price;
+        }
+
+        // If no Chainlink feed, revert - we can't reliably price without USD reference
+        revert NoPriceFeed(quoteToken);
     }
 
     /**
@@ -333,7 +482,7 @@ contract PriceOracle is Ownable {
         // Compute absolute value safely
         int256 tickInt256 = int256(tick);
         uint256 absTick = (tick < 0 ? -tickInt256 : tickInt256).toUint256();
-        require(absTick <= uint256(int256(type(int24).max)), "T");
+        if (absTick > uint256(int256(type(int24).max))) revert InvalidTick();
 
         uint256 ratio = absTick & 0x1 != 0
             ? 0xfffcb933bd6fad37aa2d162d1a594001
@@ -382,10 +531,11 @@ contract PriceOracle is Ownable {
         if (amount == 0) return 0;
         if (fromToken == toToken) return amount;
 
-        uint256 fromPrice = this.getPrice(fromToken);
-        uint256 toPrice = this.getPrice(toToken);
+        // Use internal getPriceData to avoid external call overhead
+        PriceData memory fromData = getPriceData(fromToken);
+        PriceData memory toData = getPriceData(toToken);
 
-        return (amount * fromPrice) / toPrice;
+        return (amount * fromData.price) / toData.price;
     }
 
     /**

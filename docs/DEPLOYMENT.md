@@ -242,6 +242,77 @@ cast send <ENTRYPOINT_ADDRESS> "depositTo(address)" <PAYMASTER_ADDRESS> \
   --rpc-url http://127.0.0.1:8545
 ```
 
+## Post-Deployment Configuration
+
+### PriceOracle Feed Registration
+
+> **IMPORTANT**: PriceOracle requires feed registration after deployment. Without registered feeds, price queries will revert with `NoPriceFeed` error.
+
+#### Chainlink Feed Registration
+
+```solidity
+// Register Chainlink price feeds (Owner only)
+IPriceOracle oracle = IPriceOracle(PRICE_ORACLE_ADDRESS);
+
+// ETH/USD feed
+oracle.setChainlinkFeed(
+    address(0),                           // Native token (ETH)
+    0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419  // Chainlink ETH/USD (Mainnet)
+);
+
+// USDC/USD feed
+oracle.setChainlinkFeed(
+    USDC_ADDRESS,
+    0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6  // Chainlink USDC/USD (Mainnet)
+);
+```
+
+#### Uniswap V3 TWAP Registration
+
+```solidity
+// Register Uniswap V3 pool for TWAP (Owner only)
+oracle.setUniswapPool(
+    TOKEN_ADDRESS,           // Token to price
+    UNISWAP_POOL_ADDRESS,    // Uniswap V3 pool
+    1800,                    // TWAP period (30 minutes)
+    address(0)               // Quote token (address(0) if USD-pegged)
+);
+
+// For non-USD pairs (e.g., TOKEN/WETH)
+oracle.setUniswapPool(
+    TOKEN_ADDRESS,
+    TOKEN_WETH_POOL,
+    1800,
+    WETH_ADDRESS             // Quote token (needs Chainlink feed)
+);
+```
+
+#### Chainlink Feed Addresses (Reference)
+
+| Network | Token | Feed Address |
+|---------|-------|--------------|
+| Mainnet | ETH/USD | `0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419` |
+| Mainnet | USDC/USD | `0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6` |
+| Mainnet | USDT/USD | `0x3E7d1eAB13ad0104d2750B8863b489D65364e32D` |
+| Sepolia | ETH/USD | `0x694AA1769357215DE4FAC081bf1f309aDC325306` |
+| Sepolia | USDC/USD | `0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E` |
+
+> **Note**: Always verify feed addresses from [Chainlink Data Feeds](https://docs.chain.link/data-feeds/price-feeds/addresses)
+
+#### Verification
+
+```solidity
+// Check if feed is registered
+bool hasFeed = oracle.hasPriceFeed(TOKEN_ADDRESS);
+
+// Check if price is valid (not stale)
+bool isValid = oracle.hasValidPrice(TOKEN_ADDRESS);
+
+// Get price source
+string memory source = oracle.getPriceSource(TOKEN_ADDRESS);
+// Returns: "Chainlink", "UniswapV3TWAP", or "None"
+```
+
 ## Troubleshooting
 
 ### 1. CreateCollision Error

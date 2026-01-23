@@ -25,9 +25,6 @@
 [submodule "lib/base64-sol"]
 	path = lib/base64-sol
 	url = https://github.com/Brechtpd/base64.git
-[submodule "lib/permit2"]
-	path = lib/permit2
-	url = https://github.com/Uniswap/permit2
 [submodule "lib/solmate"]
 	path = lib/solmate
 	url = https://github.com/transmissions11/solmate

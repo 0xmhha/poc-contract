@@ -3,7 +3,8 @@ pragma solidity ^0.8.28;
 
 import {BasePaymaster} from "./BasePaymaster.sol";
 import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
-import {IPermit2} from "./interfaces/IPermit2.sol";
+import {IPermit2} from "../permit2/interfaces/IPermit2.sol";
+import {IAllowanceTransfer} from "../permit2/interfaces/IAllowanceTransfer.sol";
 import {IEntryPoint} from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import {UserOperationLib} from "../erc4337-entrypoint/UserOperationLib.sol";
@@ -228,8 +229,8 @@ contract Permit2Paymaster is BasePaymaster {
         uint256 maxTokenCost = getTokenAmount(token, maxCost);
 
         // Execute Permit2 permit to approve this paymaster
-        IPermit2.PermitSingle memory permitSingle = IPermit2.PermitSingle({
-            details: IPermit2.PermitDetails({
+        IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
+            details: IAllowanceTransfer.PermitDetails({
                 token: token,
                 amount: permitAmount,
                 expiration: expiration,

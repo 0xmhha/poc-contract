@@ -3,11 +3,36 @@ src = "src"
 out = "out"
 libs = ["lib"]
 solc = "0.8.28"
+auto_detect_remappings = false
 optimizer = true
 optimizer_runs = 200
 via_ir = true
 evm_version = "prague"
 fs_permissions = [{ access = "read-write", path = "deployments" }]
+dotenv = true
+# Exclude Uniswap contracts, dex folder and nested libs from default compilation
+skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "src/dex/*"]
+# OZ v5 as default, with specific v3 overrides for Uniswap V3 compatibility
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/contracts/drafts/=lib/openzeppelin-contracts-v3/contracts/drafts/",
+    "@openzeppelin/contracts/token/ERC721/IERC721.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721.sol",
+    "@openzeppelin/contracts/token/ERC721/IERC721Metadata.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721Metadata.sol",
+    "@openzeppelin/contracts/token/ERC721/IERC721Enumerable.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721Enumerable.sol",
+    "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721Receiver.sol",
+    "@openzeppelin/contracts/introspection/=lib/openzeppelin-contracts-v3/contracts/introspection/",
+    "solady/=lib/solady/src/",
+    "solmate/=lib/solmate/",
+    "ExcessivelySafeCall/=lib/ExcessivelySafeCall/src/",
+    "@uniswap/v2-core/=lib/v2-core/",
+    "@uniswap/v3-core/=lib/v3-core/",
+    "@uniswap/v3-periphery/=lib/v3-periphery/",
+    "@uniswap/v4-core/=lib/v4-core/",
+    "@uniswap/v4-periphery/=lib/v4-periphery/",
+    "@uniswap/lib/=lib/uniswap-lib/contracts/",
+    "base64-sol/=lib/base64-sol/",
+]
 
 # Fast build profile for development (disable IR, lower optimizer runs)
 [profile.fast]
@@ -19,37 +44,6 @@ optimizer = true
 optimizer_runs = 1
 via_ir = false
 evm_version = "prague"
-
-# Exclude Uniswap contracts, dex folder and nested libs from default compilation
-skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "lib/permit2/lib/*", "src/dex/*"]
-
-# Load environment variables from .env file
-dotenv = true
-
-# Remappings
-remappings = [
-    "forge-std/=lib/forge-std/src/",
-    # OZ v3 for Uniswap V3 compatibility (specific paths must be before general OZ mapping)
-    "@openzeppelin/contracts/drafts/=lib/openzeppelin-contracts-v3/contracts/drafts/",
-    "@openzeppelin/contracts/token/ERC721/IERC721.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721.sol",
-    "@openzeppelin/contracts/token/ERC721/IERC721Metadata.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721Metadata.sol",
-    "@openzeppelin/contracts/token/ERC721/IERC721Enumerable.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721Enumerable.sol",
-    "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721Receiver.sol",
-    "@openzeppelin/contracts/introspection/=lib/openzeppelin-contracts-v3/contracts/introspection/",
-    # OZ v5 for everything else
-    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-    "solady/=lib/solady/src/",
-    "solmate/=lib/solmate/",
-    "ExcessivelySafeCall/=lib/ExcessivelySafeCall/src/",
-    "@uniswap/v2-core/=lib/v2-core/",
-    "@uniswap/v3-core/=lib/v3-core/",
-    "@uniswap/v3-periphery/=lib/v3-periphery/",
-    "@uniswap/v4-core/=lib/v4-core/",
-    "@uniswap/v4-periphery/=lib/v4-periphery/",
-    "@uniswap/lib/=lib/uniswap-lib/contracts/",
-    "permit2/=lib/permit2/",
-    "base64-sol/=lib/base64-sol/",
-]
 
 # Profile for Universal Router (Solidity 0.8.24+)
 [profile.universal-router]
@@ -64,17 +58,15 @@ optimizer_runs = 200
 via_ir = true
 evm_version = "cancun"
 auto_detect_remappings = false
-# Override skip to not exclude src/dex
-skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "lib/permit2/lib/*"]
+skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*"]
+# OZ v3 specific paths for v3-periphery ERC721 compatibility
 remappings = [
     "forge-std/=lib/forge-std/src/",
-    # OZ v3 for v3-periphery ERC721 compatibility
     "@openzeppelin/contracts/token/ERC721/IERC721.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721.sol",
     "@openzeppelin/contracts/token/ERC721/IERC721Metadata.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721Metadata.sol",
     "@openzeppelin/contracts/token/ERC721/IERC721Enumerable.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721Enumerable.sol",
     "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol=lib/openzeppelin-contracts-v3/contracts/token/ERC721/IERC721Receiver.sol",
     "@openzeppelin/contracts/introspection/=lib/openzeppelin-contracts-v3/contracts/introspection/",
-    # OZ v5 for everything else
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "solady/=lib/solady/src/",
     "solmate/=lib/solmate/",
@@ -85,7 +77,6 @@ remappings = [
     "@uniswap/v4-core/=lib/v4-core/",
     "@uniswap/v4-periphery/=lib/v4-periphery/",
     "@uniswap/lib/=lib/uniswap-lib/contracts/",
-    "permit2/=lib/permit2/",
     "base64-sol/=lib/base64-sol/",
 ]
 

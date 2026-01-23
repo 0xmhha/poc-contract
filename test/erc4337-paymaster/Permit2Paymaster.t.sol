@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {Permit2Paymaster} from "../../src/erc4337-paymaster/Permit2Paymaster.sol";
 import {IPriceOracle} from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
-import {IPermit2} from "../../src/erc4337-paymaster/interfaces/IPermit2.sol";
+import {IPermit2} from "../../src/permit2/interfaces/IPermit2.sol";
 import {IEntryPoint} from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import {EntryPoint} from "../../src/erc4337-entrypoint/EntryPoint.sol";

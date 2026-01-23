@@ -54,6 +54,7 @@ library DeploymentAddresses {
 
     // Paymasters
     string constant KEY_VERIFYING_PAYMASTER = "verifyingPaymaster";
+    string constant KEY_SPONSOR_PAYMASTER = "sponsorPaymaster";
     string constant KEY_ERC20_PAYMASTER = "erc20Paymaster";
     string constant KEY_PERMIT2_PAYMASTER = "permit2Paymaster";
 
@@ -70,7 +71,9 @@ library DeploymentAddresses {
     string constant KEY_FLASH_LOAN_FALLBACK = "flashLoanFallback";
 
     // Tokens & DeFi
+    string constant KEY_PERMIT2 = "permit2";
     string constant KEY_WKRW = "wkrw";
+    string constant KEY_STABLE_TOKEN = "stableToken";
     string constant KEY_PRICE_ORACLE = "priceOracle";
     string constant KEY_DEX_INTEGRATION = "dexIntegration";
 
@@ -153,6 +156,7 @@ abstract contract DeploymentHelper is Script {
 
                 // Paymasters
                 _tryParseAddress(json, DeploymentAddresses.KEY_VERIFYING_PAYMASTER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_SPONSOR_PAYMASTER);
                 _tryParseAddress(json, DeploymentAddresses.KEY_ERC20_PAYMASTER);
                 _tryParseAddress(json, DeploymentAddresses.KEY_PERMIT2_PAYMASTER);
 
@@ -169,7 +173,9 @@ abstract contract DeploymentHelper is Script {
                 _tryParseAddress(json, DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK);
 
                 // Tokens & DeFi
+                _tryParseAddress(json, DeploymentAddresses.KEY_PERMIT2);
                 _tryParseAddress(json, DeploymentAddresses.KEY_WKRW);
+                _tryParseAddress(json, DeploymentAddresses.KEY_STABLE_TOKEN);
                 _tryParseAddress(json, DeploymentAddresses.KEY_PRICE_ORACLE);
                 _tryParseAddress(json, DeploymentAddresses.KEY_DEX_INTEGRATION);
 
@@ -248,6 +254,9 @@ abstract contract DeploymentHelper is Script {
         if (_addresses[DeploymentAddresses.KEY_VERIFYING_PAYMASTER] != address(0)) {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_VERIFYING_PAYMASTER, _addresses[DeploymentAddresses.KEY_VERIFYING_PAYMASTER]);
         }
+        if (_addresses[DeploymentAddresses.KEY_SPONSOR_PAYMASTER] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_SPONSOR_PAYMASTER, _addresses[DeploymentAddresses.KEY_SPONSOR_PAYMASTER]);
+        }
         if (_addresses[DeploymentAddresses.KEY_ERC20_PAYMASTER] != address(0)) {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_ERC20_PAYMASTER, _addresses[DeploymentAddresses.KEY_ERC20_PAYMASTER]);
         }
@@ -280,8 +289,14 @@ abstract contract DeploymentHelper is Script {
         }
 
         // Tokens & DeFi
+        if (_addresses[DeploymentAddresses.KEY_PERMIT2] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_PERMIT2, _addresses[DeploymentAddresses.KEY_PERMIT2]);
+        }
         if (_addresses[DeploymentAddresses.KEY_WKRW] != address(0)) {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_WKRW, _addresses[DeploymentAddresses.KEY_WKRW]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_STABLE_TOKEN] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_STABLE_TOKEN, _addresses[DeploymentAddresses.KEY_STABLE_TOKEN]);
         }
         if (_addresses[DeploymentAddresses.KEY_PRICE_ORACLE] != address(0)) {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_PRICE_ORACLE, _addresses[DeploymentAddresses.KEY_PRICE_ORACLE]);

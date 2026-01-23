@@ -5,27 +5,36 @@ pragma solidity ^0.8.28;
 import {Script, console} from "forge-std/Script.sol";
 import {DeploymentHelper, DeploymentAddresses} from "./utils/DeploymentAddresses.sol";
 import {WKRW} from "../src/tokens/WKRW.sol";
+import {StableToken} from "../src/tokens/StableToken.sol";
 
 /**
  * @title DeployTokensScript
  * @notice Deployment script for token contracts
- * @dev Deploys wrapped native token and other token infrastructure
+ * @dev Deploys wrapped native token and stablecoin infrastructure
  *
- * Note: WKRW is a dependency for other contracts (DEXIntegration, etc.)
- * This script saves the WKRW address for use by dependent scripts.
+ * Deployed Contracts:
+ *   - WKRW: Wrapped native token (like WETH)
+ *   - StableToken: USD-pegged stablecoin (USDC)
+ *
+ * Note: These tokens are dependencies for other contracts (DEXIntegration, Paymasters, etc.)
  *
  * Usage:
  *   forge script script/DeployTokens.s.sol:DeployTokensScript --rpc-url <RPC_URL> --broadcast
  */
 contract DeployTokensScript is DeploymentHelper {
     WKRW public wkrw;
+    StableToken public stableToken;
 
     function setUp() public {}
 
     function run() public {
         _initDeployment();
 
+        // Get deployer address for token ownership
+        address deployer = vm.envOr("ADMIN_ADDRESS", msg.sender);
+
         console.log("=== Deploying Token Infrastructure ===");
+        console.log("Deployer/Owner:", deployer);
 
         vm.startBroadcast();
 
@@ -40,6 +49,17 @@ contract DeployTokensScript is DeploymentHelper {
             console.log("WKRW: Using existing at", existingWkrw);
         }
 
+        // Deploy StableToken (USDC) or use existing
+        address existingStableToken = _getAddress(DeploymentAddresses.KEY_STABLE_TOKEN);
+        if (existingStableToken == address(0)) {
+            stableToken = new StableToken(deployer);
+            _setAddress(DeploymentAddresses.KEY_STABLE_TOKEN, address(stableToken));
+            console.log("StableToken (USDC) deployed at:", address(stableToken));
+        } else {
+            stableToken = StableToken(existingStableToken);
+            console.log("StableToken: Using existing at", existingStableToken);
+        }
+
         vm.stopBroadcast();
 
         // Save addresses
@@ -48,5 +68,8 @@ contract DeployTokensScript is DeploymentHelper {
         // Log summary
         console.log("\n=== Tokens Deployment Summary ===");
         console.log("WKRW (Wrapped Native Token):", address(wkrw));
+        console.log("StableToken (USDC):", address(stableToken));
+        console.log("\nNext steps:");
+        console.log("  - Mint USDC: cast send <STABLE_TOKEN> 'mint(address,uint256)' <TO> <AMOUNT> --rpc-url <RPC>");
     }
 }
