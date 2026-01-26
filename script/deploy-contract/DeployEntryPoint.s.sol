@@ -2,14 +2,14 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {EntryPoint} from "../../src/erc4337-entrypoint/EntryPoint.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { EntryPoint } from "../../src/erc4337-entrypoint/EntryPoint.sol";
 
 contract DeployEntryPointScript is DeploymentHelper {
     EntryPoint public entryPoint;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();

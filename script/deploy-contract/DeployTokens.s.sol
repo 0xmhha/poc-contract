@@ -2,10 +2,10 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {wKRC} from "../../src/tokens/wKRC.sol";
-import {USDC} from "../../src/tokens/USDC.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { wKRC } from "../../src/tokens/wKRC.sol";
+import { USDC } from "../../src/tokens/USDC.sol";
 
 /**
  * @title DeployTokensScript
@@ -28,7 +28,7 @@ contract DeployTokensScript is DeploymentHelper {
     wKRC public wkrc;
     USDC public usdc;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();
@@ -79,6 +79,8 @@ contract DeployTokensScript is DeploymentHelper {
         console.log("USDC:", address(usdc));
         console.log("USDC Owner:", deployer);
         console.log("\nNext steps:");
-        console.log("  - (Optional) Mint more USDC: cast send <USDC> 'mint(address,uint256)' <TO> <AMOUNT> --rpc-url <RPC>");
+        console.log(
+            "  - (Optional) Mint more USDC: cast send <USDC> 'mint(address,uint256)' <TO> <AMOUNT> --rpc-url <RPC>"
+        );
     }
 }

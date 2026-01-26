@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title OptimisticVerifier
@@ -47,17 +47,9 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
         uint256 targetChain,
         uint256 challengeDeadline
     );
-    event RequestChallenged(
-        bytes32 indexed requestId,
-        address indexed challenger,
-        uint256 bondAmount,
-        string reason
-    );
+    event RequestChallenged(bytes32 indexed requestId, address indexed challenger, uint256 bondAmount, string reason);
     event ChallengeResolved(
-        bytes32 indexed requestId,
-        bool challengeSuccessful,
-        address indexed challenger,
-        uint256 reward
+        bytes32 indexed requestId, bool challengeSuccessful, address indexed challenger, uint256 reward
     );
     event RequestApproved(bytes32 indexed requestId, uint256 timestamp);
     event RequestExecuted(bytes32 indexed requestId, uint256 timestamp);
@@ -75,13 +67,13 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
      * @notice Status of a bridge request
      */
     enum RequestStatus {
-        None,       // Request doesn't exist
-        Pending,    // Submitted, in challenge period
-        Approved,   // Challenge period passed, ready for execution
+        None, // Request doesn't exist
+        Pending, // Submitted, in challenge period
+        Approved, // Challenge period passed, ready for execution
         Challenged, // Currently being challenged
-        Executed,   // Successfully executed
-        Refunded,   // Refunded due to successful challenge
-        Cancelled   // Cancelled by admin/guardian
+        Executed, // Successfully executed
+        Refunded, // Refunded due to successful challenge
+        Cancelled // Cancelled by admin/guardian
     }
 
     // ============ Structs ============
@@ -183,11 +175,7 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param _challengeBond Initial challenge bond amount
      * @param _challengerReward Initial challenger reward amount
      */
-    constructor(
-        uint256 _challengePeriod,
-        uint256 _challengeBond,
-        uint256 _challengerReward
-    ) Ownable(msg.sender) {
+    constructor(uint256 _challengePeriod, uint256 _challengeBond, uint256 _challengerReward) Ownable(msg.sender) {
         if (_challengePeriod < MIN_CHALLENGE_PERIOD || _challengePeriod > MAX_CHALLENGE_PERIOD) {
             revert InvalidChallengePeriod();
         }
@@ -239,16 +227,7 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
 
         totalRequests++;
 
-        emit RequestSubmitted(
-            requestId,
-            sender,
-            recipient,
-            token,
-            amount,
-            sourceChain,
-            targetChain,
-            deadline
-        );
+        emit RequestSubmitted(requestId, sender, recipient, token, amount, sourceChain, targetChain, deadline);
     }
 
     /**
@@ -256,10 +235,7 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param requestId ID of the request to challenge
      * @param reason Reason for the challenge
      */
-    function challengeRequest(
-        bytes32 requestId,
-        string calldata reason
-    ) external payable whenNotPaused nonReentrant {
+    function challengeRequest(bytes32 requestId, string calldata reason) external payable whenNotPaused nonReentrant {
         BridgeRequest storage request = requests[requestId];
 
         if (request.status == RequestStatus.None) revert RequestNotFound();
@@ -287,10 +263,7 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param requestId ID of the challenged request
      * @param challengeSuccessful Whether the challenge was successful
      */
-    function resolveChallenge(
-        bytes32 requestId,
-        bool challengeSuccessful
-    ) external nonReentrant {
+    function resolveChallenge(bytes32 requestId, bool challengeSuccessful) external nonReentrant {
         if (msg.sender != fraudProofVerifier && msg.sender != owner()) {
             revert UnauthorizedCaller();
         }
@@ -311,7 +284,7 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
 
             // Return bond + reward to challenger
             reward = challenge.bondAmount + challengerReward;
-            (bool success,) = payable(challenge.challenger).call{value: reward}("");
+            (bool success,) = payable(challenge.challenger).call{ value: reward }("");
             if (!success) revert TransferFailed();
 
             emit RequestRefunded(requestId, block.timestamp);
@@ -365,10 +338,7 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param requestId ID of the request to cancel
      * @param reason Reason for cancellation
      */
-    function cancelRequest(
-        bytes32 requestId,
-        string calldata reason
-    ) external onlyOwner {
+    function cancelRequest(bytes32 requestId, string calldata reason) external onlyOwner {
         BridgeRequest storage request = requests[requestId];
 
         if (request.status == RequestStatus.None) revert RequestNotFound();
@@ -379,7 +349,7 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
         Challenge storage challenge = challenges[requestId];
         if (request.status == RequestStatus.Challenged && !challenge.resolved) {
             challenge.resolved = true;
-            (bool success,) = payable(challenge.challenger).call{value: challenge.bondAmount}("");
+            (bool success,) = payable(challenge.challenger).call{ value: challenge.bondAmount }("");
             if (!success) revert TransferFailed();
         }
 
@@ -477,7 +447,7 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
     function withdrawFees(address to, uint256 amount) external onlyOwner {
         if (to == address(0)) revert ZeroAddress();
 
-        (bool success,) = payable(to).call{value: amount}("");
+        (bool success,) = payable(to).call{ value: amount }("");
         if (!success) revert TransferFailed();
     }
 
@@ -508,8 +478,7 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
      */
     function canApprove(bytes32 requestId) external view returns (bool) {
         BridgeRequest storage request = requests[requestId];
-        return request.status == RequestStatus.Pending &&
-               block.timestamp >= request.challengeDeadline;
+        return request.status == RequestStatus.Pending && block.timestamp >= request.challengeDeadline;
     }
 
     /**
@@ -519,8 +488,7 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
      */
     function canChallenge(bytes32 requestId) external view returns (bool) {
         BridgeRequest storage request = requests[requestId];
-        return request.status == RequestStatus.Pending &&
-               block.timestamp < request.challengeDeadline;
+        return request.status == RequestStatus.Pending && block.timestamp < request.challengeDeadline;
     }
 
     /**
@@ -558,5 +526,5 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Allow contract to receive ETH (for reward funding)
      */
-    receive() external payable {}
+    receive() external payable { }
 }

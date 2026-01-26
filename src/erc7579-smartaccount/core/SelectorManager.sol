@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.0;
 
-import {IHook, IModule} from "../interfaces/IERC7579Modules.sol";
-import {IERC7579Account} from "../interfaces/IERC7579Account.sol";
-import {CallType} from "../types/Types.sol";
+import { IHook, IModule } from "../interfaces/IERC7579Modules.sol";
+import { IERC7579Account } from "../interfaces/IERC7579Account.sol";
+import { CallType } from "../types/Types.sol";
 import {
     SELECTOR_MANAGER_STORAGE_SLOT,
     CALLTYPE_DELEGATECALL,

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {AuditLogger} from "../../src/compliance/AuditLogger.sol";
+import { Test } from "forge-std/Test.sol";
+import { AuditLogger } from "../../src/compliance/AuditLogger.sol";
 
 contract AuditLoggerTest is Test {
     AuditLogger public logger;
@@ -27,10 +27,7 @@ contract AuditLoggerTest is Test {
         bytes32 legalBasisHash
     );
     event EmergencyLogged(
-        uint256 indexed logId,
-        address indexed actor,
-        string description,
-        AuditLogger.Severity severity
+        uint256 indexed logId, address indexed actor, string description, AuditLogger.Severity severity
     );
     event RetentionPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
 
@@ -107,7 +104,9 @@ contract AuditLoggerTest is Test {
 
         vm.prank(loggerRole);
         vm.expectEmit(true, true, true, true);
-        emit AuditLogCreated(0, loggerRole, AuditLogger.ActionType.CONFIG_CHANGE, target, dataHash, AuditLogger.Severity.LOW);
+        emit AuditLogCreated(
+            0, loggerRole, AuditLogger.ActionType.CONFIG_CHANGE, target, dataHash, AuditLogger.Severity.LOW
+        );
         logger.createLog(
             AuditLogger.ActionType.CONFIG_CHANGE,
             target,
@@ -170,13 +169,8 @@ contract AuditLoggerTest is Test {
         bytes32 legalBasisHash = keccak256("legal basis");
 
         vm.prank(loggerRole);
-        uint256 logId = logger.logTraceActivity(
-            AuditLogger.ActionType.TRACE_REQUEST,
-            loggerRole,
-            target,
-            legalBasisHash,
-            1
-        );
+        uint256 logId =
+            logger.logTraceActivity(AuditLogger.ActionType.TRACE_REQUEST, loggerRole, target, legalBasisHash, 1);
 
         AuditLogger.AuditLog memory log = logger.getLog(logId);
         assertEq(uint8(log.actionType), uint8(AuditLogger.ActionType.TRACE_REQUEST));
@@ -192,13 +186,7 @@ contract AuditLoggerTest is Test {
 
     function test_LogTraceActivity_Approval() public {
         vm.prank(loggerRole);
-        logger.logTraceActivity(
-            AuditLogger.ActionType.TRACE_APPROVAL,
-            loggerRole,
-            target,
-            bytes32(0),
-            1
-        );
+        logger.logTraceActivity(AuditLogger.ActionType.TRACE_APPROVAL, loggerRole, target, bytes32(0), 1);
 
         AuditLogger.AuditStats memory stats = logger.getStats();
         assertEq(stats.traceApprovals, 1);
@@ -206,13 +194,7 @@ contract AuditLoggerTest is Test {
 
     function test_LogTraceActivity_Execution() public {
         vm.prank(loggerRole);
-        logger.logTraceActivity(
-            AuditLogger.ActionType.TRACE_EXECUTION,
-            loggerRole,
-            target,
-            bytes32(0),
-            1
-        );
+        logger.logTraceActivity(AuditLogger.ActionType.TRACE_EXECUTION, loggerRole, target, bytes32(0), 1);
 
         AuditLogger.AuditStats memory stats = logger.getStats();
         assertEq(stats.traceExecutions, 1);
@@ -221,13 +203,7 @@ contract AuditLoggerTest is Test {
     function test_LogTraceActivity_RevertsOnInvalidType() public {
         vm.prank(loggerRole);
         vm.expectRevert(AuditLogger.InvalidActionType.selector);
-        logger.logTraceActivity(
-            AuditLogger.ActionType.KYC_UPDATE,
-            loggerRole,
-            target,
-            bytes32(0),
-            1
-        );
+        logger.logTraceActivity(AuditLogger.ActionType.KYC_UPDATE, loggerRole, target, bytes32(0), 1);
     }
 
     function test_LogTraceActivity_CorrelationId() public {
@@ -265,7 +241,7 @@ contract AuditLoggerTest is Test {
 
     function test_LogReserveVerification_Healthy() public {
         vm.prank(loggerRole);
-        uint256 logId = logger.logReserveVerification(1000 ether, 1100 ether, 11000, true);
+        uint256 logId = logger.logReserveVerification(1000 ether, 1100 ether, 11_000, true);
 
         AuditLogger.AuditLog memory log = logger.getLog(logId);
         assertEq(uint8(log.actionType), uint8(AuditLogger.ActionType.RESERVE_VERIFY));
@@ -353,19 +329,49 @@ contract AuditLoggerTest is Test {
 
         // Create log 0 at baseTime
         vm.prank(loggerRole);
-        logger.createLog(AuditLogger.ActionType.CONFIG_CHANGE, target, bytes32(0), "", bytes32(0), AuditLogger.Severity.INFO, "Test1", bytes32(0), false);
+        logger.createLog(
+            AuditLogger.ActionType.CONFIG_CHANGE,
+            target,
+            bytes32(0),
+            "",
+            bytes32(0),
+            AuditLogger.Severity.INFO,
+            "Test1",
+            bytes32(0),
+            false
+        );
 
         vm.warp(baseTime + 1 hours);
 
         // Create log 1 at baseTime + 1 hour
         vm.prank(loggerRole);
-        logger.createLog(AuditLogger.ActionType.CONFIG_CHANGE, target, bytes32(0), "", bytes32(0), AuditLogger.Severity.INFO, "Test2", bytes32(0), false);
+        logger.createLog(
+            AuditLogger.ActionType.CONFIG_CHANGE,
+            target,
+            bytes32(0),
+            "",
+            bytes32(0),
+            AuditLogger.Severity.INFO,
+            "Test2",
+            bytes32(0),
+            false
+        );
 
         vm.warp(baseTime + 2 hours);
 
         // Create log 2 at baseTime + 2 hours
         vm.prank(loggerRole);
-        logger.createLog(AuditLogger.ActionType.CONFIG_CHANGE, target, bytes32(0), "", bytes32(0), AuditLogger.Severity.INFO, "Test3", bytes32(0), false);
+        logger.createLog(
+            AuditLogger.ActionType.CONFIG_CHANGE,
+            target,
+            bytes32(0),
+            "",
+            bytes32(0),
+            AuditLogger.Severity.INFO,
+            "Test3",
+            bytes32(0),
+            false
+        );
 
         // Query range from baseTime to baseTime + 2 hours - should include all 3 logs
         uint256[] memory allLogs = logger.getLogsInRange(baseTime, baseTime + 2 hours);
@@ -380,7 +386,17 @@ contract AuditLoggerTest is Test {
         // Create multiple logs
         for (uint256 i = 0; i < 5; i++) {
             vm.prank(loggerRole);
-            logger.createLog(AuditLogger.ActionType.CONFIG_CHANGE, target, bytes32(0), "", bytes32(0), AuditLogger.Severity.INFO, "Test", bytes32(0), false);
+            logger.createLog(
+                AuditLogger.ActionType.CONFIG_CHANGE,
+                target,
+                bytes32(0),
+                "",
+                bytes32(0),
+                AuditLogger.Severity.INFO,
+                "Test",
+                bytes32(0),
+                false
+            );
         }
 
         // Get recent logs with pagination
@@ -393,7 +409,17 @@ contract AuditLoggerTest is Test {
 
     function test_GetRecentLogs_ReturnsEmptyOnOffset() public {
         vm.prank(loggerRole);
-        logger.createLog(AuditLogger.ActionType.CONFIG_CHANGE, target, bytes32(0), "", bytes32(0), AuditLogger.Severity.INFO, "Test", bytes32(0), false);
+        logger.createLog(
+            AuditLogger.ActionType.CONFIG_CHANGE,
+            target,
+            bytes32(0),
+            "",
+            bytes32(0),
+            AuditLogger.Severity.INFO,
+            "Test",
+            bytes32(0),
+            false
+        );
 
         AuditLogger.AuditLog[] memory recent = logger.getRecentLogs(10, 5);
         assertEq(recent.length, 0);
@@ -401,7 +427,17 @@ contract AuditLoggerTest is Test {
 
     function test_IsWithinRetention() public {
         vm.prank(loggerRole);
-        logger.createLog(AuditLogger.ActionType.CONFIG_CHANGE, target, bytes32(0), "", bytes32(0), AuditLogger.Severity.INFO, "Test", bytes32(0), false);
+        logger.createLog(
+            AuditLogger.ActionType.CONFIG_CHANGE,
+            target,
+            bytes32(0),
+            "",
+            bytes32(0),
+            AuditLogger.Severity.INFO,
+            "Test",
+            bytes32(0),
+            false
+        );
 
         assertTrue(logger.isWithinRetention(0));
 
@@ -416,7 +452,17 @@ contract AuditLoggerTest is Test {
         vm.warp(8 * 365 days);
 
         vm.prank(loggerRole);
-        logger.createLog(AuditLogger.ActionType.CONFIG_CHANGE, target, bytes32(0), "", bytes32(0), AuditLogger.Severity.INFO, "Test", bytes32(0), false);
+        logger.createLog(
+            AuditLogger.ActionType.CONFIG_CHANGE,
+            target,
+            bytes32(0),
+            "",
+            bytes32(0),
+            AuditLogger.Severity.INFO,
+            "Test",
+            bytes32(0),
+            false
+        );
 
         // Log is fresh, so not past retention
         uint256[] memory pastRetention = logger.getLogsPastRetention(10);
@@ -472,7 +518,7 @@ contract AuditLoggerTest is Test {
         logger.logTraceActivity(AuditLogger.ActionType.TRACE_APPROVAL, loggerRole, target, bytes32(0), 1);
         logger.logTraceActivity(AuditLogger.ActionType.TRACE_EXECUTION, loggerRole, target, bytes32(0), 1);
         logger.logKycUpdate(target, 0, 2, loggerRole);
-        logger.logReserveVerification(1000 ether, 1000 ether, 10000, true);
+        logger.logReserveVerification(1000 ether, 1000 ether, 10_000, true);
         logger.logEmergencyAction(admin, "Test", AuditLogger.Severity.HIGH);
         logger.logDataAccess(loggerRole, target, bytes32(0), bytes32(0));
 

@@ -2,14 +2,14 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {FraudProofVerifier} from "../../src/bridge/FraudProofVerifier.sol";
-import {BridgeRateLimiter} from "../../src/bridge/BridgeRateLimiter.sol";
-import {BridgeValidator} from "../../src/bridge/BridgeValidator.sol";
-import {BridgeGuardian} from "../../src/bridge/BridgeGuardian.sol";
-import {OptimisticVerifier} from "../../src/bridge/OptimisticVerifier.sol";
-import {SecureBridge} from "../../src/bridge/SecureBridge.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { FraudProofVerifier } from "../../src/bridge/FraudProofVerifier.sol";
+import { BridgeRateLimiter } from "../../src/bridge/BridgeRateLimiter.sol";
+import { BridgeValidator } from "../../src/bridge/BridgeValidator.sol";
+import { BridgeGuardian } from "../../src/bridge/BridgeGuardian.sol";
+import { OptimisticVerifier } from "../../src/bridge/OptimisticVerifier.sol";
+import { SecureBridge } from "../../src/bridge/SecureBridge.sol";
 
 /**
  * @title DeployBridgeScript
@@ -59,7 +59,7 @@ contract DeployBridgeScript is DeploymentHelper {
     uint256 constant DEFAULT_CHALLENGE_BOND = 0.1 ether;
     uint256 constant DEFAULT_CHALLENGER_REWARD = 0.05 ether;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();
@@ -279,7 +279,10 @@ contract BridgeDeploymentHelper {
      * @param config Deployment configuration
      * @return artifacts Deployed contract instances
      */
-    function _deployBridge(BridgeDeploymentConfig memory config) internal returns (BridgeDeploymentArtifacts memory artifacts) {
+    function _deployBridge(BridgeDeploymentConfig memory config)
+        internal
+        returns (BridgeDeploymentArtifacts memory artifacts)
+    {
         // Set defaults if not provided
         if (config.challengePeriod == 0) {
             config.challengePeriod = 6 hours;
@@ -298,11 +301,8 @@ contract BridgeDeploymentHelper {
         // Layer 1: Configuration Required
         artifacts.bridgeValidator = new BridgeValidator(config.signers, config.signerThreshold);
         artifacts.bridgeGuardian = new BridgeGuardian(config.guardians, config.guardianThreshold);
-        artifacts.optimisticVerifier = new OptimisticVerifier(
-            config.challengePeriod,
-            config.challengeBond,
-            config.challengerReward
-        );
+        artifacts.optimisticVerifier =
+            new OptimisticVerifier(config.challengePeriod, config.challengeBond, config.challengerReward);
 
         // Layer 2: Main Bridge
         artifacts.secureBridge = new SecureBridge(

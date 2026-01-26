@@ -3,7 +3,7 @@
 // Adapted for StableNet PoC - Solidity version updated to ^0.8.28
 pragma solidity ^0.8.28;
 
-import {IAllowanceTransfer} from "../interfaces/IAllowanceTransfer.sol";
+import { IAllowanceTransfer } from "../interfaces/IAllowanceTransfer.sol";
 
 library Allowance {
     // note if the expiration passed is 0, then it the approval set to the block.timestamp

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BasePaymaster} from "./BasePaymaster.sol";
-import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
-import {IEntryPoint} from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
-import {PackedUserOperation} from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
-import {UserOperationLib} from "../erc4337-entrypoint/UserOperationLib.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { BasePaymaster } from "./BasePaymaster.sol";
+import { IPriceOracle } from "./interfaces/IPriceOracle.sol";
+import { IEntryPoint } from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
+import { PackedUserOperation } from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
+import { UserOperationLib } from "../erc4337-entrypoint/UserOperationLib.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /**
  * @title ERC20Paymaster
@@ -19,7 +19,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
  *
  * PaymasterData format:
  *   [0:20] - token address (address) - the ERC-20 token to use for payment
- *   [20:]  - optional extra data for future extensions
+ *   [20:] - optional extra data for future extensions
  *
  * Flow:
  * 1. User pre-approves tokens to this paymaster
@@ -43,7 +43,7 @@ contract ERC20Paymaster is BasePaymaster {
     uint256 public constant MAX_MARKUP = 5000;
 
     /// @notice Basis points denominator
-    uint256 public constant BASIS_POINTS = 10000;
+    uint256 public constant BASIS_POINTS = 10_000;
 
     /// @notice Maximum staleness for price data (1 hour)
     uint256 public constant MAX_PRICE_STALENESS = 1 hours;
@@ -66,12 +66,7 @@ contract ERC20Paymaster is BasePaymaster {
     event MarkupUpdated(uint256 oldMarkup, uint256 newMarkup);
     event TokenSupported(address indexed token, bool supported);
     event TokensWithdrawn(address indexed token, address indexed to, uint256 amount);
-    event GasPaidWithToken(
-        address indexed sender,
-        address indexed token,
-        uint256 tokenAmount,
-        uint256 gasCost
-    );
+    event GasPaidWithToken(address indexed sender, address indexed token, uint256 tokenAmount, uint256 gasCost);
 
     error UnsupportedToken(address token);
     error InsufficientTokenBalance(uint256 required, uint256 available);
@@ -88,12 +83,9 @@ contract ERC20Paymaster is BasePaymaster {
      * @param _oracle Price oracle address
      * @param _markup Initial markup in basis points (e.g., 1000 = 10%)
      */
-    constructor(
-        IEntryPoint _entryPoint,
-        address _owner,
-        IPriceOracle _oracle,
-        uint256 _markup
-    ) BasePaymaster(_entryPoint, _owner) {
+    constructor(IEntryPoint _entryPoint, address _owner, IPriceOracle _oracle, uint256 _markup)
+        BasePaymaster(_entryPoint, _owner)
+    {
         if (address(_oracle) == address(0)) revert OracleCannotBeZero();
         if (_markup < MIN_MARKUP || _markup > MAX_MARKUP) revert InvalidMarkup(_markup);
 
@@ -143,11 +135,7 @@ contract ERC20Paymaster is BasePaymaster {
      * @param to Recipient address
      * @param amount Amount to withdraw
      */
-    function withdrawTokens(
-        address token,
-        address to,
-        uint256 amount
-    ) external onlyOwner {
+    function withdrawTokens(address token, address to, uint256 amount) external onlyOwner {
         IERC20(token).safeTransfer(to, amount);
         emit TokensWithdrawn(token, to, amount);
     }
@@ -158,10 +146,7 @@ contract ERC20Paymaster is BasePaymaster {
      * @param ethCost The cost in ETH (wei)
      * @return tokenAmount The required token amount
      */
-    function getTokenAmount(
-        address token,
-        uint256 ethCost
-    ) public view returns (uint256 tokenAmount) {
+    function getTokenAmount(address token, uint256 ethCost) public view returns (uint256 tokenAmount) {
         // Get token price (how much ETH per token in 18 decimals)
         (uint256 tokenPrice, uint256 updatedAt) = oracle.getPriceWithTimestamp(token);
 
@@ -191,11 +176,11 @@ contract ERC20Paymaster is BasePaymaster {
      * @return context Encoded PostOpContext
      * @return validationData Validation result (always success if we reach here)
      */
-    function _validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 maxCost
-    ) internal override returns (bytes memory context, uint256 validationData) {
+    function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+        internal
+        override
+        returns (bytes memory context, uint256 validationData)
+    {
         (userOpHash); // silence unused warning
 
         bytes calldata paymasterData = _parsePaymasterData(userOp.paymasterAndData);
@@ -230,12 +215,7 @@ contract ERC20Paymaster is BasePaymaster {
 
         // Encode context for postOp
         context = abi.encode(
-            PostOpContext({
-                sender: userOp.sender,
-                token: token,
-                maxTokenCost: maxTokenCost,
-                maxCost: maxCost
-            })
+            PostOpContext({ sender: userOp.sender, token: token, maxTokenCost: maxTokenCost, maxCost: maxCost })
         );
 
         // Return success (0 = valid, no time restrictions)
@@ -249,12 +229,10 @@ contract ERC20Paymaster is BasePaymaster {
      * @param actualGasCost Actual gas cost in native currency
      * @param actualUserOpFeePerGas Actual fee per gas
      */
-    function _postOp(
-        PostOpMode mode,
-        bytes calldata context,
-        uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
-    ) internal override {
+    function _postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+        internal
+        override
+    {
         (actualUserOpFeePerGas); // silence unused warning
 
         // Decode context
@@ -297,11 +275,11 @@ contract ERC20Paymaster is BasePaymaster {
      * @param maxFeePerGas Maximum fee per gas
      * @return tokenAmount Estimated token cost with markup
      */
-    function getQuote(
-        address token,
-        uint256 gasLimit,
-        uint256 maxFeePerGas
-    ) external view returns (uint256 tokenAmount) {
+    function getQuote(address token, uint256 gasLimit, uint256 maxFeePerGas)
+        external
+        view
+        returns (uint256 tokenAmount)
+    {
         uint256 maxCost = gasLimit * maxFeePerGas;
         return getTokenAmount(token, maxCost);
     }

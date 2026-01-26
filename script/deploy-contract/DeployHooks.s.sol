@@ -2,10 +2,10 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {SpendingLimitHook} from "../../src/erc7579-hooks/SpendingLimitHook.sol";
-import {AuditHook} from "../../src/erc7579-hooks/AuditHook.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { SpendingLimitHook } from "../../src/erc7579-hooks/SpendingLimitHook.sol";
+import { AuditHook } from "../../src/erc7579-hooks/AuditHook.sol";
 
 /**
  * @title DeployHooksScript
@@ -30,7 +30,7 @@ contract DeployHooksScript is DeploymentHelper {
     SpendingLimitHook public spendingLimitHook;
     AuditHook public auditHook;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();

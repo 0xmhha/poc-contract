@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {ERC20} from "solady/tokens/ERC20.sol";
+import { ERC20 } from "solady/tokens/ERC20.sol";
 
 /**
  * @title wKRC (Wrapped Native Token)
@@ -11,7 +11,7 @@ import {ERC20} from "solady/tokens/ERC20.sol";
  *      Allows native coins to be used in ERC-20 only pools
  */
 contract wKRC is ERC20 {
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
@@ -20,7 +20,7 @@ contract wKRC is ERC20 {
 
     // Note: InsufficientBalance is inherited from solady's ERC20
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
@@ -30,7 +30,7 @@ contract wKRC is ERC20 {
     /// @notice Emitted when wrapped tokens are withdrawn.
     event Withdrawal(address indexed to, uint256 amount);
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                              ERC20 METADATA
     //////////////////////////////////////////////////////////////*/
 
@@ -49,7 +49,7 @@ contract wKRC is ERC20 {
         return 18;
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             WRAP/UNWRAP LOGIC
     //////////////////////////////////////////////////////////////*/
 
@@ -77,7 +77,7 @@ contract wKRC is ERC20 {
         assembly {
             // Transfer the native token and check if it succeeded
             if iszero(call(gas(), caller(), amount, codesize(), 0x00, codesize(), 0x00)) {
-                mstore(0x00, 0xb12d13eb) // `NativeTransferFailed()`.
+                mstore(0x00, 0_xb1_2d1_3eb) // `NativeTransferFailed()`.
                 revert(0x1c, 0x04)
             }
         }
@@ -110,7 +110,7 @@ contract wKRC is ERC20 {
         assembly {
             // Transfer the native token to the specified address
             if iszero(call(gas(), to, amount, codesize(), 0x00, codesize(), 0x00)) {
-                mstore(0x00, 0xb12d13eb) // `NativeTransferFailed()`.
+                mstore(0x00, 0_xb1_2d1_3eb) // `NativeTransferFailed()`.
                 revert(0x1c, 0x04)
             }
         }
@@ -118,7 +118,7 @@ contract wKRC is ERC20 {
         emit Withdrawal(to, amount);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               RECEIVE ETH
     //////////////////////////////////////////////////////////////*/
 
@@ -127,7 +127,7 @@ contract wKRC is ERC20 {
         deposit();
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.7.5;
 
-import {PackedUserOperation} from "./PackedUserOperation.sol";
-import {IEntryPoint} from "./IEntryPoint.sol";
+import { PackedUserOperation } from "./PackedUserOperation.sol";
+import { IEntryPoint } from "./IEntryPoint.sol";
 
 interface IEntryPointSimulations is IEntryPoint {
     // Return value of simulateHandleOp.
@@ -18,10 +18,10 @@ interface IEntryPointSimulations is IEntryPoint {
     /**
      * Successful result from simulateValidation.
      * If the account returns a signature aggregator the "aggregatorInfo" struct is filled in as well.
-     * @param returnInfo     Gas and time-range returned values
-     * @param senderInfo     Stake information about the sender
-     * @param factoryInfo    Stake information about the factory (if any)
-     * @param paymasterInfo  Stake information about the paymaster (if any)
+     * @param returnInfo Gas and time-range returned values
+     * @param senderInfo Stake information about the sender
+     * @param factoryInfo Stake information about the factory (if any)
+     * @param paymasterInfo Stake information about the paymaster (if any)
      * @param aggregatorInfo Signature aggregation info (if the account requires signature aggregator)
      *                       Bundler MUST use it to verify the signature, or reject the UserOperation.
      */
@@ -50,7 +50,7 @@ interface IEntryPointSimulations is IEntryPoint {
      * Note that in order to collect the the success/failure of the target call, it must be executed
      * with trace enabled to track the emitted events.
      * @param op The UserOperation to simulate.
-     * @param target         - If nonzero, a target address to call after userop simulation. If called,
+     * @param target - If nonzero, a target address to call after userop simulation. If called,
      *                         the targetSuccess and targetResult are set to the return from that call.
      * @param targetCallData - CallData to pass to target address.
      * @return the execution result structure

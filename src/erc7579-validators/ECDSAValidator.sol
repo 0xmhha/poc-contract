@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.0;
 
-import {ECDSA} from "solady/utils/ECDSA.sol";
-import {IValidator, IHook} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {PackedUserOperation} from "../erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
+import { IValidator, IHook } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { PackedUserOperation } from "../erc7579-smartaccount/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_SUCCESS_UINT,
     SIG_VALIDATION_FAILED_UINT,
@@ -83,7 +83,12 @@ contract ECDSAValidator is IValidator, IHook {
         return ERC1271_MAGICVALUE;
     }
 
-    function preCheck(address msgSender, uint256, /* value */ bytes calldata)
+    function preCheck(
+        address msgSender,
+        uint256,
+        /* value */
+        bytes calldata
+    )
         external
         payable
         override
@@ -93,5 +98,5 @@ contract ECDSAValidator is IValidator, IHook {
         return hex"";
     }
 
-    function postCheck(bytes calldata hookData) external payable override {}
+    function postCheck(bytes calldata hookData) external payable override { }
 }

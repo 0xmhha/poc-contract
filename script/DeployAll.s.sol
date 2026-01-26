@@ -1,84 +1,84 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "./utils/DeploymentAddresses.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "./utils/DeploymentAddresses.sol";
 
 // ============ Tokens ============
-import {wKRC} from "../src/tokens/wKRC.sol";
-import {USDC} from "../src/tokens/USDC.sol";
+import { wKRC } from "../src/tokens/wKRC.sol";
+import { USDC } from "../src/tokens/USDC.sol";
 
 // ============ ERC-4337 EntryPoint ============
-import {EntryPoint} from "../src/erc4337-entrypoint/EntryPoint.sol";
-import {IEntryPoint} from "../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
+import { EntryPoint } from "../src/erc4337-entrypoint/EntryPoint.sol";
+import { IEntryPoint } from "../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
 
 // ============ ERC-4337 Paymasters ============
-import {VerifyingPaymaster} from "../src/erc4337-paymaster/VerifyingPaymaster.sol";
-import {SponsorPaymaster} from "../src/erc4337-paymaster/SponsorPaymaster.sol";
-import {ERC20Paymaster} from "../src/erc4337-paymaster/ERC20Paymaster.sol";
-import {Permit2Paymaster} from "../src/erc4337-paymaster/Permit2Paymaster.sol";
-import {IPriceOracle} from "../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
-import {IPermit2} from "../src/permit2/interfaces/IPermit2.sol";
+import { VerifyingPaymaster } from "../src/erc4337-paymaster/VerifyingPaymaster.sol";
+import { SponsorPaymaster } from "../src/erc4337-paymaster/SponsorPaymaster.sol";
+import { ERC20Paymaster } from "../src/erc4337-paymaster/ERC20Paymaster.sol";
+import { Permit2Paymaster } from "../src/erc4337-paymaster/Permit2Paymaster.sol";
+import { IPriceOracle } from "../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { IPermit2 } from "../src/permit2/interfaces/IPermit2.sol";
 
 // ============ ERC-7579 Smart Account ============
-import {IEntryPoint as IKernelEntryPoint} from "../src/erc7579-smartaccount/interfaces/IEntryPoint.sol";
-import {Kernel} from "../src/erc7579-smartaccount/Kernel.sol";
-import {KernelFactory} from "../src/erc7579-smartaccount/factory/KernelFactory.sol";
-import {FactoryStaker} from "../src/erc7579-smartaccount/factory/FactoryStaker.sol";
+import { IEntryPoint as IKernelEntryPoint } from "../src/erc7579-smartaccount/interfaces/IEntryPoint.sol";
+import { Kernel } from "../src/erc7579-smartaccount/Kernel.sol";
+import { KernelFactory } from "../src/erc7579-smartaccount/factory/KernelFactory.sol";
+import { FactoryStaker } from "../src/erc7579-smartaccount/factory/FactoryStaker.sol";
 
 // ============ ERC-7579 Validators ============
-import {ECDSAValidator} from "../src/erc7579-validators/ECDSAValidator.sol";
-import {WeightedECDSAValidator} from "../src/erc7579-validators/WeightedECDSAValidator.sol";
-import {MultiChainValidator} from "../src/erc7579-validators/MultiChainValidator.sol";
-import {MultiSigValidator} from "../src/erc7579-validators/MultiSigValidator.sol";
-import {WebAuthnValidator} from "../src/erc7579-validators/WebAuthnValidator.sol";
+import { ECDSAValidator } from "../src/erc7579-validators/ECDSAValidator.sol";
+import { WeightedECDSAValidator } from "../src/erc7579-validators/WeightedECDSAValidator.sol";
+import { MultiChainValidator } from "../src/erc7579-validators/MultiChainValidator.sol";
+import { MultiSigValidator } from "../src/erc7579-validators/MultiSigValidator.sol";
+import { WebAuthnValidator } from "../src/erc7579-validators/WebAuthnValidator.sol";
 
 // ============ ERC-7579 Hooks ============
-import {AuditHook} from "../src/erc7579-hooks/AuditHook.sol";
-import {SpendingLimitHook} from "../src/erc7579-hooks/SpendingLimitHook.sol";
+import { AuditHook } from "../src/erc7579-hooks/AuditHook.sol";
+import { SpendingLimitHook } from "../src/erc7579-hooks/SpendingLimitHook.sol";
 
 // ============ ERC-7579 Fallbacks ============
-import {TokenReceiverFallback} from "../src/erc7579-fallbacks/TokenReceiverFallback.sol";
-import {FlashLoanFallback} from "../src/erc7579-fallbacks/FlashLoanFallback.sol";
+import { TokenReceiverFallback } from "../src/erc7579-fallbacks/TokenReceiverFallback.sol";
+import { FlashLoanFallback } from "../src/erc7579-fallbacks/FlashLoanFallback.sol";
 
 // ============ ERC-7579 Executors ============
-import {SessionKeyExecutor} from "../src/erc7579-executors/SessionKeyExecutor.sol";
-import {RecurringPaymentExecutor} from "../src/erc7579-executors/RecurringPaymentExecutor.sol";
+import { SessionKeyExecutor } from "../src/erc7579-executors/SessionKeyExecutor.sol";
+import { RecurringPaymentExecutor } from "../src/erc7579-executors/RecurringPaymentExecutor.sol";
 
 // ============ ERC-7579 Plugins ============
-import {AutoSwapPlugin} from "../src/erc7579-plugins/AutoSwapPlugin.sol";
-import {MicroLoanPlugin} from "../src/erc7579-plugins/MicroLoanPlugin.sol";
-import {OnRampPlugin} from "../src/erc7579-plugins/OnRampPlugin.sol";
+import { AutoSwapPlugin } from "../src/erc7579-plugins/AutoSwapPlugin.sol";
+import { MicroLoanPlugin } from "../src/erc7579-plugins/MicroLoanPlugin.sol";
+import { OnRampPlugin } from "../src/erc7579-plugins/OnRampPlugin.sol";
 
 // ============ Compliance ============
-import {KYCRegistry} from "../src/compliance/KYCRegistry.sol";
-import {AuditLogger} from "../src/compliance/AuditLogger.sol";
-import {ProofOfReserve} from "../src/compliance/ProofOfReserve.sol";
-import {RegulatoryRegistry} from "../src/compliance/RegulatoryRegistry.sol";
+import { KYCRegistry } from "../src/compliance/KYCRegistry.sol";
+import { AuditLogger } from "../src/compliance/AuditLogger.sol";
+import { ProofOfReserve } from "../src/compliance/ProofOfReserve.sol";
+import { RegulatoryRegistry } from "../src/compliance/RegulatoryRegistry.sol";
 
 // ============ Privacy ============
-import {ERC5564Announcer} from "../src/privacy/ERC5564Announcer.sol";
-import {ERC6538Registry} from "../src/privacy/ERC6538Registry.sol";
-import {PrivateBank} from "../src/privacy/PrivateBank.sol";
+import { ERC5564Announcer } from "../src/privacy/ERC5564Announcer.sol";
+import { ERC6538Registry } from "../src/privacy/ERC6538Registry.sol";
+import { PrivateBank } from "../src/privacy/PrivateBank.sol";
 
 // ============ Permit2 ============
-import {Permit2} from "../src/permit2/Permit2.sol";
+import { Permit2 } from "../src/permit2/Permit2.sol";
 
 // ============ DeFi ============
-import {PriceOracle} from "../src/defi/PriceOracle.sol";
-import {DEXIntegration} from "../src/defi/DEXIntegration.sol";
+import { PriceOracle } from "../src/defi/PriceOracle.sol";
+import { DEXIntegration } from "../src/defi/DEXIntegration.sol";
 
 // ============ Subscription ============
-import {ERC7715PermissionManager} from "../src/subscription/ERC7715PermissionManager.sol";
-import {SubscriptionManager} from "../src/subscription/SubscriptionManager.sol";
+import { ERC7715PermissionManager } from "../src/subscription/ERC7715PermissionManager.sol";
+import { SubscriptionManager } from "../src/subscription/SubscriptionManager.sol";
 
 // ============ Bridge ============
-import {FraudProofVerifier} from "../src/bridge/FraudProofVerifier.sol";
-import {BridgeRateLimiter} from "../src/bridge/BridgeRateLimiter.sol";
-import {BridgeValidator} from "../src/bridge/BridgeValidator.sol";
-import {BridgeGuardian} from "../src/bridge/BridgeGuardian.sol";
-import {OptimisticVerifier} from "../src/bridge/OptimisticVerifier.sol";
-import {SecureBridge} from "../src/bridge/SecureBridge.sol";
+import { FraudProofVerifier } from "../src/bridge/FraudProofVerifier.sol";
+import { BridgeRateLimiter } from "../src/bridge/BridgeRateLimiter.sol";
+import { BridgeValidator } from "../src/bridge/BridgeValidator.sol";
+import { BridgeGuardian } from "../src/bridge/BridgeGuardian.sol";
+import { OptimisticVerifier } from "../src/bridge/OptimisticVerifier.sol";
+import { SecureBridge } from "../src/bridge/SecureBridge.sol";
 
 /**
  * @title DeployAllScript
@@ -138,7 +138,7 @@ contract DeployAllScript is DeploymentHelper {
     uint256 constant DEFAULT_CHALLENGE_BOND = 0.1 ether;
     uint256 constant DEFAULT_CHALLENGER_REWARD = 0.05 ether;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();
@@ -352,7 +352,9 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK, address(tokenReceiver));
             console.log("    [NEW] TokenReceiverFallback:", address(tokenReceiver));
         } else {
-            console.log("    [SKIP] TokenReceiverFallback:", _getAddress(DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK));
+            console.log(
+                "    [SKIP] TokenReceiverFallback:", _getAddress(DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK)
+            );
         }
 
         if (_getAddress(DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK) == address(0)) {
@@ -379,7 +381,9 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR, address(recurring));
             console.log("    [NEW] RecurringPaymentExecutor:", address(recurring));
         } else {
-            console.log("    [SKIP] RecurringPaymentExecutor:", _getAddress(DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR));
+            console.log(
+                "    [SKIP] RecurringPaymentExecutor:", _getAddress(DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR)
+            );
         }
 
         console.log("");
@@ -524,11 +528,7 @@ contract DeployAllScript is DeploymentHelper {
 
         // VerifyingPaymaster (depends on EntryPoint)
         if (_getAddress(DeploymentAddresses.KEY_VERIFYING_PAYMASTER) == address(0)) {
-            VerifyingPaymaster verifying = new VerifyingPaymaster(
-                IEntryPoint(entryPointAddr),
-                admin,
-                verifyingSigner
-            );
+            VerifyingPaymaster verifying = new VerifyingPaymaster(IEntryPoint(entryPointAddr), admin, verifyingSigner);
             _setAddress(DeploymentAddresses.KEY_VERIFYING_PAYMASTER, address(verifying));
             console.log("    [NEW] VerifyingPaymaster:", address(verifying));
         } else {
@@ -537,11 +537,7 @@ contract DeployAllScript is DeploymentHelper {
 
         // SponsorPaymaster (depends on EntryPoint)
         if (_getAddress(DeploymentAddresses.KEY_SPONSOR_PAYMASTER) == address(0)) {
-            SponsorPaymaster sponsor = new SponsorPaymaster(
-                IEntryPoint(entryPointAddr),
-                admin,
-                verifyingSigner
-            );
+            SponsorPaymaster sponsor = new SponsorPaymaster(IEntryPoint(entryPointAddr), admin, verifyingSigner);
             _setAddress(DeploymentAddresses.KEY_SPONSOR_PAYMASTER, address(sponsor));
             console.log("    [NEW] SponsorPaymaster:", address(sponsor));
         } else {
@@ -551,11 +547,9 @@ contract DeployAllScript is DeploymentHelper {
         // ERC20Paymaster (depends on EntryPoint, PriceOracle)
         if (_getAddress(DeploymentAddresses.KEY_ERC20_PAYMASTER) == address(0)) {
             if (priceOracleAddr != address(0)) {
-                ERC20Paymaster erc20Paymaster = new ERC20Paymaster(
-                    IEntryPoint(entryPointAddr),
-                    admin,
-                    IPriceOracle(priceOracleAddr),
-                    DEFAULT_MARKUP
+                ERC20Paymaster erc20Paymaster =
+                    new ERC20Paymaster(
+                    IEntryPoint(entryPointAddr), admin, IPriceOracle(priceOracleAddr), DEFAULT_MARKUP
                 );
                 _setAddress(DeploymentAddresses.KEY_ERC20_PAYMASTER, address(erc20Paymaster));
                 console.log("    [NEW] ERC20Paymaster:", address(erc20Paymaster));
@@ -728,11 +722,8 @@ contract DeployAllScript is DeploymentHelper {
         }
 
         if (_getAddress(DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER) == address(0)) {
-            OptimisticVerifier ov = new OptimisticVerifier(
-                DEFAULT_CHALLENGE_PERIOD,
-                DEFAULT_CHALLENGE_BOND,
-                DEFAULT_CHALLENGER_REWARD
-            );
+            OptimisticVerifier ov =
+                new OptimisticVerifier(DEFAULT_CHALLENGE_PERIOD, DEFAULT_CHALLENGE_BOND, DEFAULT_CHALLENGER_REWARD);
             _setAddress(DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER, address(ov));
             console.log("    [NEW] OptimisticVerifier:", address(ov));
         } else {

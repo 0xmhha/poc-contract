@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {IEntryPoint} from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
-import {ERC20Paymaster} from "../../src/erc4337-paymaster/ERC20Paymaster.sol";
-import {VerifyingPaymaster} from "../../src/erc4337-paymaster/VerifyingPaymaster.sol";
-import {SponsorPaymaster} from "../../src/erc4337-paymaster/SponsorPaymaster.sol";
-import {Permit2Paymaster} from "../../src/erc4337-paymaster/Permit2Paymaster.sol";
-import {IPriceOracle} from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
-import {IPermit2} from "../../src/permit2/interfaces/IPermit2.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { IEntryPoint } from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
+import { ERC20Paymaster } from "../../src/erc4337-paymaster/ERC20Paymaster.sol";
+import { VerifyingPaymaster } from "../../src/erc4337-paymaster/VerifyingPaymaster.sol";
+import { SponsorPaymaster } from "../../src/erc4337-paymaster/SponsorPaymaster.sol";
+import { Permit2Paymaster } from "../../src/erc4337-paymaster/Permit2Paymaster.sol";
+import { IPriceOracle } from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { IPermit2 } from "../../src/permit2/interfaces/IPermit2.sol";
 
 /**
  * @title DeployPaymastersScript
@@ -39,7 +39,7 @@ contract DeployPaymastersScript is DeploymentHelper {
     // Default markup: 10% (10000 = 100%, so 1000 = 10%)
     uint256 constant DEFAULT_MARKUP = 1000;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();
@@ -62,31 +62,19 @@ contract DeployPaymastersScript is DeploymentHelper {
         vm.startBroadcast();
 
         // 1. Deploy VerifyingPaymaster (always deployable)
-        verifyingPaymaster = new VerifyingPaymaster(
-            IEntryPoint(entryPointAddress),
-            owner,
-            verifyingSigner
-        );
+        verifyingPaymaster = new VerifyingPaymaster(IEntryPoint(entryPointAddress), owner, verifyingSigner);
         _setAddress(DeploymentAddresses.KEY_VERIFYING_PAYMASTER, address(verifyingPaymaster));
         console.log("VerifyingPaymaster deployed at:", address(verifyingPaymaster));
 
         // 2. Deploy SponsorPaymaster (always deployable)
-        sponsorPaymaster = new SponsorPaymaster(
-            IEntryPoint(entryPointAddress),
-            owner,
-            verifyingSigner
-        );
+        sponsorPaymaster = new SponsorPaymaster(IEntryPoint(entryPointAddress), owner, verifyingSigner);
         _setAddress(DeploymentAddresses.KEY_SPONSOR_PAYMASTER, address(sponsorPaymaster));
         console.log("SponsorPaymaster deployed at:", address(sponsorPaymaster));
 
         // 3. Deploy ERC20Paymaster (requires price oracle)
         if (priceOracle != address(0)) {
-            erc20Paymaster = new ERC20Paymaster(
-                IEntryPoint(entryPointAddress),
-                owner,
-                IPriceOracle(priceOracle),
-                markup
-            );
+            erc20Paymaster =
+                new ERC20Paymaster(IEntryPoint(entryPointAddress), owner, IPriceOracle(priceOracle), markup);
             _setAddress(DeploymentAddresses.KEY_ERC20_PAYMASTER, address(erc20Paymaster));
             console.log("ERC20Paymaster deployed at:", address(erc20Paymaster));
         } else {
@@ -96,11 +84,7 @@ contract DeployPaymastersScript is DeploymentHelper {
         // 4. Deploy Permit2Paymaster (requires permit2 and price oracle)
         if (permit2Address != address(0) && priceOracle != address(0)) {
             permit2Paymaster = new Permit2Paymaster(
-                IEntryPoint(entryPointAddress),
-                owner,
-                IPermit2(permit2Address),
-                IPriceOracle(priceOracle),
-                markup
+                IEntryPoint(entryPointAddress), owner, IPermit2(permit2Address), IPriceOracle(priceOracle), markup
             );
             _setAddress(DeploymentAddresses.KEY_PERMIT2_PAYMASTER, address(permit2Paymaster));
             console.log("Permit2Paymaster deployed at:", address(permit2Paymaster));
@@ -133,7 +117,8 @@ contract DeployPaymastersScript is DeploymentHelper {
  * @notice Deployment script for only VerifyingPaymaster
  *
  * Usage:
- *   ENTRYPOINT_ADDRESS=0x... VERIFYING_SIGNER=0x... forge script script/deploy-contract/DeployPaymasters.s.sol:DeployVerifyingPaymasterScript --rpc-url <RPC_URL> --broadcast
+ *   ENTRYPOINT_ADDRESS=0x... VERIFYING_SIGNER=0x... forge script
+ * script/deploy-contract/DeployPaymasters.s.sol:DeployVerifyingPaymasterScript --rpc-url <RPC_URL> --broadcast
  */
 contract DeployVerifyingPaymasterScript is Script {
     function run() public {
@@ -143,11 +128,7 @@ contract DeployVerifyingPaymasterScript is Script {
 
         vm.startBroadcast();
 
-        VerifyingPaymaster paymaster = new VerifyingPaymaster(
-            IEntryPoint(entryPointAddress),
-            owner,
-            verifyingSigner
-        );
+        VerifyingPaymaster paymaster = new VerifyingPaymaster(IEntryPoint(entryPointAddress), owner, verifyingSigner);
 
         vm.stopBroadcast();
 

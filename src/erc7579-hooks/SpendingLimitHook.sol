@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IHook} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {MODULE_TYPE_HOOK} from "../erc7579-smartaccount/types/Constants.sol";
+import { IHook } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { MODULE_TYPE_HOOK } from "../erc7579-smartaccount/types/Constants.sol";
 
 /**
  * @title SpendingLimitHook
@@ -25,17 +25,17 @@ import {MODULE_TYPE_HOOK} from "../erc7579-smartaccount/types/Constants.sol";
 contract SpendingLimitHook is IHook {
     /// @notice Spending limit configuration for a token
     struct SpendingLimit {
-        uint256 limit;           // Maximum amount per period
-        uint256 spent;           // Amount spent in current period
-        uint256 periodLength;    // Length of period in seconds
-        uint256 periodStart;     // Start of current period
+        uint256 limit; // Maximum amount per period
+        uint256 spent; // Amount spent in current period
+        uint256 periodLength; // Length of period in seconds
+        uint256 periodStart; // Start of current period
         bool isEnabled;
     }
 
     /// @notice Storage for each smart account
     struct AccountStorage {
-        mapping(address token => SpendingLimit) limits;  // token address(0) = ETH
-        mapping(address => bool) whitelist;              // Addresses exempt from limits
+        mapping(address token => SpendingLimit) limits; // token address(0) = ETH
+        mapping(address => bool) whitelist; // Addresses exempt from limits
         bool isPaused;
         address[] configuredTokens;
     }
@@ -55,19 +55,10 @@ contract SpendingLimitHook is IHook {
     bytes4 private constant APPROVE_SELECTOR = bytes4(keccak256("approve(address,uint256)"));
 
     // Events
-    event SpendingLimitSet(
-        address indexed account,
-        address indexed token,
-        uint256 limit,
-        uint256 periodLength
-    );
+    event SpendingLimitSet(address indexed account, address indexed token, uint256 limit, uint256 periodLength);
     event SpendingLimitRemoved(address indexed account, address indexed token);
     event SpendingRecorded(
-        address indexed account,
-        address indexed token,
-        uint256 amount,
-        uint256 newTotal,
-        uint256 limit
+        address indexed account, address indexed token, uint256 amount, uint256 newTotal, uint256 limit
     );
     event WhitelistUpdated(address indexed account, address indexed target, bool isWhitelisted);
     event AccountPaused(address indexed account);
@@ -127,11 +118,12 @@ contract SpendingLimitHook is IHook {
      * @param msgData The calldata being executed
      * @return hookData Data to pass to postCheck
      */
-    function preCheck(
-        address,
-        uint256 msgValue,
-        bytes calldata msgData
-    ) external payable override returns (bytes memory hookData) {
+    function preCheck(address, uint256 msgValue, bytes calldata msgData)
+        external
+        payable
+        override
+        returns (bytes memory hookData)
+    {
         AccountStorage storage store = accountStorage[msg.sender];
 
         // Check if paused
@@ -153,6 +145,7 @@ contract SpendingLimitHook is IHook {
 
         // Check ERC-20 transfers
         if (msgData.length >= 56) { // 20 (target) + 32 (value) + 4 (selector)
+
             bytes4 selector = bytes4(msgData[52:56]);
 
             if (selector == TRANSFER_SELECTOR && msgData.length >= 120) {
@@ -189,11 +182,7 @@ contract SpendingLimitHook is IHook {
      * @param limit Maximum spending per period
      * @param periodLength Period length in seconds
      */
-    function setSpendingLimit(
-        address token,
-        uint256 limit,
-        uint256 periodLength
-    ) external {
+    function setSpendingLimit(address token, uint256 limit, uint256 periodLength) external {
         _setSpendingLimit(msg.sender, token, limit, periodLength);
     }
 
@@ -261,10 +250,7 @@ contract SpendingLimitHook is IHook {
      * @param account The smart account
      * @param token Token address
      */
-    function getSpendingLimit(
-        address account,
-        address token
-    ) external view returns (SpendingLimit memory) {
+    function getSpendingLimit(address account, address token) external view returns (SpendingLimit memory) {
         return accountStorage[account].limits[token];
     }
 
@@ -273,10 +259,7 @@ contract SpendingLimitHook is IHook {
      * @param account The smart account
      * @param token Token address
      */
-    function getRemainingAllowance(
-        address account,
-        address token
-    ) external view returns (uint256) {
+    function getRemainingAllowance(address account, address token) external view returns (uint256) {
         SpendingLimit storage limit = accountStorage[account].limits[token];
 
         if (!limit.isEnabled) return type(uint256).max;
@@ -319,10 +302,7 @@ contract SpendingLimitHook is IHook {
      * @param account The smart account
      * @param token Token address
      */
-    function getTimeUntilReset(
-        address account,
-        address token
-    ) external view returns (uint256) {
+    function getTimeUntilReset(address account, address token) external view returns (uint256) {
         SpendingLimit storage limit = accountStorage[account].limits[token];
 
         if (!limit.isEnabled) return 0;
@@ -335,12 +315,7 @@ contract SpendingLimitHook is IHook {
 
     // ============ Internal Functions ============
 
-    function _setSpendingLimit(
-        address account,
-        address token,
-        uint256 limit,
-        uint256 periodLength
-    ) internal {
+    function _setSpendingLimit(address account, address token, uint256 limit, uint256 periodLength) internal {
         if (limit == 0) revert InvalidLimit();
         if (periodLength == 0) revert InvalidPeriod();
 
@@ -352,21 +327,13 @@ contract SpendingLimitHook is IHook {
         }
 
         store.limits[token] = SpendingLimit({
-            limit: limit,
-            spent: 0,
-            periodLength: periodLength,
-            periodStart: block.timestamp,
-            isEnabled: true
+            limit: limit, spent: 0, periodLength: periodLength, periodStart: block.timestamp, isEnabled: true
         });
 
         emit SpendingLimitSet(account, token, limit, periodLength);
     }
 
-    function _checkAndRecordSpending(
-        address account,
-        address token,
-        uint256 amount
-    ) internal {
+    function _checkAndRecordSpending(address account, address token, uint256 amount) internal {
         AccountStorage storage store = accountStorage[account];
         SpendingLimit storage limit = store.limits[token];
 

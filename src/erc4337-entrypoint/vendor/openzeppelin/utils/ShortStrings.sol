@@ -3,10 +3,10 @@
 
 pragma solidity ^0.8.20;
 
-import {StorageSlot} from "./StorageSlot.sol";
+import { StorageSlot } from "./StorageSlot.sol";
 
-// | string  | 0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA   |
-// | length  | 0x                                                              BB |
+// | string | 0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA |
+// | length | 0x BB |
 type ShortString is bytes32;
 
 /**
@@ -39,7 +39,8 @@ type ShortString is bytes32;
  */
 library ShortStrings {
     // Used as an identifier for strings longer than 31 bytes.
-    bytes32 private constant FALLBACK_SENTINEL = 0x00000000000000000000000000000000000000000000000000000000000000FF;
+    bytes32 private constant FALLBACK_SENTINEL =
+        0x0_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_0FF;
 
     error StringTooLong(string str);
     error InvalidShortString();

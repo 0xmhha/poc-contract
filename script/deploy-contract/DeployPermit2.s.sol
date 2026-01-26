@@ -2,9 +2,9 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {Permit2} from "../../src/permit2/Permit2.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { Permit2 } from "../../src/permit2/Permit2.sol";
 
 /**
  * @title DeployPermit2Script
@@ -25,7 +25,7 @@ import {Permit2} from "../../src/permit2/Permit2.sol";
 contract DeployPermit2Script is DeploymentHelper {
     Permit2 public permit2;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();

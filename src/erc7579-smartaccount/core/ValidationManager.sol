@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {IValidator, IModule, IExecutor, IHook, IPolicy, ISigner} from "../interfaces/IERC7579Modules.sol";
-import {IERC7579Account} from "../interfaces/IERC7579Account.sol";
-import {PackedUserOperation} from "../interfaces/PackedUserOperation.sol";
-import {SelectorManager} from "./SelectorManager.sol";
-import {HookManager} from "./HookManager.sol";
-import {ExecutorManager} from "./ExecutorManager.sol";
-import {ValidationData, ValidAfter, ValidUntil, parseValidationData} from "../types/Types.sol";
-import {EIP712} from "solady/utils/EIP712.sol";
-import {ModuleLib} from "../utils/ModuleLib.sol";
+import { IValidator, IModule, IExecutor, IHook, IPolicy, ISigner } from "../interfaces/IERC7579Modules.sol";
+import { IERC7579Account } from "../interfaces/IERC7579Account.sol";
+import { PackedUserOperation } from "../interfaces/PackedUserOperation.sol";
+import { SelectorManager } from "./SelectorManager.sol";
+import { HookManager } from "./HookManager.sol";
+import { ExecutorManager } from "./ExecutorManager.sol";
+import { ValidationData, ValidAfter, ValidUntil, parseValidationData } from "../types/Types.sol";
+import { EIP712 } from "solady/utils/EIP712.sol";
+import { ModuleLib } from "../utils/ModuleLib.sol";
 import {
     ValidationId,
     PolicyData,
@@ -19,11 +19,11 @@ import {
     PassFlag
 } from "../utils/ValidationTypeLib.sol";
 
-import {CALLTYPE_SINGLE, MODULE_TYPE_POLICY, MODULE_TYPE_SIGNER, MODULE_TYPE_VALIDATOR} from "../types/Constants.sol";
-import {calldataKeccak, getSender} from "../utils/Utils.sol";
+import { CALLTYPE_SINGLE, MODULE_TYPE_POLICY, MODULE_TYPE_SIGNER, MODULE_TYPE_VALIDATOR } from "../types/Constants.sol";
+import { calldataKeccak, getSender } from "../utils/Utils.sol";
 
-import {PermissionId, getValidationResult, CallType} from "../types/Types.sol";
-import {_intersectValidationData} from "../utils/KernelValidationResult.sol";
+import { PermissionId, getValidationResult, CallType } from "../types/Types.sol";
+import { _intersectValidationData } from "../utils/KernelValidationResult.sol";
 import {
     PermissionSigMemory,
     PermissionDisableDataFormat,
@@ -51,7 +51,7 @@ import {
     MAGIC_VALUE_SIG_REPLAYABLE
 } from "../types/Constants.sol";
 
-import {ECDSA} from "solady/utils/ECDSA.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
 
 abstract contract ValidationManager is EIP712, SelectorManager, HookManager, ExecutorManager {
     event RootValidatorUpdated(ValidationId rootValidator);
@@ -271,9 +271,8 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
         unchecked {
             for (uint256 i = 0; i < data.length - 1; i++) {
                 state.permissionConfig[permission].policyData.push(PolicyData.wrap(bytes22(data[i][0:22])));
-                IPolicy(address(bytes20(data[i][2:22]))).onInstall(
-                    abi.encodePacked(bytes32(PermissionId.unwrap(permission)), data[i][22:])
-                );
+                IPolicy(address(bytes20(data[i][2:22])))
+                    .onInstall(abi.encodePacked(bytes32(PermissionId.unwrap(permission)), data[i][22:]));
                 emit IERC7579Account.ModuleInstalled(MODULE_TYPE_POLICY, address(bytes20(data[i][2:22])));
             }
             // last permission data will be signer
@@ -332,7 +331,9 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
                 );
             } else if (vType == VALIDATION_TYPE_7702) {
                 validationData = _verify7702Signature(ECDSA.toEthSignedMessageHash(userOpHash), userOpSig)
-                    == ERC1271_MAGICVALUE ? ValidationData.wrap(0) : ValidationData.wrap(1);
+                        == ERC1271_MAGICVALUE
+                    ? ValidationData.wrap(0)
+                    : ValidationData.wrap(1);
             } else {
                 revert InvalidValidationType();
             }
@@ -480,8 +481,9 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
         ValidationStorage storage state = _validationStorage();
         config.hook = IHook(hook);
         unchecked {
-            config.nonce =
-                state.validationConfig[vId].nonce == state.currentNonce ? state.currentNonce + 1 : state.currentNonce;
+            config.nonce = state.validationConfig[vId].nonce == state.currentNonce
+                ? state.currentNonce + 1
+                : state.currentNonce;
         }
 
         // forge-lint: disable-next-line(asm-keccak256)
@@ -618,7 +620,8 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
 
                 if (PassFlag.unwrap(mSig.flag) & PassFlag.unwrap(SKIP_SIGNATURE) == 0) {
                     ValidationData vd = ValidationData.wrap(
-                        mSig.policy.checkSignaturePolicy(
+                        mSig.policy
+                        .checkSignaturePolicy(
                             bytes32(PermissionId.unwrap(mSig.permission)), mSig.caller, mSig.digest, mSig.permSig
                         )
                     );
@@ -640,7 +643,7 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
     }
 
     // chain agnostic internal functions
-    /// @dev Returns the EIP-712 domain separator.
+    // / @dev Returns the EIP-712 domain separator.
     function _buildChainAgnosticDomainSeparator() internal view returns (bytes32 separator) {
         // We will use `separator` to store the name hash to save a bit of gas.
         bytes32 versionHash;
@@ -653,7 +656,7 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
             mstore(m, _DOMAIN_TYPEHASH)
             mstore(add(m, 0x20), separator) // Name hash.
             mstore(add(m, 0x40), versionHash)
-            mstore(add(m, 0x60), 0x00) //  NOTE : user chainId == 0 as eip 7702 did
+            mstore(add(m, 0x60), 0x00) // NOTE : user chainId == 0 as eip 7702 did
             mstore(add(m, 0x80), address())
             separator := keccak256(m, 0xa0)
         }
@@ -665,7 +668,7 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
         /// @solidity memory-safe-assembly
         assembly {
             // Compute the digest.
-            mstore(0x00, 0x1901000000000000) // Store "\x19\x01".
+            mstore(0x00, 0x1_901_000_000_000_000) // Store "\x19\x01".
             mstore(0x1a, digest) // Store the domain separator.
             mstore(0x3a, structHash) // Store the struct hash.
             digest := keccak256(0x18, 0x42)

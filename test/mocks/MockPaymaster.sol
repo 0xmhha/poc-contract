@@ -35,11 +35,11 @@ contract MockPaymaster is IPaymaster {
     }
 
     /// @inheritdoc IPaymaster
-    function validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 maxCost
-    ) external onlyEntryPoint returns (bytes memory context, uint256 validationData) {
+    function validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+        external
+        onlyEntryPoint
+        returns (bytes memory context, uint256 validationData)
+    {
         validateCount++;
 
         // Simple validation - always approve for testing
@@ -52,12 +52,10 @@ contract MockPaymaster is IPaymaster {
     }
 
     /// @inheritdoc IPaymaster
-    function postOp(
-        PostOpMode mode,
-        bytes calldata context,
-        uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
-    ) external onlyEntryPoint {
+    function postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+        external
+        onlyEntryPoint
+    {
         postOpCount++;
 
         // Simple post-op - just track that it was called
@@ -89,5 +87,5 @@ contract MockPaymaster is IPaymaster {
         ENTRY_POINT.withdrawStake(withdrawAddress);
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }

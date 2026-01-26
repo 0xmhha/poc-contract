@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC7715PermissionManager} from "./ERC7715PermissionManager.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC7715PermissionManager } from "./ERC7715PermissionManager.sol";
 
 /**
  * @title ISubscriptionManager
  * @notice Interface for subscription management
  */
 interface ISubscriptionManager {
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
@@ -31,37 +31,19 @@ interface ISubscriptionManager {
     error PermissionNotGranted();
     error CancellationPeriodNotMet();
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    event PlanCreated(
-        uint256 indexed planId,
-        address indexed merchant,
-        uint256 amount,
-        uint256 period,
-        address token
-    );
+    event PlanCreated(uint256 indexed planId, address indexed merchant, uint256 amount, uint256 period, address token);
 
-    event PlanUpdated(
-        uint256 indexed planId,
-        uint256 amount,
-        uint256 period,
-        bool active
-    );
+    event PlanUpdated(uint256 indexed planId, uint256 amount, uint256 period, bool active);
 
     event SubscriptionCreated(
-        bytes32 indexed subscriptionId,
-        uint256 indexed planId,
-        address indexed subscriber,
-        uint256 startTime
+        bytes32 indexed subscriptionId, uint256 indexed planId, address indexed subscriber, uint256 startTime
     );
 
-    event SubscriptionCancelled(
-        bytes32 indexed subscriptionId,
-        address indexed subscriber,
-        uint256 cancelTime
-    );
+    event SubscriptionCancelled(bytes32 indexed subscriptionId, address indexed subscriber, uint256 cancelTime);
 
     event PaymentProcessed(
         bytes32 indexed subscriptionId,
@@ -71,43 +53,39 @@ interface ISubscriptionManager {
         uint256 paymentNumber
     );
 
-    event PaymentFailedLog(
-        bytes32 indexed subscriptionId,
-        address indexed subscriber,
-        string reason
-    );
+    event PaymentFailedLog(bytes32 indexed subscriptionId, address indexed subscriber, string reason);
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  STRUCTS
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Subscription plan created by merchants
     struct Plan {
-        address merchant;           // Merchant receiving payments
-        uint256 amount;             // Payment amount per period
-        uint256 period;             // Payment period in seconds (e.g., 30 days)
-        address token;              // Payment token (address(0) for native)
-        uint256 trialPeriod;        // Free trial period in seconds
-        uint256 gracePeriod;        // Grace period after missed payment
+        address merchant; // Merchant receiving payments
+        uint256 amount; // Payment amount per period
+        uint256 period; // Payment period in seconds (e.g., 30 days)
+        address token; // Payment token (address(0) for native)
+        uint256 trialPeriod; // Free trial period in seconds
+        uint256 gracePeriod; // Grace period after missed payment
         uint256 minSubscriptionTime; // Minimum subscription duration
-        string name;                // Plan name
-        string description;         // Plan description
-        bool active;                // Whether plan accepts new subscriptions
-        uint256 subscriberCount;    // Current subscriber count
+        string name; // Plan name
+        string description; // Plan description
+        bool active; // Whether plan accepts new subscriptions
+        uint256 subscriberCount; // Current subscriber count
     }
 
     /// @notice Individual subscription record
     struct Subscription {
-        uint256 planId;             // Reference to subscription plan
-        address subscriber;         // Address of subscriber
-        bytes32 permissionId;       // ERC-7715 permission ID
-        uint256 startTime;          // Subscription start timestamp
-        uint256 lastPayment;        // Last successful payment timestamp
-        uint256 nextPayment;        // Next payment due timestamp
-        uint256 paymentCount;       // Total successful payments
-        uint256 totalPaid;          // Total amount paid
-        bool active;                // Whether subscription is active
-        bool inGracePeriod;         // Whether in grace period
+        uint256 planId; // Reference to subscription plan
+        address subscriber; // Address of subscriber
+        bytes32 permissionId; // ERC-7715 permission ID
+        uint256 startTime; // Subscription start timestamp
+        uint256 lastPayment; // Last successful payment timestamp
+        uint256 nextPayment; // Next payment due timestamp
+        uint256 paymentCount; // Total successful payments
+        uint256 totalPaid; // Total amount paid
+        bool active; // Whether subscription is active
+        bool inGracePeriod; // Whether in grace period
     }
 }
 
@@ -132,7 +110,7 @@ interface ISubscriptionManager {
 contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
@@ -172,7 +150,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
     /// @notice Maximum period (1 year)
     uint256 public constant MAX_PERIOD = 365 days;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
@@ -186,7 +164,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         protocolFeeBps = 50; // 0.5% default fee
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            PLAN MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
@@ -243,12 +221,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
      * @param period New payment period
      * @param active New active status
      */
-    function updatePlan(
-        uint256 planId,
-        uint256 amount,
-        uint256 period,
-        bool active
-    ) external {
+    function updatePlan(uint256 planId, uint256 amount, uint256 period, bool active) external {
         Plan storage plan = plans[planId];
         if (plan.merchant == address(0)) revert InvalidPlan();
         if (plan.merchant != msg.sender) revert UnauthorizedMerchant();
@@ -264,7 +237,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         emit PlanUpdated(planId, plan.amount, plan.period, active);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                        SUBSCRIPTION MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
@@ -274,10 +247,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
      * @param permissionId ERC-7715 permission ID for recurring payments
      * @return subscriptionId Created subscription ID
      */
-    function subscribe(
-        uint256 planId,
-        bytes32 permissionId
-    ) external nonReentrant returns (bytes32 subscriptionId) {
+    function subscribe(uint256 planId, bytes32 permissionId) external nonReentrant returns (bytes32 subscriptionId) {
         Plan storage plan = plans[planId];
         if (plan.merchant == address(0)) revert InvalidPlan();
         if (!plan.active) revert PlanNotActive();
@@ -287,17 +257,14 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
             revert PermissionNotGranted();
         }
 
-        IERC7715PermissionManager.PermissionRecord memory permission =
-            PERMISSION_MANAGER.getPermission(permissionId);
+        IERC7715PermissionManager.PermissionRecord memory permission = PERMISSION_MANAGER.getPermission(permissionId);
 
         if (permission.granter != msg.sender) {
             revert PermissionNotGranted();
         }
 
         // Generate subscription ID
-        subscriptionId = keccak256(
-            abi.encodePacked(planId, msg.sender, block.timestamp)
-        );
+        subscriptionId = keccak256(abi.encodePacked(planId, msg.sender, block.timestamp));
 
         if (subscriptions[subscriptionId].startTime != 0) {
             revert SubscriptionAlreadyExists();
@@ -377,10 +344,13 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
         for (uint256 i = 0; i < subscriptionIds.length; i++) {
             try this.processPaymentInternal(subscriptionIds[i]) {
-                // Success
-            } catch {
+            // Success
+            }
+            catch {
                 // Log failure but continue processing
-                emit PaymentFailedLog(subscriptionIds[i], subscriptions[subscriptionIds[i]].subscriber, "Payment failed");
+                emit PaymentFailedLog(
+                    subscriptionIds[i], subscriptions[subscriptionIds[i]].subscriber, "Payment failed"
+                );
             }
         }
     }
@@ -434,7 +404,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         }
 
         // Calculate fee
-        uint256 fee = (plan.amount * protocolFeeBps) / 10000;
+        uint256 fee = (plan.amount * protocolFeeBps) / 10_000;
         uint256 merchantAmount = plan.amount - fee;
 
         // Transfer tokens
@@ -460,16 +430,10 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         sub.totalPaid += plan.amount;
         sub.inGracePeriod = false;
 
-        emit PaymentProcessed(
-            subscriptionId,
-            sub.subscriber,
-            plan.merchant,
-            plan.amount,
-            sub.paymentCount
-        );
+        emit PaymentProcessed(subscriptionId, sub.subscriber, plan.merchant, plan.amount, sub.paymentCount);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -524,9 +488,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
      * @param subscriptionIds Array of subscription IDs to check
      * @return dueIds Array of subscription IDs due for payment
      */
-    function getDueSubscriptions(
-        bytes32[] calldata subscriptionIds
-    ) external view returns (bytes32[] memory dueIds) {
+    function getDueSubscriptions(bytes32[] calldata subscriptionIds) external view returns (bytes32[] memory dueIds) {
         uint256 count = 0;
         bytes32[] memory temp = new bytes32[](subscriptionIds.length);
 
@@ -558,7 +520,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         return int256((sub.nextPayment - block.timestamp) / 1 days);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            ADMIN FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -613,5 +575,5 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
     /**
      * @notice Receive native tokens (for subscription payments)
      */
-    receive() external payable {}
+    receive() external payable { }
 }

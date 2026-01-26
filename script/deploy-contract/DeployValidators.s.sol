@@ -2,13 +2,13 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {ECDSAValidator} from "../../src/erc7579-validators/ECDSAValidator.sol";
-import {WeightedECDSAValidator} from "../../src/erc7579-validators/WeightedECDSAValidator.sol";
-import {MultiChainValidator} from "../../src/erc7579-validators/MultiChainValidator.sol";
-import {MultiSigValidator} from "../../src/erc7579-validators/MultiSigValidator.sol";
-import {WebAuthnValidator} from "../../src/erc7579-validators/WebAuthnValidator.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { ECDSAValidator } from "../../src/erc7579-validators/ECDSAValidator.sol";
+import { WeightedECDSAValidator } from "../../src/erc7579-validators/WeightedECDSAValidator.sol";
+import { MultiChainValidator } from "../../src/erc7579-validators/MultiChainValidator.sol";
+import { MultiSigValidator } from "../../src/erc7579-validators/MultiSigValidator.sol";
+import { WebAuthnValidator } from "../../src/erc7579-validators/WebAuthnValidator.sol";
 
 /**
  * @title DeployValidatorsScript
@@ -32,7 +32,7 @@ contract DeployValidatorsScript is DeploymentHelper {
     MultiSigValidator public multiSigValidator;
     WebAuthnValidator public webAuthnValidator;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();

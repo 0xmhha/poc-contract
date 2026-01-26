@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {SecureBridge} from "../../src/bridge/SecureBridge.sol";
-import {BridgeValidator} from "../../src/bridge/BridgeValidator.sol";
-import {OptimisticVerifier} from "../../src/bridge/OptimisticVerifier.sol";
-import {BridgeRateLimiter} from "../../src/bridge/BridgeRateLimiter.sol";
-import {BridgeGuardian} from "../../src/bridge/BridgeGuardian.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { SecureBridge } from "../../src/bridge/SecureBridge.sol";
+import { BridgeValidator } from "../../src/bridge/BridgeValidator.sol";
+import { OptimisticVerifier } from "../../src/bridge/OptimisticVerifier.sol";
+import { BridgeRateLimiter } from "../../src/bridge/BridgeRateLimiter.sol";
+import { BridgeGuardian } from "../../src/bridge/BridgeGuardian.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract MockERC20 is IERC20 {
     string public name = "Mock Token";
@@ -147,11 +147,7 @@ contract SecureBridgeTest is Test {
         vm.prank(owner);
         vm.expectRevert(SecureBridge.ZeroAddress.selector);
         new SecureBridge(
-            address(0),
-            payable(address(optimisticVerifier)),
-            address(rateLimiter),
-            address(guardian),
-            feeRecipient
+            address(0), payable(address(optimisticVerifier)), address(rateLimiter), address(guardian), feeRecipient
         );
     }
 
@@ -168,7 +164,8 @@ contract SecureBridgeTest is Test {
         token.approve(address(bridge), amount);
 
         vm.prank(sender);
-        bytes32 requestId = bridge.initiateBridge(address(token), amount, recipient, TARGET_CHAIN, block.timestamp + 1 hours);
+        bytes32 requestId =
+            bridge.initiateBridge(address(token), amount, recipient, TARGET_CHAIN, block.timestamp + 1 hours);
 
         assertNotEq(requestId, bytes32(0));
         assertEq(token.balanceOf(address(bridge)), amount);
@@ -182,8 +179,9 @@ contract SecureBridgeTest is Test {
         vm.deal(sender, amount);
 
         vm.prank(sender);
-        bytes32 requestId =
-            bridge.initiateBridge{value: amount}(address(0), amount, recipient, TARGET_CHAIN, block.timestamp + 1 hours);
+        bytes32 requestId = bridge.initiateBridge{
+            value: amount
+        }(address(0), amount, recipient, TARGET_CHAIN, block.timestamp + 1 hours);
 
         assertNotEq(requestId, bytes32(0));
         assertEq(address(bridge).balance, amount);
@@ -239,7 +237,9 @@ contract SecureBridgeTest is Test {
 
         vm.prank(sender);
         vm.expectRevert(SecureBridge.GuardianPaused.selector);
-        bridge.initiateBridge(address(token), 1000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours);
+        bridge.initiateBridge(
+            address(token), 1000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours
+        );
     }
 
     function test_InitiateBridge_RevertsWhenSenderBlacklisted() public {
@@ -254,7 +254,9 @@ contract SecureBridgeTest is Test {
 
         vm.prank(sender);
         vm.expectRevert(SecureBridge.Blacklisted.selector);
-        bridge.initiateBridge(address(token), 1000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours);
+        bridge.initiateBridge(
+            address(token), 1000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours
+        );
     }
 
     // ============ Complete Bridge Tests ============
@@ -353,7 +355,7 @@ contract SecureBridgeTest is Test {
         address challenger = makeAddr("challenger");
         vm.deal(challenger, 2 ether);
         vm.prank(challenger);
-        optimisticVerifier.challengeRequest{value: 1 ether}(requestId, "Fraud detected");
+        optimisticVerifier.challengeRequest{ value: 1 ether }(requestId, "Fraud detected");
 
         vm.prank(owner);
         optimisticVerifier.setFraudProofVerifier(owner);
@@ -421,7 +423,9 @@ contract SecureBridgeTest is Test {
         token.approve(address(bridge), 10_000 * 1e18);
 
         vm.prank(sender);
-        bridge.initiateBridge(address(token), 10_000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours);
+        bridge.initiateBridge(
+            address(token), 10_000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours
+        );
 
         uint256 fees = bridge.feesCollected(address(token));
         assertGt(fees, 0);
@@ -469,12 +473,16 @@ contract SecureBridgeTest is Test {
         assertEq(bridge.getUserNonce(sender), 0);
 
         vm.prank(sender);
-        bridge.initiateBridge(address(token), 1000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours);
+        bridge.initiateBridge(
+            address(token), 1000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours
+        );
 
         assertEq(bridge.getUserNonce(sender), 1);
 
         vm.prank(sender);
-        bridge.initiateBridge(address(token), 1000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours);
+        bridge.initiateBridge(
+            address(token), 1000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours
+        );
 
         assertEq(bridge.getUserNonce(sender), 2);
     }
@@ -512,7 +520,9 @@ contract SecureBridgeTest is Test {
         token.approve(address(bridge), 10_000 * 1e18);
 
         vm.prank(sender);
-        bridge.initiateBridge(address(token), 10_000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours);
+        bridge.initiateBridge(
+            address(token), 10_000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours
+        );
 
         uint256 fee = 10_000 * 1e18 / 1000;
         uint256 expectedTvl = 10_000 * 1e18 - fee;
@@ -570,7 +580,9 @@ contract SecureBridgeTest is Test {
 
         vm.prank(sender);
         vm.expectRevert();
-        bridge.initiateBridge(address(token), 1000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours);
+        bridge.initiateBridge(
+            address(token), 1000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours
+        );
     }
 
     // ============ Helper Functions ============

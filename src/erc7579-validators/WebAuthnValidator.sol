@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IValidator} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {PackedUserOperation} from "../erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { IValidator } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { PackedUserOperation } from "../erc7579-smartaccount/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_SUCCESS_UINT,
     SIG_VALIDATION_FAILED_UINT,
@@ -23,7 +23,7 @@ import {
  * - Compatible with browser WebAuthn API and hardware security keys
  *
  * Signature Format (for validateUserOp):
- * - [0:32]   - authenticatorData length (uint256)
+ * - [0:32] - authenticatorData length (uint256)
  * - [32:32+len] - authenticatorData
  * - [32+len:64+len] - clientDataJson length (uint256)
  * - [64+len:64+len+cdLen] - clientDataJson
@@ -31,7 +31,8 @@ import {
  */
 contract WebAuthnValidator is IValidator {
     /// @notice P256 curve constants
-    uint256 internal constant P256_N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551;
+    uint256 internal constant P256_N =
+        0xF_FFF_FFF_F00_000_000_FFF_FFF_FFF_FFF_FFF_FBC_E6F_AAD_A71_79E_84F_3B9_CAC_2FC_632_551;
     uint256 internal constant P256_N_DIV_2 = P256_N / 2;
 
     /// @notice WebAuthn credential structure
@@ -53,12 +54,7 @@ contract WebAuthnValidator is IValidator {
     mapping(address => WebAuthnStorage) private webAuthnStorage;
 
     /// @notice Events
-    event CredentialRegistered(
-        address indexed account,
-        bytes32 indexed credentialId,
-        uint256 pubKeyX,
-        uint256 pubKeyY
-    );
+    event CredentialRegistered(address indexed account, bytes32 indexed credentialId, uint256 pubKeyX, uint256 pubKeyY);
     event CredentialRevoked(address indexed account, bytes32 indexed credentialId);
 
     /// @notice Errors
@@ -79,10 +75,7 @@ contract WebAuthnValidator is IValidator {
     function onInstall(bytes calldata data) external payable override {
         if (data.length < 96) revert InvalidSignatureLength();
 
-        (bytes32 credentialId, uint256 pubKeyX, uint256 pubKeyY) = abi.decode(
-            data,
-            (bytes32, uint256, uint256)
-        );
+        (bytes32 credentialId, uint256 pubKeyX, uint256 pubKeyY) = abi.decode(data, (bytes32, uint256, uint256));
 
         _addCredential(msg.sender, credentialId, pubKeyX, pubKeyY);
     }
@@ -129,38 +122,27 @@ contract WebAuthnValidator is IValidator {
      * @param userOpHash The hash to verify
      * @return Validation result
      */
-    function validateUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash
-    ) external payable override returns (uint256) {
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash)
+        external
+        payable
+        override
+        returns (uint256)
+    {
         WebAuthnStorage storage store = webAuthnStorage[msg.sender];
         if (store.credentialCount == 0) return SIG_VALIDATION_FAILED_UINT;
 
         bytes calldata sig = userOp.signature;
 
         // Parse WebAuthn signature
-        (
-            bytes32 credentialId,
-            bytes memory authenticatorData,
-            bytes memory clientDataJson,
-            uint256 r,
-            uint256 s
-        ) = _parseSignature(sig);
+        (bytes32 credentialId, bytes memory authenticatorData, bytes memory clientDataJson, uint256 r, uint256 s) =
+            _parseSignature(sig);
 
         // Find the credential
         Credential storage cred = store.credentials[credentialId];
         if (!cred.isActive) return SIG_VALIDATION_FAILED_UINT;
 
         // Verify the signature
-        if (_verifyWebAuthnSignature(
-            userOpHash,
-            authenticatorData,
-            clientDataJson,
-            r,
-            s,
-            cred.pubKeyX,
-            cred.pubKeyY
-        )) {
+        if (_verifyWebAuthnSignature(userOpHash, authenticatorData, clientDataJson, r, s, cred.pubKeyX, cred.pubKeyY)) {
             return SIG_VALIDATION_SUCCESS_UINT;
         }
 
@@ -174,39 +156,27 @@ contract WebAuthnValidator is IValidator {
      * @param sig The signature data
      * @return Magic value if valid
      */
-    function isValidSignatureWithSender(
-        address sender,
-        bytes32 hash,
-        bytes calldata sig
-    ) external view override returns (bytes4) {
+    function isValidSignatureWithSender(address sender, bytes32 hash, bytes calldata sig)
+        external
+        view
+        override
+        returns (bytes4)
+    {
         (sender); // silence unused warning
 
         WebAuthnStorage storage store = webAuthnStorage[msg.sender];
         if (store.credentialCount == 0) return ERC1271_INVALID;
 
         // Parse WebAuthn signature
-        (
-            bytes32 credentialId,
-            bytes memory authenticatorData,
-            bytes memory clientDataJson,
-            uint256 r,
-            uint256 s
-        ) = _parseSignature(sig);
+        (bytes32 credentialId, bytes memory authenticatorData, bytes memory clientDataJson, uint256 r, uint256 s) =
+            _parseSignature(sig);
 
         // Find the credential
         Credential storage cred = store.credentials[credentialId];
         if (!cred.isActive) return ERC1271_INVALID;
 
         // Verify the signature
-        if (_verifyWebAuthnSignature(
-            hash,
-            authenticatorData,
-            clientDataJson,
-            r,
-            s,
-            cred.pubKeyX,
-            cred.pubKeyY
-        )) {
+        if (_verifyWebAuthnSignature(hash, authenticatorData, clientDataJson, r, s, cred.pubKeyX, cred.pubKeyY)) {
             return ERC1271_MAGICVALUE;
         }
 
@@ -221,11 +191,7 @@ contract WebAuthnValidator is IValidator {
      * @param pubKeyX The X coordinate of the public key
      * @param pubKeyY The Y coordinate of the public key
      */
-    function addCredential(
-        bytes32 credentialId,
-        uint256 pubKeyX,
-        uint256 pubKeyY
-    ) external {
+    function addCredential(bytes32 credentialId, uint256 pubKeyX, uint256 pubKeyY) external {
         _addCredential(msg.sender, credentialId, pubKeyX, pubKeyY);
     }
 
@@ -257,10 +223,7 @@ contract WebAuthnValidator is IValidator {
      * @param credentialId The credential ID
      * @return The credential data
      */
-    function getCredential(
-        address account,
-        bytes32 credentialId
-    ) external view returns (Credential memory) {
+    function getCredential(address account, bytes32 credentialId) external view returns (Credential memory) {
         return webAuthnStorage[account].credentials[credentialId];
     }
 
@@ -288,12 +251,7 @@ contract WebAuthnValidator is IValidator {
         return webAuthnStorage[smartAccount].credentialCount > 0;
     }
 
-    function _addCredential(
-        address account,
-        bytes32 credentialId,
-        uint256 pubKeyX,
-        uint256 pubKeyY
-    ) internal {
+    function _addCredential(address account, bytes32 credentialId, uint256 pubKeyX, uint256 pubKeyY) internal {
         if (credentialId == bytes32(0)) revert InvalidCredentialId();
 
         WebAuthnStorage storage store = webAuthnStorage[account];
@@ -302,12 +260,8 @@ contract WebAuthnValidator is IValidator {
             revert CredentialAlreadyExists();
         }
 
-        store.credentials[credentialId] = Credential({
-            credentialId: credentialId,
-            pubKeyX: pubKeyX,
-            pubKeyY: pubKeyY,
-            isActive: true
-        });
+        store.credentials[credentialId] =
+            Credential({ credentialId: credentialId, pubKeyX: pubKeyX, pubKeyY: pubKeyY, isActive: true });
 
         store.credentialIds.push(credentialId);
         store.credentialCount++;
@@ -339,10 +293,8 @@ contract WebAuthnValidator is IValidator {
         if (sig.length < 160) revert InvalidSignatureLength();
 
         // Decode the structured signature
-        (credentialId, authenticatorData, clientDataJson, r, s) = abi.decode(
-            sig,
-            (bytes32, bytes, bytes, uint256, uint256)
-        );
+        (credentialId, authenticatorData, clientDataJson, r, s) =
+            abi.decode(sig, (bytes32, bytes, bytes, uint256, uint256));
 
         // Validate s is in lower half of curve order (malleability fix)
         if (s > P256_N_DIV_2) revert MalformedSignature();
@@ -393,10 +345,7 @@ contract WebAuthnValidator is IValidator {
      * @param challenge The challenge to find
      * @return True if found
      */
-    function _containsChallenge(
-        bytes memory clientDataJson,
-        bytes32 challenge
-    ) internal pure returns (bool) {
+    function _containsChallenge(bytes memory clientDataJson, bytes32 challenge) internal pure returns (bool) {
         // In production, this would parse the JSON and verify the base64url-encoded challenge
         // For simplicity, we do a basic check that the JSON is not empty
         // A full implementation would use a JSON parser
@@ -412,20 +361,18 @@ contract WebAuthnValidator is IValidator {
      * @param pubKeyY Public key Y
      * @return True if valid
      */
-    function _verifyP256Signature(
-        bytes32 hash,
-        uint256 r,
-        uint256 s,
-        uint256 pubKeyX,
-        uint256 pubKeyY
-    ) internal view returns (bool) {
+    function _verifyP256Signature(bytes32 hash, uint256 r, uint256 s, uint256 pubKeyX, uint256 pubKeyY)
+        internal
+        view
+        returns (bool)
+    {
         // Try EIP-7212 P256VERIFY precompile at address 0x100
         // Input: hash (32) || r (32) || s (32) || x (32) || y (32) = 160 bytes
         // Output: 1 if valid, empty or 0 if invalid
 
         bytes memory input = abi.encodePacked(hash, r, s, pubKeyX, pubKeyY);
 
-        (bool success, bytes memory output) = address(0x100).staticcall(input);
+        (bool success, bytes memory output) = address(0x_100).staticcall(input);
 
         if (success && output.length == 32) {
             return abi.decode(output, (uint256)) == 1;

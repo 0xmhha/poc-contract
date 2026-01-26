@@ -43,10 +43,10 @@ contract EntryPointTest is Test {
         vm.deal(address(paymaster), 10 ether);
         vm.prank(address(paymaster));
         paymaster.deposit{ value: 5 ether }();
-        paymaster.addStake{ value: 1 ether }(86400); // 1 day unstake delay
+        paymaster.addStake{ value: 1 ether }(86_400); // 1 day unstake delay
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             DEPLOYMENT TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -61,7 +61,7 @@ contract EntryPointTest is Test {
         assertTrue(entryPoint.supportsInterface(type(IStakeManager).interfaceId), "Should support IStakeManager");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             DEPOSIT TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -105,14 +105,14 @@ contract EntryPointTest is Test {
         assertFalse(info.staked, "Should not be staked");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             STAKE TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_AddStake() public {
         address staker = makeAddr("staker");
         uint256 stakeAmount = 1 ether;
-        uint32 unstakeDelaySec = 86400; // 1 day
+        uint32 unstakeDelaySec = 86_400; // 1 day
 
         vm.deal(staker, stakeAmount);
         vm.prank(staker);
@@ -127,7 +127,7 @@ contract EntryPointTest is Test {
     function test_UnlockStake() public {
         address staker = makeAddr("staker");
         uint256 stakeAmount = 1 ether;
-        uint32 unstakeDelaySec = 86400;
+        uint32 unstakeDelaySec = 86_400;
 
         vm.deal(staker, stakeAmount);
         vm.startPrank(staker);
@@ -146,7 +146,7 @@ contract EntryPointTest is Test {
         address staker = makeAddr("staker");
         address payable recipient = payable(makeAddr("recipient"));
         uint256 stakeAmount = 1 ether;
-        uint32 unstakeDelaySec = 86400;
+        uint32 unstakeDelaySec = 86_400;
 
         vm.deal(staker, stakeAmount);
         vm.startPrank(staker);
@@ -163,7 +163,7 @@ contract EntryPointTest is Test {
         assertEq(recipient.balance, stakeAmount, "Recipient should receive stake");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             NONCE TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -207,7 +207,7 @@ contract EntryPointTest is Test {
         assertEq(entryPoint.getNonce(account, key2), expectedNonceKey2, "Key2 nonce should be correct");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         USER OPERATION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -304,7 +304,7 @@ contract EntryPointTest is Test {
         entryPoint.handleOps(ops, payable(beneficiary));
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             EIP-7702 TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -318,10 +318,10 @@ contract EntryPointTest is Test {
         assembly {
             marker := mload(add(eip7702InitCode, 32))
         }
-        assertEq(marker, bytes2(0x7702), "Should recognize EIP-7702 marker");
+        assertEq(marker, bytes2(0x7_702), "Should recognize EIP-7702 marker");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 

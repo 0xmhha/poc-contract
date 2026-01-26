@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IPriceOracle} from "../../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { IPriceOracle } from "../../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
 
 /**
  * @title MockPriceOracle

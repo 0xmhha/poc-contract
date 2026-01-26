@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {ValidationData, PermissionId, PassFlag} from "./Types.sol";
-import {IPolicy} from "../interfaces/IERC7579Modules.sol";
+import { ValidationData, PermissionId, PassFlag } from "./Types.sol";
+import { IPolicy } from "../interfaces/IERC7579Modules.sol";
 
 struct Execution {
     address target;

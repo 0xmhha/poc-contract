@@ -28,11 +28,11 @@ contract MockAccount is IAccount {
     }
 
     /// @inheritdoc IAccount
-    function validateUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 missingAccountFunds
-    ) external onlyEntryPoint returns (uint256 validationData) {
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
+        external
+        onlyEntryPoint
+        returns (uint256 validationData)
+    {
         (userOpHash); // Silence unused variable warning
 
         // Simple signature validation - just check if signature is from owner
@@ -84,7 +84,7 @@ contract MockAccount is IAccount {
         return ENTRY_POINT.balanceOf(address(this));
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }
 
 /**

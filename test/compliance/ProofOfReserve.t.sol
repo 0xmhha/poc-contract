@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {ProofOfReserve} from "../../src/compliance/ProofOfReserve.sol";
+import { Test } from "forge-std/Test.sol";
+import { ProofOfReserve } from "../../src/compliance/ProofOfReserve.sol";
 
 // Mock contracts
 contract MockAggregatorV3 {
@@ -30,23 +30,19 @@ contract MockAggregatorV3 {
         decimals = _decimals;
     }
 
-    function getRoundData(uint80) external view returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    ) {
+    function getRoundData(uint80)
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
+    {
         return (_roundId, _answer, _updatedAt, _updatedAt, _roundId);
     }
 
-    function latestRoundData() external view returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    ) {
+    function latestRoundData()
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
+    {
         return (_roundId, _answer, _updatedAt, _updatedAt, _roundId);
     }
 }
@@ -72,7 +68,9 @@ contract ProofOfReserveTest is Test {
 
     event OracleConfigured(address indexed oracle, uint8 decimals, uint256 heartbeat);
     event StablecoinConfigured(address indexed stablecoin);
-    event ReserveVerified(uint256 indexed verificationId, uint256 totalSupply, uint256 totalReserve, uint256 reserveRatio, bool isHealthy);
+    event ReserveVerified(
+        uint256 indexed verificationId, uint256 totalSupply, uint256 totalReserve, uint256 reserveRatio, bool isHealthy
+    );
     event ReserveHealthy(uint256 reserveRatio);
     event ReserveUnhealthy(uint256 totalSupply, uint256 totalReserve, uint256 reserveRatio);
     event AutoPauseTriggered(uint256 reserveRatio, uint256 consecutiveUnhealthy);
@@ -204,7 +202,7 @@ contract ProofOfReserveTest is Test {
         ProofOfReserve.ReserveStatus memory status = por.verifyReserve();
 
         assertTrue(status.isHealthy);
-        assertEq(status.reserveRatio, 10000); // 100%
+        assertEq(status.reserveRatio, 10_000); // 100%
         assertEq(status.totalSupply, 1000 ether);
         assertEq(status.totalReserve, 1000 ether);
         assertEq(por.verificationCount(), 1);
@@ -218,7 +216,7 @@ contract ProofOfReserveTest is Test {
         ProofOfReserve.ReserveStatus memory status = por.verifyReserve();
 
         assertTrue(status.isHealthy);
-        assertEq(status.reserveRatio, 12000); // 120%
+        assertEq(status.reserveRatio, 12_000); // 120%
     }
 
     function test_VerifyReserve_Unhealthy() public {
@@ -238,9 +236,9 @@ contract ProofOfReserveTest is Test {
         stablecoin.setTotalSupply(1000 ether);
 
         vm.expectEmit(true, false, false, true);
-        emit ReserveVerified(1, 1000 ether, 1000 ether, 10000, true);
+        emit ReserveVerified(1, 1000 ether, 1000 ether, 10_000, true);
         vm.expectEmit(false, false, false, true);
-        emit ReserveHealthy(10000);
+        emit ReserveHealthy(10_000);
         por.verifyReserve();
     }
 
@@ -307,7 +305,7 @@ contract ProofOfReserveTest is Test {
         ProofOfReserve.ReserveStatus memory status = por.verifyReserve();
 
         assertTrue(status.isHealthy);
-        assertEq(status.reserveRatio, 10000); // 100% when no supply
+        assertEq(status.reserveRatio, 10_000); // 100% when no supply
     }
 
     // ============ View Function Tests ============
@@ -320,7 +318,7 @@ contract ProofOfReserveTest is Test {
 
         assertEq(totalSupply, 1000 ether);
         assertEq(totalReserve, 1100 ether);
-        assertEq(reserveRatio, 11000); // 110%
+        assertEq(reserveRatio, 11_000); // 110%
         assertTrue(isHealthy);
     }
 
@@ -379,12 +377,12 @@ contract ProofOfReserveTest is Test {
         // Mint 100 more would still maintain 100%
         (bool sufficient, uint256 projectedRatio) = por.checkMintAllowed(100 ether);
         assertTrue(sufficient);
-        assertEq(projectedRatio, 10000); // Exactly 100%
+        assertEq(projectedRatio, 10_000); // Exactly 100%
 
         // Mint 101 more would drop below 100%
         (sufficient, projectedRatio) = por.checkMintAllowed(101 ether);
         assertFalse(sufficient);
-        assertLt(projectedRatio, 10000);
+        assertLt(projectedRatio, 10_000);
     }
 
     // ============ Admin Function Tests ============

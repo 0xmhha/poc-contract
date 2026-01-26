@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {PackedUserOperation} from "./interfaces/PackedUserOperation.sol";
-import {IAccount, ValidationData} from "./interfaces/IAccount.sol";
-import {IEntryPoint} from "./interfaces/IEntryPoint.sol";
-import {IAccountExecute} from "./interfaces/IAccountExecute.sol";
-import {IERC7579Account} from "./interfaces/IERC7579Account.sol";
-import {ModuleLib} from "./utils/ModuleLib.sol";
+import { PackedUserOperation } from "./interfaces/PackedUserOperation.sol";
+import { IAccount, ValidationData } from "./interfaces/IAccount.sol";
+import { IEntryPoint } from "./interfaces/IEntryPoint.sol";
+import { IAccountExecute } from "./interfaces/IAccountExecute.sol";
+import { IERC7579Account } from "./interfaces/IERC7579Account.sol";
+import { ModuleLib } from "./utils/ModuleLib.sol";
 import {
     ValidationManager,
     ValidationMode,
@@ -15,9 +15,9 @@ import {
     ValidationType,
     PermissionId
 } from "./core/ValidationManager.sol";
-import {IValidator, IHook, IExecutor} from "./interfaces/IERC7579Modules.sol";
-import {ExecLib} from "./utils/ExecLib.sol";
-import {ExecMode, CallType, ExecType, ExecModeSelector, ExecModePayload} from "./types/Types.sol";
+import { IValidator, IHook, IExecutor } from "./interfaces/IERC7579Modules.sol";
+import { ExecLib } from "./utils/ExecLib.sol";
+import { ExecMode, CallType, ExecType, ExecModeSelector, ExecModePayload } from "./types/Types.sol";
 import {
     CALLTYPE_SINGLE,
     CALLTYPE_DELEGATECALL,
@@ -42,7 +42,7 @@ import {
     EIP7702_PREFIX
 } from "./types/Constants.sol";
 
-import {InstallExecutorDataFormat, InstallFallbackDataFormat, InstallValidatorDataFormat} from "./types/Structs.sol";
+import { InstallExecutorDataFormat, InstallFallbackDataFormat, InstallValidatorDataFormat } from "./types/Structs.sol";
 
 contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager {
     error ExecutionReverted();
@@ -96,9 +96,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     }
 
     function _checkEntryPointOrSelfOrRoot() internal returns (bytes memory) {
-        if (
-            msg.sender != address(ENTRYPOINT) && msg.sender != address(this)
-        ) {
+        if (msg.sender != address(ENTRYPOINT) && msg.sender != address(this)) {
             IValidator validator = ValidatorLib.getValidator(_validationStorage().rootValidator);
             if (validator.isModuleType(4)) {
                 return IHook(address(validator)).preCheck(msg.sender, msg.value, msg.data);
@@ -128,7 +126,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
             revert InvalidValidationType();
         }
         _setRootValidator(_rootValidator);
-        ValidationConfig memory config = ValidationConfig({nonce: uint32(1), hook: hook});
+        ValidationConfig memory config = ValidationConfig({ nonce: uint32(1), hook: hook });
         vs.currentNonce = 1;
         _installValidation(_rootValidator, config, validatorData, hookData);
         for (uint256 i = 0; i < initConfig.length; i++) {
@@ -156,7 +154,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         _setRootValidator(_rootValidator);
         if (_validationStorage().validationConfig[_rootValidator].hook == IHook(HOOK_MODULE_NOT_INSTALLED)) {
             // when new rootValidator is not installed yet
-            ValidationConfig memory config = ValidationConfig({nonce: uint32(vs.currentNonce), hook: hook});
+            ValidationConfig memory config = ValidationConfig({ nonce: uint32(vs.currentNonce), hook: hook });
             _installValidation(_rootValidator, config, validatorData, hookData);
         }
     }
@@ -243,10 +241,12 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         ValidationStorage storage vs = _validationStorage();
         // ONLY ENTRYPOINT
         // Major change for v2 => v3
-        // 1. instead of packing 4 bytes prefix to userOp.signature to determine the mode, v3 uses userOp.nonce's first 2 bytes to check the mode
-        // 2. instead of packing 20 bytes in userOp.signature for enable mode to provide the validator address, v3 uses userOp.nonce[2:22]
+        // 1. instead of packing 4 bytes prefix to userOp.signature to determine the mode, v3 uses userOp.nonce's first
+        // 2 bytes to check the mode 2. instead of packing 20 bytes in userOp.signature for enable mode to provide the
+        // validator address, v3 uses userOp.nonce[2:22]
         // 3. In v2, only 1 plugin validator(aside from root validator) can access the selector.
-        //    In v3, you can use more than 1 plugin to use the exact selector, you need to specify the validator address in userOp.nonce[2:22] to use the validator
+        // In v3, you can use more than 1 plugin to use the exact selector, you need to specify the validator address in
+        // userOp.nonce[2:22] to use the validator
         (ValidationMode vMode, ValidationType vType, ValidationId vId) = ValidatorLib.decodeNonce(userOp.nonce);
         if (vType == VALIDATION_TYPE_ROOT) {
             vId = vs.rootValidator;
@@ -281,7 +281,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         assembly {
             if missingAccountFunds {
                 pop(call(gas(), caller(), missingAccountFunds, callvalue(), callvalue(), callvalue(), callvalue()))
-                //ignore failure (its EntryPoint's job to verify, not account.)
+                // ignore failure (its EntryPoint's job to verify, not account.)
             }
         }
     }
@@ -354,14 +354,15 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
                 }
             }
             ValidationConfig memory config =
-                ValidationConfig({nonce: vs.currentNonce, hook: IHook(address(bytes20(initData[0:20])))});
+                ValidationConfig({ nonce: vs.currentNonce, hook: IHook(address(bytes20(initData[0:20]))) });
             InstallValidatorDataFormat calldata data;
             assembly {
                 data := add(initData.offset, 20)
             }
             _installValidation(vId, config, data.validatorData, data.hookData);
             if (data.selectorData.length == 4) {
-                // NOTE: we don't allow configure on selector data on v3.1+, but using bytes instead of bytes4 for selector data to make sure we are future proof
+                // NOTE: we don't allow configure on selector data on v3.1+, but using bytes instead of bytes4 for
+                // selector data to make sure we are future proof
                 _grantAccess(vId, bytes4(data.selectorData[0:4]), true);
             }
         } else if (moduleType == MODULE_TYPE_EXECUTOR) {

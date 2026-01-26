@@ -2,12 +2,12 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {AutoSwapPlugin} from "../../src/erc7579-plugins/AutoSwapPlugin.sol";
-import {MicroLoanPlugin} from "../../src/erc7579-plugins/MicroLoanPlugin.sol";
-import {OnRampPlugin} from "../../src/erc7579-plugins/OnRampPlugin.sol";
-import {IPriceOracle} from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { AutoSwapPlugin } from "../../src/erc7579-plugins/AutoSwapPlugin.sol";
+import { MicroLoanPlugin } from "../../src/erc7579-plugins/MicroLoanPlugin.sol";
+import { OnRampPlugin } from "../../src/erc7579-plugins/OnRampPlugin.sol";
+import { IPriceOracle } from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
 
 /**
  * @title DeployPluginsScript
@@ -49,7 +49,7 @@ contract DeployPluginsScript is DeploymentHelper {
     MicroLoanPlugin public microLoanPlugin;
     OnRampPlugin public onRampPlugin;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();
@@ -62,8 +62,8 @@ contract DeployPluginsScript is DeploymentHelper {
 
         // Plugin configuration
         uint256 protocolFeeBps = vm.envOr("PROTOCOL_FEE_BPS", uint256(50)); // 0.5%
-        uint256 liquidationBonusBps = vm.envOr("LIQUIDATION_BONUS_BPS", uint256(500)); // 5%
-        uint256 onRampFeeBps = vm.envOr("ONRAMP_FEE_BPS", uint256(100)); // 1%
+        uint256 liquidationBonusBps = vm.envOr("LIQUIDATION_BONUS_BPS", uint256(500)); //5%
+        uint256 onRampFeeBps = vm.envOr("ONRAMP_FEE_BPS", uint256(100)); //1%
         uint256 orderExpiry = vm.envOr("ORDER_EXPIRY", uint256(24 hours));
 
         vm.startBroadcast();
@@ -94,12 +94,8 @@ contract DeployPluginsScript is DeploymentHelper {
                 console.log("Warning: PriceOracle not found. Skipping MicroLoanPlugin deployment.");
                 console.log("  Set PRICE_ORACLE env var or deploy PriceOracle first.");
             } else {
-                microLoanPlugin = new MicroLoanPlugin(
-                    IPriceOracle(priceOracle),
-                    feeRecipient,
-                    protocolFeeBps,
-                    liquidationBonusBps
-                );
+                microLoanPlugin =
+                    new MicroLoanPlugin(IPriceOracle(priceOracle), feeRecipient, protocolFeeBps, liquidationBonusBps);
                 _setAddress(DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN, address(microLoanPlugin));
                 console.log("MicroLoanPlugin deployed at:", address(microLoanPlugin));
             }

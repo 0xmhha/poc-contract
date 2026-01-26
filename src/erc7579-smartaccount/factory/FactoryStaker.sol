@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.0;
 
-import {KernelFactory} from "./KernelFactory.sol";
-import {IEntryPoint} from "../interfaces/IEntryPoint.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { KernelFactory } from "./KernelFactory.sol";
+import { IEntryPoint } from "../interfaces/IEntryPoint.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 contract FactoryStaker is Ownable {
     mapping(KernelFactory => bool) public approved;
@@ -31,7 +31,7 @@ contract FactoryStaker is Ownable {
     }
 
     function stake(IEntryPoint entryPoint, uint32 unstakeDelay) external payable onlyOwner {
-        entryPoint.addStake{value: msg.value}(unstakeDelay);
+        entryPoint.addStake{ value: msg.value }(unstakeDelay);
     }
 
     function unlockStake(IEntryPoint entryPoint) external payable onlyOwner {

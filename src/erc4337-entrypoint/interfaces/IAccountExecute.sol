@@ -10,11 +10,8 @@ interface IAccountExecute {
      * to the account.
      * The account should skip the methodSig, and use the callData (and optionally, other UserOp fields)
      *
-     * @param userOp              - The operation that was just validated.
-     * @param userOpHash          - Hash of the user's request data.
+     * @param userOp - The operation that was just validated.
+     * @param userOpHash - Hash of the user's request data.
      */
-    function executeUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash
-    ) external;
+    function executeUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash) external;
 }

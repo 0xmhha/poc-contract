@@ -3,11 +3,11 @@
 // Adapted for StableNet PoC - Solidity version updated to ^0.8.28
 pragma solidity ^0.8.28;
 
-import {IEIP712} from "./IEIP712.sol";
+import { IEIP712 } from "./IEIP712.sol";
 
 /// @title AllowanceTransfer
-/// @notice Handles ERC20 token permissions through signature based allowance setting and ERC20 token transfers by checking allowed amounts
-/// @dev Requires user's token approval on the Permit2 contract
+/// @notice Handles ERC20 token permissions through signature based allowance setting and ERC20 token transfers by
+/// checking allowed amounts @dev Requires user's token approval on the Permit2 contract
 interface IAllowanceTransfer is IEIP712 {
     /// @notice Thrown when an allowance on a token has expired.
     /// @param deadline The timestamp at which the allowed amount is no longer valid
@@ -30,7 +30,8 @@ interface IAllowanceTransfer is IEIP712 {
         address indexed owner, address indexed token, address indexed spender, uint160 amount, uint48 expiration
     );
 
-    /// @notice Emits an event when the owner successfully sets permissions using a permit signature on a token for the spender.
+    /// @notice Emits an event when the owner successfully sets permissions using a permit signature on a token for the
+    /// spender.
     event Permit(
         address indexed owner,
         address indexed token,
@@ -107,9 +108,11 @@ interface IAllowanceTransfer is IEIP712 {
         address token;
     }
 
-    /// @notice A mapping from owner address to token address to spender address to PackedAllowance struct, which contains details and conditions of the approval.
-    /// @notice The mapping is indexed in the above order see: allowance[ownerAddress][tokenAddress][spenderAddress]
-    /// @dev The packed slot holds the allowed amount, expiration at which the allowed amount is no longer valid, and current nonce thats updated on any signature based approvals.
+    /// @notice A mapping from owner address to token address to spender address to PackedAllowance struct, which
+    /// contains details and conditions of the approval. @notice The mapping is indexed in the above order see:
+    /// allowance[ownerAddress][tokenAddress][spenderAddress]
+    /// @dev The packed slot holds the allowed amount, expiration at which the allowed amount is no longer valid, and
+    /// current nonce thats updated on any signature based approvals.
     function allowance(address user, address token, address spender)
         external
         view

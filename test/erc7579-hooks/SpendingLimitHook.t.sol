@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {SpendingLimitHook} from "../../src/erc7579-hooks/SpendingLimitHook.sol";
-import {MockHookAccount, MockERC20} from "./mocks/MockHookAccount.sol";
+import { Test } from "forge-std/Test.sol";
+import { SpendingLimitHook } from "../../src/erc7579-hooks/SpendingLimitHook.sol";
+import { MockHookAccount, MockERC20 } from "./mocks/MockHookAccount.sol";
 
 contract SpendingLimitHookTest is Test {
     SpendingLimitHook public hook;
@@ -31,7 +31,7 @@ contract SpendingLimitHookTest is Test {
         token.mint(address(account), 1000 ether);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             INSTALLATION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -89,7 +89,7 @@ contract SpendingLimitHookTest is Test {
         assertFalse(hook.isModuleType(2), "Should not be executor");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         SPENDING LIMIT MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
@@ -142,7 +142,7 @@ contract SpendingLimitHookTest is Test {
         assertEq(tokens.length, 2);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             WHITELIST TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -168,7 +168,7 @@ contract SpendingLimitHookTest is Test {
         hook.preCheck(user, 10 ether, msgData);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             PAUSE TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -201,7 +201,7 @@ contract SpendingLimitHookTest is Test {
         hook.preCheck(user, 0.1 ether, msgData);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         SPENDING LIMIT ENFORCEMENT
     //////////////////////////////////////////////////////////////*/
 
@@ -239,12 +239,7 @@ contract SpendingLimitHookTest is Test {
 
         vm.prank(address(account));
         vm.expectRevert(
-            abi.encodeWithSelector(
-                SpendingLimitHook.SpendingLimitExceeded.selector,
-                address(0),
-                1.5 ether,
-                DAILY_LIMIT
-            )
+            abi.encodeWithSelector(SpendingLimitHook.SpendingLimitExceeded.selector, address(0), 1.5 ether, DAILY_LIMIT)
         );
         hook.preCheck(user, 1.5 ether, msgData);
     }
@@ -265,12 +260,7 @@ contract SpendingLimitHookTest is Test {
         bytes memory msgData2 = abi.encodePacked(recipient, uint256(0.5 ether), "");
         vm.prank(address(account));
         vm.expectRevert(
-            abi.encodeWithSelector(
-                SpendingLimitHook.SpendingLimitExceeded.selector,
-                address(0),
-                0.5 ether,
-                0.4 ether
-            )
+            abi.encodeWithSelector(SpendingLimitHook.SpendingLimitExceeded.selector, address(0), 0.5 ether, 0.4 ether)
         );
         hook.preCheck(user, 0.5 ether, msgData2);
     }
@@ -279,11 +269,8 @@ contract SpendingLimitHookTest is Test {
         _installHookWithTokenLimit();
 
         // Build ERC20 transfer calldata
-        bytes memory transferCall = abi.encodeWithSelector(
-            bytes4(keccak256("transfer(address,uint256)")),
-            recipient,
-            50 ether
-        );
+        bytes memory transferCall =
+            abi.encodeWithSelector(bytes4(keccak256("transfer(address,uint256)")), recipient, 50 ether);
 
         // msgData format: target (20) + value (32) + callData
         bytes memory msgData = abi.encodePacked(address(token), uint256(0), transferCall);
@@ -299,27 +286,21 @@ contract SpendingLimitHookTest is Test {
         _installHookWithTokenLimit();
 
         // Build ERC20 transfer calldata exceeding limit
-        bytes memory transferCall = abi.encodeWithSelector(
-            bytes4(keccak256("transfer(address,uint256)")),
-            recipient,
-            150 ether
-        );
+        bytes memory transferCall =
+            abi.encodeWithSelector(bytes4(keccak256("transfer(address,uint256)")), recipient, 150 ether);
 
         bytes memory msgData = abi.encodePacked(address(token), uint256(0), transferCall);
 
         vm.prank(address(account));
         vm.expectRevert(
             abi.encodeWithSelector(
-                SpendingLimitHook.SpendingLimitExceeded.selector,
-                address(token),
-                150 ether,
-                100 ether
+                SpendingLimitHook.SpendingLimitExceeded.selector, address(token), 150 ether, 100 ether
             )
         );
         hook.preCheck(user, 0, msgData);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             PERIOD RESET TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -379,7 +360,7 @@ contract SpendingLimitHookTest is Test {
         assertEq(timeUntilReset, 0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -395,7 +376,7 @@ contract SpendingLimitHookTest is Test {
         assertEq(remaining, DAILY_LIMIT);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             POST CHECK TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -404,7 +385,7 @@ contract SpendingLimitHookTest is Test {
         hook.postCheck(""); // Should not revert
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 

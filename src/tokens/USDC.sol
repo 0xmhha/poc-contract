@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {ERC20} from "solady/tokens/ERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import { ERC20 } from "solady/tokens/ERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title USDC
@@ -21,7 +21,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * - Cross-border payments
  */
 contract USDC is ERC20, Ownable {
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                CONSTANTS
     //////////////////////////////////////////////////////////////*/
 
@@ -34,7 +34,7 @@ contract USDC is ERC20, Ownable {
     /// @notice Token decimals (6 for USDC standard)
     uint8 private constant _DECIMALS = 6;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                 STORAGE
     //////////////////////////////////////////////////////////////*/
 
@@ -53,7 +53,7 @@ contract USDC is ERC20, Ownable {
     /// @notice Total burned amount (for tracking)
     uint256 public totalBurned;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
@@ -66,7 +66,7 @@ contract USDC is ERC20, Ownable {
     event Mint(address indexed minter, address indexed to, uint256 amount);
     event Burn(address indexed burner, uint256 amount);
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
@@ -76,7 +76,7 @@ contract USDC is ERC20, Ownable {
     error ZeroAmount();
     error ZeroAddress();
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
 
@@ -107,7 +107,7 @@ contract USDC is ERC20, Ownable {
         if (paused) revert ContractPaused();
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
@@ -121,7 +121,7 @@ contract USDC is ERC20, Ownable {
         emit MinterAdded(owner_);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             ERC20 METADATA
     //////////////////////////////////////////////////////////////*/
 
@@ -140,7 +140,7 @@ contract USDC is ERC20, Ownable {
         return _DECIMALS;
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            MINTER MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
@@ -163,7 +163,7 @@ contract USDC is ERC20, Ownable {
         emit MinterRemoved(minter);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                          BLACKLIST MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
@@ -185,7 +185,7 @@ contract USDC is ERC20, Ownable {
         emit UnBlacklisted(account);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           PAUSE MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
@@ -205,7 +205,7 @@ contract USDC is ERC20, Ownable {
         emit Unpaused(msg.sender);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            MINT / BURN
     //////////////////////////////////////////////////////////////*/
 
@@ -214,12 +214,7 @@ contract USDC is ERC20, Ownable {
      * @param to The recipient address
      * @param amount The amount to mint
      */
-    function mint(address to, uint256 amount)
-        external
-        onlyMinter
-        whenNotPaused
-        notBlacklisted(to)
-    {
+    function mint(address to, uint256 amount) external onlyMinter whenNotPaused notBlacklisted(to) {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
@@ -233,11 +228,7 @@ contract USDC is ERC20, Ownable {
      * @notice Burn tokens from caller
      * @param amount The amount to burn
      */
-    function burn(uint256 amount)
-        external
-        whenNotPaused
-        notBlacklisted(msg.sender)
-    {
+    function burn(uint256 amount) external whenNotPaused notBlacklisted(msg.sender) {
         if (amount == 0) revert ZeroAmount();
 
         _burn(msg.sender, amount);
@@ -266,7 +257,7 @@ contract USDC is ERC20, Ownable {
         emit Burn(from, amount);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                          TRANSFER OVERRIDES
     //////////////////////////////////////////////////////////////*/
 
@@ -323,7 +314,7 @@ contract USDC is ERC20, Ownable {
         return super.approve(spender, amount);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 

@@ -13,10 +13,10 @@ type ExecModeSelector is bytes4;
 
 type ExecModePayload is bytes22;
 
-using {eqModeSelector as ==} for ExecModeSelector global;
-using {eqCallType as ==} for CallType global;
-using {notEqCallType as !=} for CallType global;
-using {eqExecType as ==} for ExecType global;
+using { eqModeSelector as == } for ExecModeSelector global;
+using { eqCallType as == } for CallType global;
+using { notEqCallType as != } for CallType global;
+using { eqExecType as == } for ExecType global;
 
 function eqCallType(CallType a, CallType b) pure returns (bool) {
     return CallType.unwrap(a) == CallType.unwrap(b);
@@ -46,12 +46,12 @@ type PolicyData is bytes22; // 2bytes for flag on skip, 20 bytes for validator a
 
 type PassFlag is bytes2;
 
-using {vModeEqual as ==} for ValidationMode global;
-using {vTypeEqual as ==} for ValidationType global;
-using {vIdentifierEqual as ==} for ValidationId global;
-using {vModeNotEqual as !=} for ValidationMode global;
-using {vTypeNotEqual as !=} for ValidationType global;
-using {vIdentifierNotEqual as !=} for ValidationId global;
+using { vModeEqual as == } for ValidationMode global;
+using { vTypeEqual as == } for ValidationType global;
+using { vIdentifierEqual as == } for ValidationId global;
+using { vModeNotEqual as != } for ValidationMode global;
+using { vTypeNotEqual as != } for ValidationType global;
+using { vIdentifierNotEqual as != } for ValidationId global;
 
 // nonce = uint192(key) + nonce
 // key = mode + (vtype + validationDataWithoutType) + 2bytes parallelNonceKey
@@ -105,9 +105,9 @@ function parseValidationData(uint256 validationData)
 {
     assembly {
         result := validationData
-        validUntil := and(shr(160, validationData), 0xffffffffffff)
+        validUntil := and(shr(160, validationData), 0x_fff_fff_fff_fff)
         switch iszero(validUntil)
-        case 1 { validUntil := 0xffffffffffff }
+        case 1 { validUntil := 0x_fff_fff_fff_fff }
         validAfter := shr(208, validationData)
     }
 }

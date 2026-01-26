@@ -73,10 +73,7 @@ interface IUniswapV3SwapRouter {
 
     function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
 
-    function exactOutputSingle(ExactOutputSingleParams calldata params)
-        external
-        payable
-        returns (uint256 amountIn);
+    function exactOutputSingle(ExactOutputSingleParams calldata params) external payable returns (uint256 amountIn);
 
     function exactInput(ExactInputParams calldata params) external payable returns (uint256 amountOut);
 }

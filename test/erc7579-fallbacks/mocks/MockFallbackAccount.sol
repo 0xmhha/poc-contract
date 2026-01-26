@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IFallback} from "../../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IFallback } from "../../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title MockFallbackAccount
@@ -88,7 +88,7 @@ contract MockFallbackAccount {
         }
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }
 
 /**
@@ -125,9 +125,7 @@ contract MockERC721 {
     function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata data) external {
         require(ownerOf[tokenId] == from, "Not owner");
         require(
-            msg.sender == from ||
-            getApproved[tokenId] == msg.sender ||
-            isApprovedForAll[from][msg.sender],
+            msg.sender == from || getApproved[tokenId] == msg.sender || isApprovedForAll[from][msg.sender],
             "Not approved"
         );
 
@@ -160,12 +158,9 @@ contract MockERC721 {
 }
 
 interface IERC721Receiver {
-    function onERC721Received(
-        address operator,
-        address from,
-        uint256 tokenId,
-        bytes calldata data
-    ) external returns (bytes4);
+    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
+        external
+        returns (bytes4);
 }
 
 /**
@@ -177,7 +172,9 @@ contract MockERC1155 {
     mapping(address => mapping(address => bool)) public isApprovedForAll;
 
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
-    event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values);
+    event TransferBatch(
+        address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values
+    );
 
     function mint(address to, uint256 id, uint256 amount) external {
         balanceOf[to][id] += amount;
@@ -192,17 +189,8 @@ contract MockERC1155 {
         emit TransferBatch(msg.sender, address(0), to, ids, amounts);
     }
 
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 id,
-        uint256 amount,
-        bytes calldata data
-    ) external {
-        require(
-            msg.sender == from || isApprovedForAll[from][msg.sender],
-            "Not approved"
-        );
+    function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata data) external {
+        require(msg.sender == from || isApprovedForAll[from][msg.sender], "Not approved");
         require(balanceOf[from][id] >= amount, "Insufficient balance");
 
         balanceOf[from][id] -= amount;
@@ -225,10 +213,7 @@ contract MockERC1155 {
         bytes calldata data
     ) external {
         require(ids.length == amounts.length, "Length mismatch");
-        require(
-            msg.sender == from || isApprovedForAll[from][msg.sender],
-            "Not approved"
-        );
+        require(msg.sender == from || isApprovedForAll[from][msg.sender], "Not approved");
 
         for (uint256 i = 0; i < ids.length; i++) {
             require(balanceOf[from][ids[i]] >= amounts[i], "Insufficient balance");
@@ -251,13 +236,9 @@ contract MockERC1155 {
 }
 
 interface IERC1155Receiver {
-    function onERC1155Received(
-        address operator,
-        address from,
-        uint256 id,
-        uint256 value,
-        bytes calldata data
-    ) external returns (bytes4);
+    function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes calldata data)
+        external
+        returns (bytes4);
 
     function onERC1155BatchReceived(
         address operator,
@@ -342,7 +323,7 @@ contract MockFlashLoanProvider {
 
         // Transfer assets to receiver
         for (uint256 i = 0; i < assets.length; i++) {
-            premiums[i] = (amounts[i] * FEE_BPS) / 10000;
+            premiums[i] = (amounts[i] * FEE_BPS) / 10_000;
             IERC20(assets[i]).safeTransfer(receiver, amounts[i]);
         }
 
@@ -367,25 +348,18 @@ contract MockFlashLoanProvider {
     }
 
     /// @notice ERC-3156 style flash loan
-    function flashLoanERC3156(
-        address receiver,
-        address token,
-        uint256 amount,
-        bytes calldata data
-    ) external returns (bool) {
-        uint256 fee = (amount * FEE_BPS) / 10000;
+    function flashLoanERC3156(address receiver, address token, uint256 amount, bytes calldata data)
+        external
+        returns (bool)
+    {
+        uint256 fee = (amount * FEE_BPS) / 10_000;
 
         // Transfer to receiver
         IERC20(token).safeTransfer(receiver, amount);
 
         // Call callback (the receiver's fallback will add ERC-2771 context)
         bytes memory callData = abi.encodeWithSignature(
-            "onFlashLoan(address,address,uint256,uint256,bytes)",
-            msg.sender,
-            token,
-            amount,
-            fee,
-            data
+            "onFlashLoan(address,address,uint256,uint256,bytes)", msg.sender, token, amount, fee, data
         );
 
         (bool success, bytes memory result) = receiver.call(callData);

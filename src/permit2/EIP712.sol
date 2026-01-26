@@ -3,11 +3,12 @@
 // Adapted for StableNet PoC - Solidity version updated to ^0.8.28
 pragma solidity ^0.8.28;
 
-import {IEIP712} from "./interfaces/IEIP712.sol";
+import { IEIP712 } from "./interfaces/IEIP712.sol";
 
 /// @notice EIP712 helpers for permit2
 /// @dev Maintains cross-chain replay protection in the event of a fork
-/// @dev Reference: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/cryptography/EIP712.sol
+/// @dev Reference:
+/// https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/cryptography/EIP712.sol
 contract EIP712 is IEIP712 {
     // Cache the domain separator as an immutable value, but also store the chain id that it
     // corresponds to, in order to invalidate the cached domain separator if the chain id changes.
@@ -26,9 +27,10 @@ contract EIP712 is IEIP712 {
     /// @notice Returns the domain separator for the current chain.
     /// @dev Uses cached version if chainid and address are unchanged from construction.
     function DOMAIN_SEPARATOR() public view override returns (bytes32) {
-        return block.chainid == _CACHED_CHAIN_ID
-            ? _CACHED_DOMAIN_SEPARATOR
-            : _buildDomainSeparator(_TYPE_HASH, _HASHED_NAME);
+        return
+            block.chainid == _CACHED_CHAIN_ID
+                ? _CACHED_DOMAIN_SEPARATOR
+                : _buildDomainSeparator(_TYPE_HASH, _HASHED_NAME);
     }
 
     /// @notice Builds a domain separator using the current chainId and contract address.

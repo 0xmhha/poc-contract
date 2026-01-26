@@ -7,15 +7,13 @@ import { INonceManager } from "./interfaces/INonceManager.sol";
  * nonce management functionality
  */
 abstract contract NonceManager is INonceManager {
-
     /**
      * The next valid sequence number for a given nonce key.
      */
     mapping(address => mapping(uint192 => uint256)) public nonceSequenceNumber;
 
     /// @inheritdoc INonceManager
-    function getNonce(address sender, uint192 key)
-    public virtual view override returns (uint256 nonce) {
+    function getNonce(address sender, uint192 key) public view virtual override returns (uint256 nonce) {
         return nonceSequenceNumber[sender][key] | (uint256(key) << 64);
     }
 
@@ -32,6 +30,7 @@ abstract contract NonceManager is INonceManager {
      */
     function _validateAndUpdateNonce(address sender, uint256 nonce) internal virtual returns (bool) {
 
+
         // casting to 'uint192' is safe because we're extracting the high 192 bits from a 256-bit nonce
         // forge-lint: disable-next-line(unsafe-typecast)
         uint192 key = uint192(nonce >> 64);
@@ -40,5 +39,4 @@ abstract contract NonceManager is INonceManager {
         uint64 seq = uint64(nonce);
         return nonceSequenceNumber[sender][key]++ == seq;
     }
-
 }

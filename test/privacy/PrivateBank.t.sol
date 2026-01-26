@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {PrivateBank} from "../../src/privacy/PrivateBank.sol";
-import {ERC5564Announcer} from "../../src/privacy/ERC5564Announcer.sol";
-import {ERC6538Registry} from "../../src/privacy/ERC6538Registry.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { PrivateBank } from "../../src/privacy/PrivateBank.sol";
+import { ERC5564Announcer } from "../../src/privacy/ERC5564Announcer.sol";
+import { ERC6538Registry } from "../../src/privacy/ERC6538Registry.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
     constructor() ERC20("Mock Token", "MTK") {
@@ -31,10 +31,7 @@ contract PrivateBankTest is Test {
     bytes public metadata;
 
     event NativeDeposit(
-        address indexed stealthAddress,
-        address indexed depositor,
-        uint256 amount,
-        uint256 indexed schemeId
+        address indexed stealthAddress, address indexed depositor, uint256 amount, uint256 indexed schemeId
     );
     event TokenDeposit(
         address indexed stealthAddress,
@@ -43,12 +40,7 @@ contract PrivateBankTest is Test {
         uint256 amount,
         uint256 schemeId
     );
-    event Withdrawal(
-        address indexed stealthAddress,
-        address indexed recipient,
-        address token,
-        uint256 amount
-    );
+    event Withdrawal(address indexed stealthAddress, address indexed recipient, address token, uint256 amount);
     event TokenWhitelistUpdated(address indexed token, bool supported);
     event DepositLimitUpdated(uint256 newLimit);
     event DailyLimitUpdated(uint256 newLimit);
@@ -101,7 +93,7 @@ contract PrivateBankTest is Test {
         vm.prank(depositor);
         vm.expectEmit(true, true, true, true);
         emit NativeDeposit(stealthAddress, depositor, 1 ether, 1);
-        bank.depositNative{value: 1 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 1 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         assertEq(bank.nativeBalances(stealthAddress), 1 ether);
         assertEq(bank.totalNativeDeposits(), 1 ether);
@@ -109,8 +101,8 @@ contract PrivateBankTest is Test {
 
     function test_DepositNative_MultipleDeposits() public {
         vm.startPrank(depositor);
-        bank.depositNative{value: 1 ether}(1, stealthAddress, ephemeralPubKey, metadata);
-        bank.depositNative{value: 2 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 1 ether }(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 2 ether }(1, stealthAddress, ephemeralPubKey, metadata);
         vm.stopPrank();
 
         assertEq(bank.nativeBalances(stealthAddress), 3 ether);
@@ -120,19 +112,19 @@ contract PrivateBankTest is Test {
     function test_DepositNative_RevertsOnZeroAddress() public {
         vm.prank(depositor);
         vm.expectRevert(PrivateBank.ZeroAddress.selector);
-        bank.depositNative{value: 1 ether}(1, address(0), ephemeralPubKey, metadata);
+        bank.depositNative{ value: 1 ether }(1, address(0), ephemeralPubKey, metadata);
     }
 
     function test_DepositNative_RevertsOnZeroAmount() public {
         vm.prank(depositor);
         vm.expectRevert(PrivateBank.ZeroAmount.selector);
-        bank.depositNative{value: 0}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 0 }(1, stealthAddress, ephemeralPubKey, metadata);
     }
 
     function test_DepositNative_RevertsOnEmptyEphemeralKey() public {
         vm.prank(depositor);
         vm.expectRevert(PrivateBank.InvalidEphemeralPubKey.selector);
-        bank.depositNative{value: 1 ether}(1, stealthAddress, "", metadata);
+        bank.depositNative{ value: 1 ether }(1, stealthAddress, "", metadata);
     }
 
     // ============ DepositToken Tests ============
@@ -172,7 +164,7 @@ contract PrivateBankTest is Test {
     function test_WithdrawNative_Success() public {
         // Deposit first
         vm.prank(depositor);
-        bank.depositNative{value: 5 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 5 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         uint256 balanceBefore = stealthAddress.balance;
 
@@ -202,7 +194,7 @@ contract PrivateBankTest is Test {
 
     function test_WithdrawNativeTo_Success() public {
         vm.prank(depositor);
-        bank.depositNative{value: 5 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 5 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         address recipient = makeAddr("recipient");
         uint256 balanceBefore = recipient.balance;
@@ -216,7 +208,7 @@ contract PrivateBankTest is Test {
 
     function test_WithdrawNativeTo_RevertsOnZeroRecipient() public {
         vm.prank(depositor);
-        bank.depositNative{value: 1 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 1 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         vm.prank(stealthAddress);
         vm.expectRevert(PrivateBank.ZeroAddress.selector);
@@ -267,7 +259,7 @@ contract PrivateBankTest is Test {
     function test_WithdrawAll_Success() public {
         // Deposit native and tokens
         vm.prank(depositor);
-        bank.depositNative{value: 5 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 5 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         vm.startPrank(depositor);
         token.approve(address(bank), 100 ether);
@@ -347,7 +339,7 @@ contract PrivateBankTest is Test {
 
         vm.prank(depositor);
         vm.expectRevert(PrivateBank.DepositLimitExceeded.selector);
-        bank.depositNative{value: 10 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 10 ether }(1, stealthAddress, ephemeralPubKey, metadata);
     }
 
     function test_DepositNative_RevertsOnExceedingDailyLimit() public {
@@ -355,10 +347,10 @@ contract PrivateBankTest is Test {
         bank.setDailyDepositLimit(5 ether);
 
         vm.startPrank(depositor);
-        bank.depositNative{value: 3 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 3 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         vm.expectRevert(PrivateBank.DailyLimitExceeded.selector);
-        bank.depositNative{value: 3 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 3 ether }(1, stealthAddress, ephemeralPubKey, metadata);
         vm.stopPrank();
     }
 
@@ -367,13 +359,13 @@ contract PrivateBankTest is Test {
         bank.setDailyDepositLimit(5 ether);
 
         vm.prank(depositor);
-        bank.depositNative{value: 5 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 5 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         // Move to next day
         vm.warp(block.timestamp + 1 days);
 
         vm.prank(depositor);
-        bank.depositNative{value: 5 ether}(1, makeAddr("stealth2"), ephemeralPubKey, metadata);
+        bank.depositNative{ value: 5 ether }(1, makeAddr("stealth2"), ephemeralPubKey, metadata);
 
         assertEq(bank.totalNativeDeposits(), 10 ether);
     }
@@ -382,7 +374,7 @@ contract PrivateBankTest is Test {
 
     function test_GetNativeBalance() public {
         vm.prank(depositor);
-        bank.depositNative{value: 5 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 5 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         assertEq(bank.getNativeBalance(stealthAddress), 5 ether);
     }
@@ -398,7 +390,7 @@ contract PrivateBankTest is Test {
 
     function test_GetBalances() public {
         vm.prank(depositor);
-        bank.depositNative{value: 5 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 5 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         vm.startPrank(depositor);
         token.approve(address(bank), 100 ether);
@@ -424,7 +416,7 @@ contract PrivateBankTest is Test {
         bank.setDailyDepositLimit(10 ether);
 
         vm.prank(depositor);
-        bank.depositNative{value: 3 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 3 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         uint256 remaining = bank.getRemainingDailyAllowance(depositor);
         assertEq(remaining, 7 ether);
@@ -435,7 +427,7 @@ contract PrivateBankTest is Test {
         bank.setDailyDepositLimit(5 ether);
 
         vm.prank(depositor);
-        bank.depositNative{value: 5 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        bank.depositNative{ value: 5 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         uint256 remaining = bank.getRemainingDailyAllowance(depositor);
         assertEq(remaining, 0);
@@ -447,7 +439,7 @@ contract PrivateBankTest is Test {
         vm.deal(depositor, 1 ether);
 
         vm.prank(depositor);
-        (bool success, ) = address(bank).call{value: 1 ether}("");
+        (bool success,) = address(bank).call{ value: 1 ether }("");
         // The call reverts so success is false
         assertFalse(success);
     }

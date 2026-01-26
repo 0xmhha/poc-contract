@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BasePaymaster} from "./BasePaymaster.sol";
-import {IEntryPoint} from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
-import {PackedUserOperation} from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
-import {UserOperationLib} from "../erc4337-entrypoint/UserOperationLib.sol";
-import {ECDSA} from "solady/utils/ECDSA.sol";
+import { BasePaymaster } from "./BasePaymaster.sol";
+import { IEntryPoint } from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
+import { PackedUserOperation } from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
+import { UserOperationLib } from "../erc4337-entrypoint/UserOperationLib.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
 
 /**
  * @title VerifyingPaymaster
@@ -14,9 +14,9 @@ import {ECDSA} from "solady/utils/ECDSA.sol";
  *      This allows for flexible off-chain policies to determine which operations to sponsor.
  *
  * PaymasterData format:
- *   [0:6]   - validUntil (uint48) - timestamp until which sponsorship is valid
- *   [6:12]  - validAfter (uint48) - timestamp after which sponsorship is valid
- *   [12:]   - signature (65 bytes) - ECDSA signature from verifyingSigner
+ *   [0:6] - validUntil (uint48) - timestamp until which sponsorship is valid
+ *   [6:12] - validAfter (uint48) - timestamp after which sponsorship is valid
+ *   [12:] - signature (65 bytes) - ECDSA signature from verifyingSigner
  */
 contract VerifyingPaymaster is BasePaymaster {
     using ECDSA for bytes32;
@@ -32,11 +32,7 @@ contract VerifyingPaymaster is BasePaymaster {
     uint256 private constant MIN_VALID_DATA_LENGTH = 12 + 65; // 6 + 6 + 65
 
     event SignerChanged(address indexed oldSigner, address indexed newSigner);
-    event GasSponsored(
-        address indexed sender,
-        bytes32 indexed userOpHash,
-        uint256 maxCost
-    );
+    event GasSponsored(address indexed sender, bytes32 indexed userOpHash, uint256 maxCost);
 
     error InvalidSignatureLength();
     error InvalidSigner();
@@ -48,11 +44,7 @@ contract VerifyingPaymaster is BasePaymaster {
      * @param _owner The owner of this paymaster
      * @param _verifyingSigner Initial verifying signer address
      */
-    constructor(
-        IEntryPoint _entryPoint,
-        address _owner,
-        address _verifyingSigner
-    ) BasePaymaster(_entryPoint, _owner) {
+    constructor(IEntryPoint _entryPoint, address _owner, address _verifyingSigner) BasePaymaster(_entryPoint, _owner) {
         if (_verifyingSigner == address(0)) revert SignerCannotBeZero();
         verifyingSigner = _verifyingSigner;
     }
@@ -75,11 +67,11 @@ contract VerifyingPaymaster is BasePaymaster {
      * @param validAfter Timestamp after which the signature is valid
      * @return The hash that needs to be signed
      */
-    function getHash(
-        PackedUserOperation calldata userOp,
-        uint48 validUntil,
-        uint48 validAfter
-    ) public view returns (bytes32) {
+    function getHash(PackedUserOperation calldata userOp, uint48 validUntil, uint48 validAfter)
+        public
+        view
+        returns (bytes32)
+    {
         // Hash the operation data excluding the paymaster signature
         // forge-lint: disable-next-line(asm-keccak256)
         return keccak256(
@@ -108,11 +100,11 @@ contract VerifyingPaymaster is BasePaymaster {
      * @return context Context to be passed to postOp (sender address and nonce)
      * @return validationData Packed validation data including time range
      */
-    function _validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 maxCost
-    ) internal override returns (bytes memory context, uint256 validationData) {
+    function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+        internal
+        override
+        returns (bytes memory context, uint256 validationData)
+    {
         (userOpHash); // silence unused variable warning
 
         bytes calldata paymasterData = _parsePaymasterData(userOp.paymasterAndData);
@@ -138,10 +130,7 @@ contract VerifyingPaymaster is BasePaymaster {
 
         if (recoveredSigner != verifyingSigner) {
             // Return failure but don't revert (for simulation purposes)
-            return (
-                "",
-                _packValidationDataFailure(validUntil, validAfter)
-            );
+            return ("", _packValidationDataFailure(validUntil, validAfter));
         }
 
         // Increment nonce to prevent replay
@@ -153,22 +142,17 @@ contract VerifyingPaymaster is BasePaymaster {
         emit GasSponsored(userOp.sender, keccak256(abi.encode(userOp)), maxCost);
 
         // Return success with time range and sender context
-        return (
-            abi.encode(userOp.sender),
-            _packValidationDataSuccess(validUntil, validAfter)
-        );
+        return (abi.encode(userOp.sender), _packValidationDataSuccess(validUntil, validAfter));
     }
 
     /**
      * @notice Post-operation handler (empty for this paymaster)
      * @dev Override if post-op tracking or refund logic is needed
      */
-    function _postOp(
-        PostOpMode mode,
-        bytes calldata context,
-        uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
-    ) internal override {
+    function _postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+        internal
+        override
+    {
         // No post-op logic needed for basic verifying paymaster
         // Can be extended for usage tracking, refunds, etc.
         (mode, context, actualGasCost, actualUserOpFeePerGas);

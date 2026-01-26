@@ -2,12 +2,12 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {IEntryPoint} from "../../src/erc7579-smartaccount/interfaces/IEntryPoint.sol";
-import {Kernel} from "../../src/erc7579-smartaccount/Kernel.sol";
-import {KernelFactory} from "../../src/erc7579-smartaccount/factory/KernelFactory.sol";
-import {FactoryStaker} from "../../src/erc7579-smartaccount/factory/FactoryStaker.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { IEntryPoint } from "../../src/erc7579-smartaccount/interfaces/IEntryPoint.sol";
+import { Kernel } from "../../src/erc7579-smartaccount/Kernel.sol";
+import { KernelFactory } from "../../src/erc7579-smartaccount/factory/KernelFactory.sol";
+import { FactoryStaker } from "../../src/erc7579-smartaccount/factory/FactoryStaker.sol";
 
 /**
  * @title DeployKernelScript
@@ -20,14 +20,15 @@ import {FactoryStaker} from "../../src/erc7579-smartaccount/factory/FactoryStake
  *   forge script script/deploy-contract/DeployKernel.s.sol:DeployKernelScript --rpc-url <RPC_URL> --broadcast
  *
  * With existing EntryPoint:
- *   ENTRYPOINT_ADDRESS=0x... forge script script/deploy-contract/DeployKernel.s.sol:DeployKernelScript --rpc-url <RPC_URL> --broadcast
+ *   ENTRYPOINT_ADDRESS=0x... forge script script/deploy-contract/DeployKernel.s.sol:DeployKernelScript --rpc-url
+ * <RPC_URL> --broadcast
  */
 contract DeployKernelScript is DeploymentHelper {
     Kernel public kernelImpl;
     KernelFactory public kernelFactory;
     FactoryStaker public factoryStaker;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();
@@ -95,10 +96,11 @@ contract DeployKernelScript is DeploymentHelper {
  * @dev Use this when deploying to a fresh network without existing EntryPoint
  *
  * Usage:
- *   forge script script/deploy-contract/DeployKernel.s.sol:DeployKernelWithEntryPointScript --rpc-url <RPC_URL> --broadcast
+ *   forge script script/deploy-contract/DeployKernel.s.sol:DeployKernelWithEntryPointScript --rpc-url <RPC_URL>
+ * --broadcast
  */
 contract DeployKernelWithEntryPointScript is Script {
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         vm.startBroadcast();
@@ -106,7 +108,9 @@ contract DeployKernelWithEntryPointScript is Script {
         // Import and deploy EntryPoint
         // Note: This requires importing EntryPoint from erc4337-entrypoint
         // For production, use the canonical EntryPoint address
-        console.log("Use script/deploy-contract/DeployEntryPoint.s.sol first, then run DeployKernel.s.sol with ENTRYPOINT_ADDRESS env var");
+        console.log(
+            "Use script/deploy-contract/DeployEntryPoint.s.sol first, then run DeployKernel.s.sol with ENTRYPOINT_ADDRESS env var"
+        );
 
         vm.stopBroadcast();
     }

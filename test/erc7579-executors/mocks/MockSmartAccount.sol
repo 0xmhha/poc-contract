@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IERC7579Account} from "../../../src/erc7579-smartaccount/interfaces/IERC7579Account.sol";
-import {IExecutor} from "../../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {ExecMode} from "../../../src/erc7579-smartaccount/types/Types.sol";
-import {MODULE_TYPE_EXECUTOR} from "../../../src/erc7579-smartaccount/types/Constants.sol";
+import { IERC7579Account } from "../../../src/erc7579-smartaccount/interfaces/IERC7579Account.sol";
+import { IExecutor } from "../../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { ExecMode } from "../../../src/erc7579-smartaccount/types/Types.sol";
+import { MODULE_TYPE_EXECUTOR } from "../../../src/erc7579-smartaccount/types/Constants.sol";
 
 /**
  * @title MockSmartAccount
@@ -36,7 +36,12 @@ contract MockSmartAccount is IERC7579Account {
         }
     }
 
-    function isModuleInstalled(uint256 moduleType, address module, bytes calldata) external view override returns (bool) {
+    function isModuleInstalled(uint256 moduleType, address module, bytes calldata)
+        external
+        view
+        override
+        returns (bool)
+    {
         if (moduleType == MODULE_TYPE_EXECUTOR) {
             return installedExecutors[module];
         }
@@ -49,7 +54,7 @@ contract MockSmartAccount is IERC7579Account {
         uint256 value = uint256(bytes32(executionCalldata[20:52]));
         bytes calldata data = executionCalldata[52:];
 
-        (bool success, bytes memory result) = target.call{value: value}(data);
+        (bool success, bytes memory result) = target.call{ value: value }(data);
         require(success, string(result));
     }
 
@@ -69,7 +74,7 @@ contract MockSmartAccount is IERC7579Account {
         emit ExecutionFromExecutor(msg.sender, target, value, data);
 
         returnData = new bytes[](1);
-        (bool success, bytes memory result) = target.call{value: value}(data);
+        (bool success, bytes memory result) = target.call{ value: value }(data);
         require(success, string(result));
         returnData[0] = result;
     }
@@ -87,8 +92,8 @@ contract MockSmartAccount is IERC7579Account {
     }
 
     function isValidSignature(bytes32, bytes calldata) external pure override returns (bytes4) {
-        return 0x1626ba7e; // EIP-1271 magic value
+        return 0_x16_26b_a7e; // EIP-1271 magic value
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }

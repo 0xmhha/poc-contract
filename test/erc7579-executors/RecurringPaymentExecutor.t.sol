@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {RecurringPaymentExecutor} from "../../src/erc7579-executors/RecurringPaymentExecutor.sol";
-import {MockSmartAccount} from "./mocks/MockSmartAccount.sol";
-import {MockERC20} from "../erc4337-paymaster/mocks/MockERC20.sol";
-import {MODULE_TYPE_EXECUTOR} from "../../src/erc7579-smartaccount/types/Constants.sol";
+import { Test } from "forge-std/Test.sol";
+import { RecurringPaymentExecutor } from "../../src/erc7579-executors/RecurringPaymentExecutor.sol";
+import { MockSmartAccount } from "./mocks/MockSmartAccount.sol";
+import { MockERC20 } from "../erc4337-paymaster/mocks/MockERC20.sol";
+import { MODULE_TYPE_EXECUTOR } from "../../src/erc7579-smartaccount/types/Constants.sol";
 
 contract RecurringPaymentExecutorTest is Test {
     RecurringPaymentExecutor public executor;
@@ -80,7 +80,8 @@ contract RecurringPaymentExecutorTest is Test {
             0 // unlimited
         );
 
-        RecurringPaymentExecutor.PaymentSchedule memory schedule = executor.getSchedule(address(smartAccount), scheduleId);
+        RecurringPaymentExecutor.PaymentSchedule memory schedule =
+            executor.getSchedule(address(smartAccount), scheduleId);
         assertTrue(schedule.isActive);
         assertEq(schedule.recipient, recipient);
         assertEq(schedule.token, address(0));
@@ -91,16 +92,11 @@ contract RecurringPaymentExecutorTest is Test {
 
     function test_createSchedule_ERC20() public {
         vm.prank(address(smartAccount));
-        uint256 scheduleId = executor.createSchedule(
-            recipient,
-            address(token),
-            PAYMENT_AMOUNT,
-            INTERVAL,
-            block.timestamp,
-            10
-        );
+        uint256 scheduleId =
+            executor.createSchedule(recipient, address(token), PAYMENT_AMOUNT, INTERVAL, block.timestamp, 10);
 
-        RecurringPaymentExecutor.PaymentSchedule memory schedule = executor.getSchedule(address(smartAccount), scheduleId);
+        RecurringPaymentExecutor.PaymentSchedule memory schedule =
+            executor.getSchedule(address(smartAccount), scheduleId);
         assertTrue(schedule.isActive);
         assertEq(schedule.token, address(token));
         assertEq(schedule.amount, PAYMENT_AMOUNT);
@@ -132,7 +128,8 @@ contract RecurringPaymentExecutorTest is Test {
         vm.prank(address(smartAccount));
         executor.cancelSchedule(scheduleId);
 
-        RecurringPaymentExecutor.PaymentSchedule memory schedule = executor.getSchedule(address(smartAccount), scheduleId);
+        RecurringPaymentExecutor.PaymentSchedule memory schedule =
+            executor.getSchedule(address(smartAccount), scheduleId);
         assertFalse(schedule.isActive);
     }
 
@@ -149,7 +146,8 @@ contract RecurringPaymentExecutorTest is Test {
         vm.prank(address(smartAccount));
         executor.updateAmount(scheduleId, 2 ether);
 
-        RecurringPaymentExecutor.PaymentSchedule memory schedule = executor.getSchedule(address(smartAccount), scheduleId);
+        RecurringPaymentExecutor.PaymentSchedule memory schedule =
+            executor.getSchedule(address(smartAccount), scheduleId);
         assertEq(schedule.amount, 2 ether);
     }
 
@@ -162,7 +160,8 @@ contract RecurringPaymentExecutorTest is Test {
         vm.prank(address(smartAccount));
         executor.updateRecipient(scheduleId, newRecipient);
 
-        RecurringPaymentExecutor.PaymentSchedule memory schedule = executor.getSchedule(address(smartAccount), scheduleId);
+        RecurringPaymentExecutor.PaymentSchedule memory schedule =
+            executor.getSchedule(address(smartAccount), scheduleId);
         assertEq(schedule.recipient, newRecipient);
     }
 
@@ -177,7 +176,8 @@ contract RecurringPaymentExecutorTest is Test {
 
         assertEq(recipient.balance, balanceBefore + 1 ether);
 
-        RecurringPaymentExecutor.PaymentSchedule memory schedule = executor.getSchedule(address(smartAccount), scheduleId);
+        RecurringPaymentExecutor.PaymentSchedule memory schedule =
+            executor.getSchedule(address(smartAccount), scheduleId);
         assertEq(schedule.paymentsMade, 1);
     }
 
@@ -215,7 +215,8 @@ contract RecurringPaymentExecutorTest is Test {
         executor.executePayment(address(smartAccount), scheduleId);
         assertEq(recipient.balance, balanceBefore + 3 ether);
 
-        RecurringPaymentExecutor.PaymentSchedule memory schedule = executor.getSchedule(address(smartAccount), scheduleId);
+        RecurringPaymentExecutor.PaymentSchedule memory schedule =
+            executor.getSchedule(address(smartAccount), scheduleId);
         assertEq(schedule.paymentsMade, 3);
     }
 
@@ -231,7 +232,8 @@ contract RecurringPaymentExecutorTest is Test {
         executor.executePayment(address(smartAccount), scheduleId);
 
         // Schedule should be completed
-        RecurringPaymentExecutor.PaymentSchedule memory schedule = executor.getSchedule(address(smartAccount), scheduleId);
+        RecurringPaymentExecutor.PaymentSchedule memory schedule =
+            executor.getSchedule(address(smartAccount), scheduleId);
         assertFalse(schedule.isActive);
         assertEq(schedule.paymentsMade, 2);
 

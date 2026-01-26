@@ -2,10 +2,10 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {PriceOracle} from "../../src/defi/PriceOracle.sol";
-import {DEXIntegration} from "../../src/defi/DEXIntegration.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { PriceOracle } from "../../src/defi/PriceOracle.sol";
+import { DEXIntegration } from "../../src/defi/DEXIntegration.sol";
 
 /**
  * @title DeployDeFiScript
@@ -33,7 +33,7 @@ contract DeployDeFiScript is DeploymentHelper {
     PriceOracle public priceOracle;
     DEXIntegration public dexIntegration;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {ECDSA} from "solady/utils/ECDSA.sol";
-import {IValidator} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {PackedUserOperation} from "../erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
+import { IValidator } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { PackedUserOperation } from "../erc7579-smartaccount/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_SUCCESS_UINT,
     SIG_VALIDATION_FAILED_UINT,
@@ -140,10 +140,12 @@ contract MultiSigValidator is IValidator {
      * @param userOpHash The hash to verify
      * @return Validation result
      */
-    function validateUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash
-    ) external payable override returns (uint256) {
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash)
+        external
+        payable
+        override
+        returns (uint256)
+    {
         MultiSigStorage storage store = multiSigStorage[msg.sender];
 
         if (store.signerCount == 0) {
@@ -172,11 +174,12 @@ contract MultiSigValidator is IValidator {
      * @param sig The concatenated signatures
      * @return Magic value if valid
      */
-    function isValidSignatureWithSender(
-        address sender,
-        bytes32 hash,
-        bytes calldata sig
-    ) external view override returns (bytes4) {
+    function isValidSignatureWithSender(address sender, bytes32 hash, bytes calldata sig)
+        external
+        view
+        override
+        returns (bytes4)
+    {
         (sender); // silence unused warning
 
         MultiSigStorage storage store = multiSigStorage[msg.sender];
@@ -341,11 +344,11 @@ contract MultiSigValidator is IValidator {
      * @param signatures The concatenated signatures
      * @return True if valid
      */
-    function _verifyMultiSig(
-        MultiSigStorage storage store,
-        bytes32 hash,
-        bytes calldata signatures
-    ) internal view returns (bool) {
+    function _verifyMultiSig(MultiSigStorage storage store, bytes32 hash, bytes calldata signatures)
+        internal
+        view
+        returns (bool)
+    {
         uint8 threshold = store.threshold;
 
         // Check signature length (65 bytes per signature)

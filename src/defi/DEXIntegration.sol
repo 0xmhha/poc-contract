@@ -2,11 +2,11 @@
 
 pragma solidity ^0.8.0;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IUniswapV3SwapRouter, IUniswapV3Quoter} from "./interfaces/UniswapV3.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { IUniswapV3SwapRouter, IUniswapV3Quoter } from "./interfaces/UniswapV3.sol";
 
 /**
  * @title IwKRC
@@ -28,7 +28,7 @@ interface IwKRC {
 contract DEXIntegration is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
@@ -40,22 +40,18 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
     error SwapFailed();
     error InvalidPath();
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
     event SwapExecuted(
-        address indexed sender,
-        address indexed tokenIn,
-        address indexed tokenOut,
-        uint256 amountIn,
-        uint256 amountOut
+        address indexed sender, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut
     );
     event RouterUpdated(address indexed newRouter);
     event QuoterUpdated(address indexed newQuoter);
     event WkrcUpdated(address indexed newWkrc);
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
@@ -78,20 +74,16 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
     uint256 public constant MAX_SLIPPAGE_BPS = 500;
 
     /// @notice Valid Uniswap V3 fee tiers
-    uint24 public constant FEE_LOWEST = 100;   // 0.01%
-    uint24 public constant FEE_LOW = 500;      // 0.05%
-    uint24 public constant FEE_MEDIUM = 3000;  // 0.3%
-    uint24 public constant FEE_HIGH = 10000;   // 1%
+    uint24 public constant FEE_LOWEST = 100; // 0.01%
+    uint24 public constant FEE_LOW = 500; // 0.05%
+    uint24 public constant FEE_MEDIUM = 3000; // 0.3%
+    uint24 public constant FEE_HIGH = 10_000; //1%
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(
-        address _swapRouter,
-        address _quoter,
-        address _wkrc
-    ) Ownable(msg.sender) {
+    constructor(address _swapRouter, address _quoter, address _wkrc) Ownable(msg.sender) {
         if (_swapRouter == address(0)) revert ZeroAddress();
         if (_wkrc == address(0)) revert ZeroAddress();
 
@@ -100,7 +92,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         wkrc = IwKRC(_wkrc);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            ADMIN FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -133,7 +125,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         emit WkrcUpdated(_wkrc);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            SWAP FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -165,7 +157,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         // Handle native token input
         if (tokenIn == NATIVE_TOKEN) {
             require(msg.value == amountIn, "Invalid native amount");
-            wkrc.deposit{value: amountIn}();
+            wkrc.deposit{ value: amountIn }();
             actualTokenIn = address(wkrc);
             IERC20(actualTokenIn).approve(address(swapRouter), amountIn);
         } else {
@@ -198,7 +190,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         // Unwrap if output is native token
         if (unwrapOutput) {
             wkrc.withdraw(amountOut);
-            (bool success,) = msg.sender.call{value: amountOut}("");
+            (bool success,) = msg.sender.call{ value: amountOut }("");
             require(success, "Native transfer failed");
         }
 
@@ -233,7 +225,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         // Handle native token input
         if (tokenIn == NATIVE_TOKEN) {
             require(msg.value >= amountInMaximum, "Insufficient native");
-            wkrc.deposit{value: amountInMaximum}();
+            wkrc.deposit{ value: amountInMaximum }();
             actualTokenIn = address(wkrc);
             IERC20(actualTokenIn).approve(address(swapRouter), amountInMaximum);
         } else {
@@ -266,7 +258,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
             uint256 excess = amountInMaximum - amountIn;
             if (excess > 0) {
                 wkrc.withdraw(excess);
-                (bool success,) = msg.sender.call{value: excess}("");
+                (bool success,) = msg.sender.call{ value: excess }("");
                 require(success, "Refund failed");
             }
         } else {
@@ -279,7 +271,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         // Unwrap if output is native token
         if (unwrapOutput) {
             wkrc.withdraw(amountOut);
-            (bool success,) = msg.sender.call{value: amountOut}("");
+            (bool success,) = msg.sender.call{ value: amountOut }("");
             require(success, "Native transfer failed");
         }
 
@@ -294,12 +286,12 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
      * @param deadline Transaction deadline
      * @return amountOut Amount of output tokens received
      */
-    function swapExactInputMultihop(
-        bytes calldata path,
-        uint256 amountIn,
-        uint256 amountOutMinimum,
-        uint256 deadline
-    ) external payable nonReentrant returns (uint256 amountOut) {
+    function swapExactInputMultihop(bytes calldata path, uint256 amountIn, uint256 amountOutMinimum, uint256 deadline)
+        external
+        payable
+        nonReentrant
+        returns (uint256 amountOut)
+    {
         if (amountIn == 0) revert ZeroAmount();
         if (deadline < block.timestamp) revert DeadlineExpired();
         if (path.length < 43) revert InvalidPath(); // minimum: token(20) + fee(3) + token(20)
@@ -313,7 +305,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         // Handle native token input
         if (msg.value > 0) {
             require(msg.value == amountIn, "Invalid native amount");
-            wkrc.deposit{value: amountIn}();
+            wkrc.deposit{ value: amountIn }();
             IERC20(address(wkrc)).approve(address(swapRouter), amountIn);
         } else {
             IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
@@ -333,7 +325,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         emit SwapExecuted(msg.sender, tokenIn, address(0), amountIn, amountOut);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            QUOTE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -345,24 +337,16 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
      * @param fee Pool fee tier
      * @return amountOut Expected output amount
      */
-    function quoteExactInput(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn,
-        uint24 fee
-    ) external returns (uint256 amountOut) {
+    function quoteExactInput(address tokenIn, address tokenOut, uint256 amountIn, uint24 fee)
+        external
+        returns (uint256 amountOut)
+    {
         if (address(quoter) == address(0)) revert ZeroAddress();
 
         address actualTokenIn = tokenIn == NATIVE_TOKEN ? address(wkrc) : tokenIn;
         address actualTokenOut = tokenOut == NATIVE_TOKEN ? address(wkrc) : tokenOut;
 
-        return quoter.quoteExactInputSingle(
-            actualTokenIn,
-            actualTokenOut,
-            fee,
-            amountIn,
-            0
-        );
+        return quoter.quoteExactInputSingle(actualTokenIn, actualTokenOut, fee, amountIn, 0);
     }
 
     /**
@@ -373,27 +357,19 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
      * @param fee Pool fee tier
      * @return amountIn Required input amount
      */
-    function quoteExactOutput(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountOut,
-        uint24 fee
-    ) external returns (uint256 amountIn) {
+    function quoteExactOutput(address tokenIn, address tokenOut, uint256 amountOut, uint24 fee)
+        external
+        returns (uint256 amountIn)
+    {
         if (address(quoter) == address(0)) revert ZeroAddress();
 
         address actualTokenIn = tokenIn == NATIVE_TOKEN ? address(wkrc) : tokenIn;
         address actualTokenOut = tokenOut == NATIVE_TOKEN ? address(wkrc) : tokenOut;
 
-        return quoter.quoteExactOutputSingle(
-            actualTokenIn,
-            actualTokenOut,
-            fee,
-            amountOut,
-            0
-        );
+        return quoter.quoteExactOutputSingle(actualTokenIn, actualTokenOut, fee, amountOut, 0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            UTILITY FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -403,12 +379,9 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
      * @param slippageBps Slippage tolerance in basis points
      * @return Minimum output amount
      */
-    function calculateMinOutput(
-        uint256 expectedOutput,
-        uint256 slippageBps
-    ) external pure returns (uint256) {
+    function calculateMinOutput(uint256 expectedOutput, uint256 slippageBps) external pure returns (uint256) {
         if (slippageBps > MAX_SLIPPAGE_BPS) slippageBps = MAX_SLIPPAGE_BPS;
-        return (expectedOutput * (10000 - slippageBps)) / 10000;
+        return (expectedOutput * (10_000 - slippageBps)) / 10_000;
     }
 
     /**
@@ -417,10 +390,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
      * @param fees Array of fee tiers
      * @return path Encoded path
      */
-    function encodePath(
-        address[] calldata tokens,
-        uint24[] calldata fees
-    ) external pure returns (bytes memory path) {
+    function encodePath(address[] calldata tokens, uint24[] calldata fees) external pure returns (bytes memory path) {
         if (tokens.length < 2 || tokens.length != fees.length + 1) {
             revert InvalidPath();
         }
@@ -439,10 +409,10 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         return fee == FEE_LOWEST || fee == FEE_LOW || fee == FEE_MEDIUM || fee == FEE_HIGH;
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               RECEIVE ETH
     //////////////////////////////////////////////////////////////*/
 
     /// @dev Allow receiving native tokens
-    receive() external payable {}
+    receive() external payable { }
 }

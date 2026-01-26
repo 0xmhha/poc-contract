@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IHook} from "../../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { IHook } from "../../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 
 /**
  * @title MockHookAccount
@@ -20,11 +20,11 @@ contract MockHookAccount {
     }
 
     /// @notice Simulate a transaction execution through the hook
-    function executeWithHook(
-        address target,
-        uint256 value,
-        bytes calldata callData
-    ) external payable returns (bytes memory) {
+    function executeWithHook(address target, uint256 value, bytes calldata callData)
+        external
+        payable
+        returns (bytes memory)
+    {
         // Build msgData as hooks expect: target (20 bytes) + value (32 bytes) + callData
         bytes memory msgData = abi.encodePacked(target, value, callData);
 
@@ -41,11 +41,11 @@ contract MockHookAccount {
     }
 
     /// @notice Execute with hook and actually call the target
-    function executeWithHookAndCall(
-        address target,
-        uint256 value,
-        bytes calldata callData
-    ) external payable returns (bytes memory result) {
+    function executeWithHookAndCall(address target, uint256 value, bytes calldata callData)
+        external
+        payable
+        returns (bytes memory result)
+    {
         // Build msgData as hooks expect
         bytes memory msgData = abi.encodePacked(target, value, callData);
 
@@ -69,7 +69,7 @@ contract MockHookAccount {
         return result;
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }
 
 /**

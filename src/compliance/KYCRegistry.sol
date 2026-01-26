@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title KYCRegistry
@@ -30,26 +30,26 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
 
     // ============ Enums ============
     enum KYCStatus {
-        NONE,      // 0 - Not started
-        PENDING,   // 1 - In progress
-        VERIFIED,  // 2 - Approved
-        REJECTED,  // 3 - Denied
-        EXPIRED    // 4 - Was verified but expired
+        NONE, // 0 - Not started
+        PENDING, // 1 - In progress
+        VERIFIED, // 2 - Approved
+        REJECTED, // 3 - Denied
+        EXPIRED // 4 - Was verified but expired
     }
 
     enum RiskLevel {
-        LOW,        // 0 - Standard users
-        MEDIUM,     // 1 - Enhanced monitoring
-        HIGH,       // 2 - Restricted operations
-        PROHIBITED  // 3 - Blocked (sanctions)
+        LOW, // 0 - Standard users
+        MEDIUM, // 1 - Enhanced monitoring
+        HIGH, // 2 - Restricted operations
+        PROHIBITED // 3 - Blocked (sanctions)
     }
 
     enum SanctionsList {
-        NONE,   // 0 - Not on any list
-        OFAC,   // 1 - US OFAC
-        UN,     // 2 - UN Security Council
-        EU,     // 3 - European Union
-        OTHER   // 4 - Other jurisdiction
+        NONE, // 0 - Not on any list
+        OFAC, // 1 - US OFAC
+        UN, // 2 - UN Security Council
+        EU, // 3 - European Union
+        OTHER // 4 - Other jurisdiction
     }
 
     // ============ Structs ============
@@ -58,8 +58,8 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
         RiskLevel riskLevel;
         uint256 verifiedAt;
         uint256 expiresAt;
-        bytes32 kycProviderHash;    // Hash of KYC provider identifier
-        bytes32 kycDataHash;        // Hash of KYC data for verification
+        bytes32 kycProviderHash; // Hash of KYC provider identifier
+        bytes32 kycDataHash; // Hash of KYC data for verification
         string jurisdiction;
         uint256 lastUpdated;
         address updatedBy;
@@ -69,7 +69,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
         bool isSanctioned;
         SanctionsList listType;
         uint256 addedAt;
-        bytes32 sanctionId;         // External reference ID
+        bytes32 sanctionId; // External reference ID
         string reason;
     }
 
@@ -100,58 +100,25 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
 
     // ============ Events ============
     event KYCStatusUpdated(
-        address indexed account,
-        KYCStatus oldStatus,
-        KYCStatus newStatus,
-        address indexed updatedBy
+        address indexed account, KYCStatus oldStatus, KYCStatus newStatus, address indexed updatedBy
     );
-    event KYCVerified(
-        address indexed account,
-        bytes32 kycProviderHash,
-        string jurisdiction,
-        uint256 expiresAt
-    );
-    event KYCRejected(
-        address indexed account,
-        string reason,
-        address indexed rejectedBy
-    );
+    event KYCVerified(address indexed account, bytes32 kycProviderHash, string jurisdiction, uint256 expiresAt);
+    event KYCRejected(address indexed account, string reason, address indexed rejectedBy);
     event KYCExpired(address indexed account);
-    event RiskLevelUpdated(
-        address indexed account,
-        RiskLevel oldLevel,
-        RiskLevel newLevel
-    );
+    event RiskLevelUpdated(address indexed account, RiskLevel oldLevel, RiskLevel newLevel);
 
-    event SanctionsAdded(
-        address indexed account,
-        SanctionsList listType,
-        bytes32 sanctionId,
-        string reason
-    );
-    event SanctionsRemoved(
-        address indexed account,
-        SanctionsList listType,
-        string reason
-    );
+    event SanctionsAdded(address indexed account, SanctionsList listType, bytes32 sanctionId, string reason);
+    event SanctionsRemoved(address indexed account, SanctionsList listType, string reason);
 
     event AddedToAllowList(address indexed account);
     event RemovedFromAllowList(address indexed account);
     event AddedToBlockList(address indexed account, string reason);
     event RemovedFromBlockList(address indexed account);
 
-    event KycProviderRegistered(
-        address indexed provider,
-        string name,
-        string jurisdiction
-    );
+    event KycProviderRegistered(address indexed provider, string name, string jurisdiction);
     event KycProviderDeactivated(address indexed provider);
 
-    event JurisdictionConfigured(
-        string jurisdiction,
-        uint256 kycValidity,
-        RiskLevel defaultRisk
-    );
+    event JurisdictionConfigured(string jurisdiction, uint256 kycValidity, RiskLevel defaultRisk);
 
     // ============ Errors ============
     error InvalidAddress();
@@ -187,9 +154,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @notice Start KYC process for an account
      * @param account Address to start KYC for
      */
-    function initiateKyc(
-        address account
-    ) external onlyRole(KYC_ADMIN_ROLE) whenNotPaused {
+    function initiateKyc(address account) external onlyRole(KYC_ADMIN_ROLE) whenNotPaused {
         if (account == address(0)) revert InvalidAddress();
         if (sanctionsRecords[account].isSanctioned) revert AccountSanctioned();
         if (blockList[account]) revert AccountBlocked();
@@ -275,10 +240,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param account Address to reject
      * @param reason Rejection reason
      */
-    function rejectKyc(
-        address account,
-        string calldata reason
-    ) external onlyRole(KYC_ADMIN_ROLE) whenNotPaused {
+    function rejectKyc(address account, string calldata reason) external onlyRole(KYC_ADMIN_ROLE) whenNotPaused {
         if (account == address(0)) revert InvalidAddress();
 
         KycRecord storage record = kycRecords[account];
@@ -297,10 +259,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param account Address to update
      * @param newLevel New risk level
      */
-    function updateRiskLevel(
-        address account,
-        RiskLevel newLevel
-    ) external onlyRole(KYC_ADMIN_ROLE) {
+    function updateRiskLevel(address account, RiskLevel newLevel) external onlyRole(KYC_ADMIN_ROLE) {
         if (account == address(0)) revert InvalidAddress();
 
         KycRecord storage record = kycRecords[account];
@@ -323,9 +282,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @notice Manually expire KYC (for compliance reasons)
      * @param account Address to expire
      */
-    function expireKyc(
-        address account
-    ) external onlyRole(KYC_ADMIN_ROLE) {
+    function expireKyc(address account) external onlyRole(KYC_ADMIN_ROLE) {
         KycRecord storage record = kycRecords[account];
         if (record.status != KYCStatus.VERIFIED) revert KYCNotVerified();
 
@@ -349,21 +306,15 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param sanctionId External reference ID
      * @param reason Reason for sanction
      */
-    function addToSanctions(
-        address account,
-        SanctionsList listType,
-        bytes32 sanctionId,
-        string calldata reason
-    ) external onlyRole(SANCTIONS_ADMIN_ROLE) {
+    function addToSanctions(address account, SanctionsList listType, bytes32 sanctionId, string calldata reason)
+        external
+        onlyRole(SANCTIONS_ADMIN_ROLE)
+    {
         if (account == address(0)) revert InvalidAddress();
         if (listType == SanctionsList.NONE) revert InvalidStatus();
 
         sanctionsRecords[account] = SanctionsRecord({
-            isSanctioned: true,
-            listType: listType,
-            addedAt: block.timestamp,
-            sanctionId: sanctionId,
-            reason: reason
+            isSanctioned: true, listType: listType, addedAt: block.timestamp, sanctionId: sanctionId, reason: reason
         });
 
         // Also update KYC risk level
@@ -386,10 +337,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param account Address to remove
      * @param reason Reason for removal
      */
-    function removeFromSanctions(
-        address account,
-        string calldata reason
-    ) external onlyRole(SANCTIONS_ADMIN_ROLE) {
+    function removeFromSanctions(address account, string calldata reason) external onlyRole(SANCTIONS_ADMIN_ROLE) {
         SanctionsRecord storage record = sanctionsRecords[account];
         if (!record.isSanctioned) revert InvalidStatus();
 
@@ -409,9 +357,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @notice Add address to allow list
      * @param account Address to add
      */
-    function addToAllowList(
-        address account
-    ) external onlyRole(KYC_ADMIN_ROLE) {
+    function addToAllowList(address account) external onlyRole(KYC_ADMIN_ROLE) {
         if (account == address(0)) revert InvalidAddress();
         if (sanctionsRecords[account].isSanctioned) revert AccountSanctioned();
 
@@ -423,9 +369,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @notice Remove address from allow list
      * @param account Address to remove
      */
-    function removeFromAllowList(
-        address account
-    ) external onlyRole(KYC_ADMIN_ROLE) {
+    function removeFromAllowList(address account) external onlyRole(KYC_ADMIN_ROLE) {
         allowList[account] = false;
         emit RemovedFromAllowList(account);
     }
@@ -435,10 +379,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param account Address to add
      * @param reason Reason for blocking
      */
-    function addToBlockList(
-        address account,
-        string calldata reason
-    ) external onlyRole(KYC_ADMIN_ROLE) {
+    function addToBlockList(address account, string calldata reason) external onlyRole(KYC_ADMIN_ROLE) {
         if (account == address(0)) revert InvalidAddress();
 
         blockList[account] = true;
@@ -449,9 +390,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @notice Remove address from block list
      * @param account Address to remove
      */
-    function removeFromBlockList(
-        address account
-    ) external onlyRole(KYC_ADMIN_ROLE) {
+    function removeFromBlockList(address account) external onlyRole(KYC_ADMIN_ROLE) {
         if (sanctionsRecords[account].isSanctioned) revert AccountSanctioned();
 
         blockList[account] = false;
@@ -466,21 +405,16 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param name Provider name
      * @param jurisdiction Provider jurisdiction
      */
-    function registerKycProvider(
-        address provider,
-        string calldata name,
-        string calldata jurisdiction
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function registerKycProvider(address provider, string calldata name, string calldata jurisdiction)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         if (provider == address(0)) revert InvalidAddress();
         if (bytes(name).length == 0) revert EmptyName();
         if (kycProviders[provider].registeredAt != 0) revert ProviderAlreadyExists();
 
         kycProviders[provider] = KycProvider({
-            name: name,
-            jurisdiction: jurisdiction,
-            isActive: true,
-            registeredAt: block.timestamp,
-            verificationsCount: 0
+            name: name, jurisdiction: jurisdiction, isActive: true, registeredAt: block.timestamp, verificationsCount: 0
         });
 
         _grantRole(KYC_PROVIDER_ROLE, provider);
@@ -492,9 +426,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @notice Deactivate a KYC provider
      * @param provider Address of the provider
      */
-    function deactivateKycProvider(
-        address provider
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function deactivateKycProvider(address provider) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (kycProviders[provider].registeredAt == 0) revert ProviderNotFound();
 
         kycProviders[provider].isActive = false;
@@ -511,11 +443,10 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param kycValidity KYC validity period for this jurisdiction
      * @param defaultRisk Default risk level for this jurisdiction
      */
-    function configureJurisdiction(
-        string calldata jurisdiction,
-        uint256 kycValidity,
-        RiskLevel defaultRisk
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function configureJurisdiction(string calldata jurisdiction, uint256 kycValidity, RiskLevel defaultRisk)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         if (bytes(jurisdiction).length == 0) revert InvalidJurisdiction();
         if (kycValidity > 0 && (kycValidity < MIN_KYC_VALIDITY || kycValidity > MAX_KYC_VALIDITY)) {
             revert InvalidValidity();
@@ -531,9 +462,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @notice Set default KYC validity period
      * @param validity New default validity in seconds
      */
-    function setDefaultKycValidity(
-        uint256 validity
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setDefaultKycValidity(uint256 validity) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (validity < MIN_KYC_VALIDITY || validity > MAX_KYC_VALIDITY) {
             revert InvalidValidity();
         }
@@ -628,10 +557,11 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @return expiringSoon True if expiring within days
      * @return daysRemaining Days until expiration (0 if expired or not verified)
      */
-    function isKycExpiringSoon(
-        address account,
-        uint256 withinDays
-    ) external view returns (bool expiringSoon, uint256 daysRemaining) {
+    function isKycExpiringSoon(address account, uint256 withinDays)
+        external
+        view
+        returns (bool expiringSoon, uint256 daysRemaining)
+    {
         KycRecord storage record = kycRecords[account];
 
         if (record.status != KYCStatus.VERIFIED || block.timestamp >= record.expiresAt) {

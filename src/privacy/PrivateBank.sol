@@ -2,22 +2,18 @@
 
 pragma solidity ^0.8.0;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title IERC5564Announcer
  * @notice Minimal interface for ERC-5564 announcer
  */
 interface IERC5564Announcer {
-    function announce(
-        uint256 schemeId,
-        address stealthAddress,
-        bytes memory ephemeralPubKey,
-        bytes memory metadata
-    ) external;
+    function announce(uint256 schemeId, address stealthAddress, bytes memory ephemeralPubKey, bytes memory metadata)
+        external;
 }
 
 /**
@@ -25,10 +21,7 @@ interface IERC5564Announcer {
  * @notice Minimal interface for ERC-6538 registry
  */
 interface IERC6538Registry {
-    function stealthMetaAddressOf(address registrant, uint256 schemeId)
-        external
-        view
-        returns (bytes memory);
+    function stealthMetaAddressOf(address registrant, uint256 schemeId) external view returns (bytes memory);
 }
 
 /**
@@ -50,7 +43,7 @@ interface IERC6538Registry {
 contract PrivateBank is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
@@ -63,16 +56,13 @@ contract PrivateBank is ReentrancyGuard, Ownable {
     error DepositLimitExceeded();
     error DailyLimitExceeded();
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Emitted when native tokens are deposited to a stealth address
     event NativeDeposit(
-        address indexed stealthAddress,
-        address indexed depositor,
-        uint256 amount,
-        uint256 indexed schemeId
+        address indexed stealthAddress, address indexed depositor, uint256 amount, uint256 indexed schemeId
     );
 
     /// @notice Emitted when ERC-20 tokens are deposited to a stealth address
@@ -85,12 +75,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
     );
 
     /// @notice Emitted when funds are withdrawn
-    event Withdrawal(
-        address indexed stealthAddress,
-        address indexed recipient,
-        address token,
-        uint256 amount
-    );
+    event Withdrawal(address indexed stealthAddress, address indexed recipient, address token, uint256 amount);
 
     /// @notice Emitted when a token is added/removed from whitelist
     event TokenWhitelistUpdated(address indexed token, bool supported);
@@ -101,7 +86,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
     /// @notice Emitted when daily limit is updated
     event DailyLimitUpdated(uint256 newLimit);
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
@@ -138,7 +123,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
     /// @notice Native token placeholder address
     address public constant NATIVE_TOKEN = address(0);
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
@@ -147,10 +132,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
      * @param _announcer ERC-5564 Announcer address
      * @param _registry ERC-6538 Registry address
      */
-    constructor(
-        address _announcer,
-        address _registry
-    ) Ownable(msg.sender) {
+    constructor(address _announcer, address _registry) Ownable(msg.sender) {
         if (_announcer == address(0)) revert ZeroAddress();
         if (_registry == address(0)) revert ZeroAddress();
 
@@ -158,7 +140,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
         REGISTRY = IERC6538Registry(_registry);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           DEPOSIT FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -226,17 +208,13 @@ contract PrivateBank is ReentrancyGuard, Ownable {
         totalTokenDeposits[token] += amount;
 
         // Announce the deposit with token info in metadata
-        bytes memory enrichedMetadata = abi.encodePacked(
-            metadata,
-            token,
-            amount
-        );
+        bytes memory enrichedMetadata = abi.encodePacked(metadata, token, amount);
         ANNOUNCER.announce(schemeId, stealthAddress, ephemeralPubKey, enrichedMetadata);
 
         emit TokenDeposit(stealthAddress, token, msg.sender, amount, schemeId);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                          WITHDRAWAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -254,7 +232,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
         totalNativeDeposits -= amount;
 
         // Transfer native tokens
-        (bool success, ) = msg.sender.call{value: amount}("");
+        (bool success,) = msg.sender.call{ value: amount }("");
         if (!success) revert WithdrawFailed();
 
         emit Withdrawal(msg.sender, msg.sender, NATIVE_TOKEN, amount);
@@ -275,7 +253,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
         totalNativeDeposits -= amount;
 
         // Transfer native tokens
-        (bool success, ) = recipient.call{value: amount}("");
+        (bool success,) = recipient.call{ value: amount }("");
         if (!success) revert WithdrawFailed();
 
         emit Withdrawal(msg.sender, recipient, NATIVE_TOKEN, amount);
@@ -307,11 +285,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
      * @param recipient The address to receive funds
      * @param amount The amount to withdraw
      */
-    function withdrawTokenTo(
-        address token,
-        address recipient,
-        uint256 amount
-    ) external nonReentrant {
+    function withdrawTokenTo(address token, address recipient, uint256 amount) external nonReentrant {
         if (token == address(0)) revert ZeroAddress();
         if (recipient == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
@@ -332,10 +306,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
      * @param tokens Array of token addresses to withdraw (empty for native only)
      * @param recipient The address to receive all funds
      */
-    function withdrawAll(
-        address[] calldata tokens,
-        address recipient
-    ) external nonReentrant {
+    function withdrawAll(address[] calldata tokens, address recipient) external nonReentrant {
         if (recipient == address(0)) revert ZeroAddress();
 
         // Withdraw native tokens
@@ -344,14 +315,14 @@ contract PrivateBank is ReentrancyGuard, Ownable {
             nativeBalances[msg.sender] = 0;
             totalNativeDeposits -= nativeAmount;
 
-            (bool success, ) = recipient.call{value: nativeAmount}("");
+            (bool success,) = recipient.call{ value: nativeAmount }("");
             if (!success) revert WithdrawFailed();
 
             emit Withdrawal(msg.sender, recipient, NATIVE_TOKEN, nativeAmount);
         }
 
         // Withdraw all specified tokens
-        for (uint256 i = 0; i < tokens.length; ) {
+        for (uint256 i = 0; i < tokens.length;) {
             address token = tokens[i];
             uint256 tokenAmount = tokenBalances[msg.sender][token];
 
@@ -364,11 +335,13 @@ contract PrivateBank is ReentrancyGuard, Ownable {
                 emit Withdrawal(msg.sender, recipient, token, tokenAmount);
             }
 
-            unchecked { i++; }
+            unchecked {
+                i++;
+            }
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            ADMIN FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -401,7 +374,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
         emit DailyLimitUpdated(_dailyLimit);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -420,10 +393,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
      * @param token The token address
      * @return The balance
      */
-    function getTokenBalance(
-        address stealthAddress,
-        address token
-    ) external view returns (uint256) {
+    function getTokenBalance(address stealthAddress, address token) external view returns (uint256) {
         return tokenBalances[stealthAddress][token];
     }
 
@@ -434,16 +404,19 @@ contract PrivateBank is ReentrancyGuard, Ownable {
      * @return nativeBalance The native token balance
      * @return tokenAmounts The token balances (same order as input)
      */
-    function getBalances(
-        address stealthAddress,
-        address[] calldata tokens
-    ) external view returns (uint256 nativeBalance, uint256[] memory tokenAmounts) {
+    function getBalances(address stealthAddress, address[] calldata tokens)
+        external
+        view
+        returns (uint256 nativeBalance, uint256[] memory tokenAmounts)
+    {
         nativeBalance = nativeBalances[stealthAddress];
         tokenAmounts = new uint256[](tokens.length);
 
-        for (uint256 i = 0; i < tokens.length; ) {
+        for (uint256 i = 0; i < tokens.length;) {
             tokenAmounts[i] = tokenBalances[stealthAddress][tokens[i]];
-            unchecked { i++; }
+            unchecked {
+                i++;
+            }
         }
     }
 
@@ -467,7 +440,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
         return dailyDepositLimit - usedToday;
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                          INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -495,7 +468,7 @@ contract PrivateBank is ReentrancyGuard, Ownable {
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            RECEIVE NATIVE
     //////////////////////////////////////////////////////////////*/
 

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IPermit2} from "../../../src/permit2/interfaces/IPermit2.sol";
-import {IAllowanceTransfer} from "../../../src/permit2/interfaces/IAllowanceTransfer.sol";
-import {ISignatureTransfer} from "../../../src/permit2/interfaces/ISignatureTransfer.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IPermit2 } from "../../../src/permit2/interfaces/IPermit2.sol";
+import { IAllowanceTransfer } from "../../../src/permit2/interfaces/IAllowanceTransfer.sol";
+import { ISignatureTransfer } from "../../../src/permit2/interfaces/ISignatureTransfer.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title MockPermit2
@@ -30,11 +30,12 @@ contract MockPermit2 is IPermit2 {
 
     // ============ IAllowanceTransfer ============
 
-    function allowance(
-        address owner,
-        address token,
-        address spender
-    ) external view override returns (uint160 amount, uint48 expiration, uint48 nonce) {
+    function allowance(address owner, address token, address spender)
+        external
+        view
+        override
+        returns (uint160 amount, uint48 expiration, uint48 nonce)
+    {
         PackedAllowance storage a = _allowances[owner][token][spender];
         return (a.amount, a.expiration, a.nonce);
     }
@@ -49,7 +50,10 @@ contract MockPermit2 is IPermit2 {
         address owner,
         PermitSingle memory permitSingle,
         bytes calldata /* signature */
-    ) external override {
+    )
+        external
+        override
+    {
         if (shouldFailPermit) {
             revert("MockPermit2: permit failed");
         }
@@ -74,18 +78,18 @@ contract MockPermit2 is IPermit2 {
         address owner,
         PermitBatch memory permitBatch,
         bytes calldata /* signature */
-    ) external override {
+    )
+        external
+        override
+    {
         if (shouldFailPermit) {
             revert("MockPermit2: permit failed");
         }
 
         for (uint256 i = 0; i < permitBatch.details.length; i++) {
             PermitDetails memory details = permitBatch.details[i];
-            _allowances[owner][details.token][permitBatch.spender] = PackedAllowance({
-                amount: details.amount,
-                expiration: details.expiration,
-                nonce: details.nonce + 1
-            });
+            _allowances[owner][details.token][permitBatch.spender] =
+                PackedAllowance({ amount: details.amount, expiration: details.expiration, nonce: details.nonce + 1 });
 
             emit Permit(owner, details.token, permitBatch.spender, details.amount, details.expiration, details.nonce);
         }
@@ -155,8 +159,10 @@ contract MockPermit2 is IPermit2 {
         PermitTransferFrom memory permit,
         SignatureTransferDetails calldata transferDetails,
         address owner,
-        bytes32 /* witness */,
-        string calldata /* witnessTypeString */,
+        bytes32,
+        /* witness */
+        string calldata,
+        /* witnessTypeString */
         bytes calldata /* signature */
     ) external override {
         if (shouldFailPermit) {
@@ -187,13 +193,10 @@ contract MockPermit2 is IPermit2 {
         _useUnorderedNonce(owner, permit.nonce);
 
         for (uint256 i = 0; i < permit.permitted.length; i++) {
-            require(
-                transferDetails[i].requestedAmount <= permit.permitted[i].amount, "MockPermit2: invalid amount"
-            );
+            require(transferDetails[i].requestedAmount <= permit.permitted[i].amount, "MockPermit2: invalid amount");
             if (transferDetails[i].requestedAmount > 0) {
-                IERC20(permit.permitted[i].token).safeTransferFrom(
-                    owner, transferDetails[i].to, transferDetails[i].requestedAmount
-                );
+                IERC20(permit.permitted[i].token)
+                    .safeTransferFrom(owner, transferDetails[i].to, transferDetails[i].requestedAmount);
             }
         }
     }
@@ -202,8 +205,10 @@ contract MockPermit2 is IPermit2 {
         PermitBatchTransferFrom memory permit,
         SignatureTransferDetails[] calldata transferDetails,
         address owner,
-        bytes32 /* witness */,
-        string calldata /* witnessTypeString */,
+        bytes32,
+        /* witness */
+        string calldata,
+        /* witnessTypeString */
         bytes calldata /* signature */
     ) external override {
         if (shouldFailPermit) {
@@ -216,13 +221,10 @@ contract MockPermit2 is IPermit2 {
         _useUnorderedNonce(owner, permit.nonce);
 
         for (uint256 i = 0; i < permit.permitted.length; i++) {
-            require(
-                transferDetails[i].requestedAmount <= permit.permitted[i].amount, "MockPermit2: invalid amount"
-            );
+            require(transferDetails[i].requestedAmount <= permit.permitted[i].amount, "MockPermit2: invalid amount");
             if (transferDetails[i].requestedAmount > 0) {
-                IERC20(permit.permitted[i].token).safeTransferFrom(
-                    owner, transferDetails[i].to, transferDetails[i].requestedAmount
-                );
+                IERC20(permit.permitted[i].token)
+                    .safeTransferFrom(owner, transferDetails[i].to, transferDetails[i].requestedAmount);
             }
         }
     }
@@ -259,6 +261,6 @@ contract MockPermit2 is IPermit2 {
         uint48 expiration,
         uint48 nonce
     ) external {
-        _allowances[owner][token][spender] = PackedAllowance({amount: amount, expiration: expiration, nonce: nonce});
+        _allowances[owner][token][spender] = PackedAllowance({ amount: amount, expiration: expiration, nonce: nonce });
     }
 }

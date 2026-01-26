@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IExecutor, IModule} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {IERC7579Account} from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
-import {MODULE_TYPE_EXECUTOR} from "../erc7579-smartaccount/types/Constants.sol";
-import {ExecMode} from "../erc7579-smartaccount/types/Types.sol";
-import {ECDSA} from "solady/utils/ECDSA.sol";
+import { IExecutor, IModule } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { IERC7579Account } from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
+import { MODULE_TYPE_EXECUTOR } from "../erc7579-smartaccount/types/Constants.sol";
+import { ExecMode } from "../erc7579-smartaccount/types/Types.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
 
 /**
  * @title SessionKeyExecutor
@@ -32,9 +32,9 @@ contract SessionKeyExecutor is IExecutor {
         address sessionKey;
         uint48 validAfter;
         uint48 validUntil;
-        uint256 spendingLimit;    // Max ETH that can be spent
-        uint256 spentAmount;      // ETH already spent
-        uint256 nonce;            // For replay protection
+        uint256 spendingLimit; // Max ETH that can be spent
+        uint256 spentAmount; // ETH already spent
+        uint256 nonce; // For replay protection
         bool isActive;
     }
 
@@ -42,7 +42,7 @@ contract SessionKeyExecutor is IExecutor {
     struct Permission {
         address target;
         bytes4 selector;
-        uint256 maxValue;         // Max value per call (0 = unlimited for this call)
+        uint256 maxValue; // Max value per call (0 = unlimited for this call)
         bool allowed;
     }
 
@@ -58,31 +58,13 @@ contract SessionKeyExecutor is IExecutor {
 
     // Events
     event SessionKeyAdded(
-        address indexed account,
-        address indexed sessionKey,
-        uint48 validAfter,
-        uint48 validUntil,
-        uint256 spendingLimit
+        address indexed account, address indexed sessionKey, uint48 validAfter, uint48 validUntil, uint256 spendingLimit
     );
     event SessionKeyRevoked(address indexed account, address indexed sessionKey);
-    event PermissionGranted(
-        address indexed account,
-        address indexed sessionKey,
-        address target,
-        bytes4 selector
-    );
-    event PermissionRevoked(
-        address indexed account,
-        address indexed sessionKey,
-        address target,
-        bytes4 selector
-    );
+    event PermissionGranted(address indexed account, address indexed sessionKey, address target, bytes4 selector);
+    event PermissionRevoked(address indexed account, address indexed sessionKey, address target, bytes4 selector);
     event SessionKeyExecuted(
-        address indexed account,
-        address indexed sessionKey,
-        address target,
-        uint256 value,
-        bytes4 selector
+        address indexed account, address indexed sessionKey, address target, uint256 value, bytes4 selector
     );
 
     // Errors
@@ -153,12 +135,7 @@ contract SessionKeyExecutor is IExecutor {
      * @param validUntil Timestamp when session expires
      * @param spendingLimit Maximum ETH that can be spent
      */
-    function addSessionKey(
-        address sessionKey,
-        uint48 validAfter,
-        uint48 validUntil,
-        uint256 spendingLimit
-    ) external {
+    function addSessionKey(address sessionKey, uint48 validAfter, uint48 validUntil, uint256 spendingLimit) external {
         _addSessionKey(msg.sender, sessionKey, validAfter, validUntil, spendingLimit);
     }
 
@@ -188,18 +165,8 @@ contract SessionKeyExecutor is IExecutor {
      * @param selector Function selector (bytes4(0) for any selector)
      * @param maxValue Maximum value per call
      */
-    function grantPermission(
-        address sessionKey,
-        address target,
-        bytes4 selector,
-        uint256 maxValue
-    ) external {
-        Permission memory perm = Permission({
-            target: target,
-            selector: selector,
-            maxValue: maxValue,
-            allowed: true
-        });
+    function grantPermission(address sessionKey, address target, bytes4 selector, uint256 maxValue) external {
+        Permission memory perm = Permission({ target: target, selector: selector, maxValue: maxValue, allowed: true });
         _grantPermission(msg.sender, sessionKey, perm);
     }
 
@@ -209,11 +176,7 @@ contract SessionKeyExecutor is IExecutor {
      * @param target Target contract address
      * @param selector Function selector
      */
-    function revokePermission(
-        address sessionKey,
-        address target,
-        bytes4 selector
-    ) external {
+    function revokePermission(address sessionKey, address target, bytes4 selector) external {
         AccountStorage storage store = accountStorage[msg.sender];
         bytes32 permHash = _getPermissionHash(target, selector);
 
@@ -280,12 +243,10 @@ contract SessionKeyExecutor is IExecutor {
      * @param value ETH value to send
      * @param data Call data
      */
-    function executeAsSessionKey(
-        address account,
-        address target,
-        uint256 value,
-        bytes calldata data
-    ) external returns (bytes[] memory) {
+    function executeAsSessionKey(address account, address target, uint256 value, bytes calldata data)
+        external
+        returns (bytes[] memory)
+    {
         AccountStorage storage store = accountStorage[account];
         SessionKeyConfig storage session = store.sessions[msg.sender];
 
@@ -323,10 +284,7 @@ contract SessionKeyExecutor is IExecutor {
      * @param account The smart account
      * @param sessionKey The session key address
      */
-    function getSessionKey(
-        address account,
-        address sessionKey
-    ) external view returns (SessionKeyConfig memory) {
+    function getSessionKey(address account, address sessionKey) external view returns (SessionKeyConfig memory) {
         return accountStorage[account].sessions[sessionKey];
     }
 
@@ -337,18 +295,16 @@ contract SessionKeyExecutor is IExecutor {
      * @param target Target contract
      * @param selector Function selector
      */
-    function hasPermission(
-        address account,
-        address sessionKey,
-        address target,
-        bytes4 selector
-    ) external view returns (bool) {
+    function hasPermission(address account, address sessionKey, address target, bytes4 selector)
+        external
+        view
+        returns (bool)
+    {
         AccountStorage storage store = accountStorage[account];
         bytes32 permHash = _getPermissionHash(target, selector);
         bytes32 wildcardHash = _getPermissionHash(target, bytes4(0));
 
-        return store.permissions[sessionKey][permHash].allowed ||
-               store.permissions[sessionKey][wildcardHash].allowed;
+        return store.permissions[sessionKey][permHash].allowed || store.permissions[sessionKey][wildcardHash].allowed;
     }
 
     /**
@@ -364,10 +320,7 @@ contract SessionKeyExecutor is IExecutor {
      * @param account The smart account
      * @param sessionKey The session key
      */
-    function getRemainingSpendingLimit(
-        address account,
-        address sessionKey
-    ) external view returns (uint256) {
+    function getRemainingSpendingLimit(address account, address sessionKey) external view returns (uint256) {
         SessionKeyConfig storage session = accountStorage[account].sessions[sessionKey];
         if (session.spendingLimit <= session.spentAmount) return 0;
         return session.spendingLimit - session.spentAmount;
@@ -405,11 +358,7 @@ contract SessionKeyExecutor is IExecutor {
         emit SessionKeyAdded(account, sessionKey, validAfter, validUntil, spendingLimit);
     }
 
-    function _grantPermission(
-        address account,
-        address sessionKey,
-        Permission memory perm
-    ) internal {
+    function _grantPermission(address account, address sessionKey, Permission memory perm) internal {
         AccountStorage storage store = accountStorage[account];
         bytes32 permHash = _getPermissionHash(perm.target, perm.selector);
 
@@ -469,23 +418,13 @@ contract SessionKeyExecutor is IExecutor {
         return keccak256(abi.encodePacked(target, selector));
     }
 
-    function _getExecutionHash(
-        address account,
-        address target,
-        uint256 value,
-        bytes calldata data,
-        uint256 nonce
-    ) internal view returns (bytes32) {
+    function _getExecutionHash(address account, address target, uint256 value, bytes calldata data, uint256 nonce)
+        internal
+        view
+        returns (bytes32)
+    {
         // forge-lint: disable-next-line(asm-keccak256)
-        return keccak256(abi.encodePacked(
-            block.chainid,
-            address(this),
-            account,
-            target,
-            value,
-            data,
-            nonce
-        ));
+        return keccak256(abi.encodePacked(block.chainid, address(this), account, target, value, data, nonce));
     }
 
     function _encodeExecMode() internal pure returns (ExecMode) {

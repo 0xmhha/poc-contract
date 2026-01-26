@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {ExecMode, CallType, ExecType, ExecModeSelector, ExecModePayload} from "../types/Types.sol";
-import {LibERC7579} from "solady/accounts/LibERC7579.sol";
+import { ExecMode, CallType, ExecType, ExecModeSelector, ExecModePayload } from "../types/Types.sol";
+import { LibERC7579 } from "solady/accounts/LibERC7579.sol";
 import {
     CALLTYPE_SINGLE,
     CALLTYPE_BATCH,
@@ -10,7 +10,7 @@ import {
     EXECTYPE_TRY,
     CALLTYPE_DELEGATECALL
 } from "../types/Constants.sol";
-import {Execution} from "../types/Structs.sol";
+import { Execution } from "../types/Structs.sol";
 
 /**
  * @dev ExecLib is a helper library for execution
@@ -20,10 +20,7 @@ library ExecLib {
 
     event TryExecuteUnsuccessful(uint256 batchExecutionindex, bytes result);
 
-    function execute(ExecMode execMode, bytes calldata executionCalldata)
-        internal
-        returns (bytes[] memory returnData)
-    {
+    function execute(ExecMode execMode, bytes calldata executionCalldata) internal returns (bytes[] memory returnData) {
         (CallType callType, ExecType execType,,) = decode(execMode);
 
         // check if calltype is batch or single

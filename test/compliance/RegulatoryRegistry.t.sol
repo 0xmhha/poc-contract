@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {RegulatoryRegistry} from "../../src/compliance/RegulatoryRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { RegulatoryRegistry } from "../../src/compliance/RegulatoryRegistry.sol";
 
 contract RegulatoryRegistryTest is Test {
     RegulatoryRegistry public registry;
@@ -19,7 +19,13 @@ contract RegulatoryRegistryTest is Test {
     event RegulatorReactivated(address indexed regulator);
     event RegulatorAccessLevelUpdated(address indexed regulator, uint8 oldLevel, uint8 newLevel);
     event MRKPublicKeyUpdated(address indexed regulator, bytes32 keyHash);
-    event TraceRequestCreated(uint256 indexed requestId, address indexed regulator, address indexed targetAccount, bytes32 legalBasisHash, string jurisdiction);
+    event TraceRequestCreated(
+        uint256 indexed requestId,
+        address indexed regulator,
+        address indexed targetAccount,
+        bytes32 legalBasisHash,
+        string jurisdiction
+    );
     event TraceRequestApproved(uint256 indexed requestId, address indexed approver, uint8 approvalCount);
     event TraceRequestFullyApproved(uint256 indexed requestId);
     event TraceRequestExecuted(uint256 indexed requestId, address indexed executor);
@@ -227,7 +233,7 @@ contract RegulatoryRegistryTest is Test {
 
         // After deactivation, regulator loses REGULATOR_ROLE, so AccessControl check fails first
         vm.prank(regulator);
-        vm.expectRevert();  // AccessControlUnauthorizedAccount
+        vm.expectRevert(); // AccessControlUnauthorizedAccount
         registry.setMrkPublicKey(keccak256("test"));
     }
 

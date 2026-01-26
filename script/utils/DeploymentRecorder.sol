@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Script, console} from "forge-std/Script.sol";
+import { Script, console } from "forge-std/Script.sol";
 
 /**
  * @title DeploymentRecorder
@@ -11,13 +11,13 @@ import {Script, console} from "forge-std/Script.sol";
  * File Structure:
  *   deployments/
  *     {chainId}/
- *       deployment-{timestamp}.json  (individual deployment record)
- *       latest.json                  (symlink/copy of latest deployment)
- *       history.json                 (aggregated deployment history)
+ *       deployment-{timestamp}.json (individual deployment record)
+ *       latest.json (symlink/copy of latest deployment)
+ *       history.json (aggregated deployment history)
  */
 abstract contract DeploymentRecorder is Script {
     // =============================================================
-    //                        STRUCTS
+    // STRUCTS
     // =============================================================
 
     struct ContractDeployment {
@@ -30,7 +30,7 @@ abstract contract DeploymentRecorder is Script {
     }
 
     // =============================================================
-    //                     STATE VARIABLES
+    // STATE VARIABLES
     // =============================================================
 
     /// @notice Chain name for the deployment
@@ -44,7 +44,7 @@ abstract contract DeploymentRecorder is Script {
     mapping(string => address) internal _deployedAddresses;
 
     // =============================================================
-    //                     INITIALIZATION
+    // INITIALIZATION
     // =============================================================
 
     /**
@@ -57,7 +57,7 @@ abstract contract DeploymentRecorder is Script {
     }
 
     // =============================================================
-    //                     RECORD FUNCTIONS
+    // RECORD FUNCTIONS
     // =============================================================
 
     /**
@@ -83,7 +83,7 @@ abstract contract DeploymentRecorder is Script {
     }
 
     // =============================================================
-    //                     SAVE FUNCTIONS
+    // SAVE FUNCTIONS
     // =============================================================
 
     /**
@@ -104,11 +104,7 @@ abstract contract DeploymentRecorder is Script {
         string memory json = _buildDeploymentJson(deployer, chainId);
 
         // Generate filename with timestamp
-        string memory filename = string.concat(
-            "deployment-",
-            vm.toString(deploymentTimestamp),
-            ".json"
-        );
+        string memory filename = string.concat("deployment-", vm.toString(deploymentTimestamp), ".json");
 
         filePath = string.concat(baseDir, "/", filename);
 
@@ -129,10 +125,7 @@ abstract contract DeploymentRecorder is Script {
     /**
      * @notice Build deployment JSON object
      */
-    function _buildDeploymentJson(
-        address deployer,
-        uint256 chainId
-    ) internal returns (string memory) {
+    function _buildDeploymentJson(address deployer, uint256 chainId) internal returns (string memory) {
         // Start building JSON
         string memory obj = "deployment";
 
@@ -159,7 +152,7 @@ abstract contract DeploymentRecorder is Script {
     }
 
     // =============================================================
-    //                     UTILITY FUNCTIONS
+    // UTILITY FUNCTIONS
     // =============================================================
 
     /**

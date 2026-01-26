@@ -2,22 +2,28 @@
 
 pragma solidity ^0.8.0;
 
-import {IValidator, IPolicy} from "../interfaces/IERC7579Modules.sol";
-import {PassFlag, ValidationType, ValidationId, ValidationMode, PolicyData, PermissionId} from "../types/Types.sol";
-import {VALIDATION_TYPE_PERMISSION} from "../types/Constants.sol";
+import { IValidator, IPolicy } from "../interfaces/IERC7579Modules.sol";
+import { PassFlag, ValidationType, ValidationId, ValidationMode, PolicyData, PermissionId } from "../types/Types.sol";
+import { VALIDATION_TYPE_PERMISSION } from "../types/Constants.sol";
 
 library ValidatorLib {
     function encodeFlag(bool skipUserOp, bool skipSignature) internal pure returns (PassFlag flag) {
         assembly {
-            if skipUserOp { flag := 0x0001000000000000000000000000000000000000000000000000000000000000 }
-            if skipSignature { flag := or(flag, 0x0002000000000000000000000000000000000000000000000000000000000000) }
+            if skipUserOp { flag := 0x0_001_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000 }
+            if skipSignature { flag := or(
+                flag,
+                0x0_002_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000
+            ) }
         }
     }
 
     function encodePolicyData(bool skipUserOp, bool skipSig, address policy) internal pure returns (PolicyData data) {
         assembly {
-            if skipUserOp { data := 0x0001000000000000000000000000000000000000000000000000000000000000 }
-            if skipSig { data := or(data, 0x0002000000000000000000000000000000000000000000000000000000000000) }
+            if skipUserOp { data := 0x0_001_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000 }
+            if skipSig { data := or(
+                data,
+                0x0_002_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000
+            ) }
             data := or(data, shl(80, policy))
         }
     }
@@ -65,14 +71,17 @@ library ValidatorLib {
     {
         // 2bytes mode (1byte currentMode, 1byte type)
         // 21bytes identifier
-        // 1byte mode  | 1byte type | 20bytes identifierWithoutType | 2byte nonceKey | 8byte nonce == 32bytes
+        // 1byte mode | 1byte type | 20bytes identifierWithoutType | 2byte nonceKey | 8byte nonce == 32bytes
         assembly {
             mode := nonce
             vType := shl(8, nonce)
             identifier := shl(8, nonce)
             switch shr(248, identifier)
-            case 0x0000000000000000000000000000000000000000000000000000000000000002 {
-                identifier := and(identifier, 0xffffffffff000000000000000000000000000000000000000000000000000000)
+            case 0x0_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_002 {
+                identifier := and(
+                    identifier,
+                    0xf_fff_fff_fff_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000
+                )
             }
         }
     }
@@ -93,7 +102,7 @@ library ValidatorLib {
                 sig.length := sub(signature.length, 21)
             }
             case 2 {
-                vId := and(vId, 0xffffffffff000000000000000000000000000000000000000000000000000000)
+                vId := and(vId, 0xf_fff_fff_fff_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000)
                 sig.offset := add(signature.offset, 5)
                 sig.length := sub(signature.length, 5)
             }
@@ -110,7 +119,7 @@ library ValidatorLib {
 
     function validatorToIdentifier(IValidator validator) internal pure returns (ValidationId vId) {
         assembly {
-            vId := 0x0100000000000000000000000000000000000000000000000000000000000000
+            vId := 0x0_100_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000
             vId := or(vId, shl(88, validator))
         }
     }
@@ -135,7 +144,7 @@ library ValidatorLib {
 
     function permissionToIdentifier(PermissionId permissionId) internal pure returns (ValidationId vId) {
         assembly {
-            vId := 0x0200000000000000000000000000000000000000000000000000000000000000
+            vId := 0x0_200_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000
             vId := or(vId, shr(8, permissionId))
         }
     }

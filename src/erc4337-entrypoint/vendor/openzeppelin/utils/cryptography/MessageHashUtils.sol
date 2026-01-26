@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.24;
 
-import {Strings} from "../Strings.sol";
+import { Strings } from "../Strings.sol";
 
 /**
  * @dev Signature message hash utilities for producing digests to be consumed by {ECDSA} recovery or signing.
@@ -19,7 +19,8 @@ library MessageHashUtils {
      *
      * The digest is calculated by prefixing a bytes32 `messageHash` with
      * `"\x19Ethereum Signed Message:\n32"` and hashing the result. It corresponds with the
-     * hash signed when using the https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_sign[`eth_sign`] JSON-RPC method.
+     * hash signed when using the https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_sign[`eth_sign`] JSON-RPC
+     * method.
      *
      * NOTE: The `messageHash` parameter is intended to be the result of hashing a raw message with
      * keccak256, although any bytes32 value can be safely used because the final digest will
@@ -41,7 +42,8 @@ library MessageHashUtils {
      *
      * The digest is calculated by prefixing an arbitrary `message` with
      * `"\x19Ethereum Signed Message:\n" + len(message)` and hashing the result. It corresponds with the
-     * hash signed when using the https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_sign[`eth_sign`] JSON-RPC method.
+     * hash signed when using the https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_sign[`eth_sign`] JSON-RPC
+     * method.
      *
      * See {ECDSA-recover}.
      */
@@ -60,18 +62,19 @@ library MessageHashUtils {
      * See {ECDSA-recover}.
      */
     function toDataWithIntendedValidatorHash(address validator, bytes memory data) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(hex"19_00", validator, data));
+        return keccak256(abi.encodePacked(hex"1900", validator, data));
     }
 
     /**
      * @dev Variant of {toDataWithIntendedValidatorHash-address-bytes} optimized for cases where `data` is a bytes32.
      */
-    function toDataWithIntendedValidatorHash(
-        address validator,
-        bytes32 messageHash
-    ) internal pure returns (bytes32 digest) {
+    function toDataWithIntendedValidatorHash(address validator, bytes32 messageHash)
+        internal
+        pure
+        returns (bytes32 digest)
+    {
         assembly ("memory-safe") {
-            mstore(0x00, hex"19_00")
+            mstore(0x00, hex"1900")
             mstore(0x02, shl(96, validator))
             mstore(0x16, messageHash)
             digest := keccak256(0x00, 0x36)
@@ -90,7 +93,7 @@ library MessageHashUtils {
     function toTypedDataHash(bytes32 domainSeparator, bytes32 structHash) internal pure returns (bytes32 digest) {
         assembly ("memory-safe") {
             let ptr := mload(0x40)
-            mstore(ptr, hex"19_01")
+            mstore(ptr, hex"1901")
             mstore(add(ptr, 0x02), domainSeparator)
             mstore(add(ptr, 0x22), structHash)
             digest := keccak256(ptr, 0x42)

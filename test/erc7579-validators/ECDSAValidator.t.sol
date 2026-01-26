@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {ECDSAValidator} from "../../src/erc7579-validators/ECDSAValidator.sol";
-import {PackedUserOperation} from "../../src/erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { Test } from "forge-std/Test.sol";
+import { ECDSAValidator } from "../../src/erc7579-validators/ECDSAValidator.sol";
+import { PackedUserOperation } from "../../src/erc7579-smartaccount/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_SUCCESS_UINT,
     SIG_VALIDATION_FAILED_UINT,
@@ -12,7 +12,7 @@ import {
     ERC1271_MAGICVALUE,
     ERC1271_INVALID
 } from "../../src/erc7579-smartaccount/types/Constants.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract ECDSAValidatorTest is Test {
     using MessageHashUtils for bytes32;
@@ -27,7 +27,7 @@ contract ECDSAValidatorTest is Test {
         validator = new ECDSAValidator();
 
         smartAccount = makeAddr("smartAccount");
-        ownerPrivateKey = 0xA11CE;
+        ownerPrivateKey = 0_xA1_1CE;
         owner = vm.addr(ownerPrivateKey);
     }
 
@@ -133,7 +133,7 @@ contract ECDSAValidatorTest is Test {
         validator.onInstall(abi.encodePacked(owner));
 
         // Sign with wrong key
-        uint256 wrongKey = 0xBAD;
+        uint256 wrongKey = 0x_BAD;
         bytes32 userOpHash = keccak256("userOp");
         bytes32 ethSignedHash = userOpHash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, ethSignedHash);
@@ -188,7 +188,7 @@ contract ECDSAValidatorTest is Test {
         validator.onInstall(abi.encodePacked(owner));
 
         // Sign with wrong key
-        uint256 wrongKey = 0xBAD;
+        uint256 wrongKey = 0x_BAD;
         bytes32 hash = keccak256("message");
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, ethSignedHash);
@@ -242,8 +242,8 @@ contract ECDSAValidatorTest is Test {
             nonce: 0,
             initCode: "",
             callData: "",
-            accountGasLimits: bytes32(uint256(100000) << 128 | uint256(100000)),
-            preVerificationGas: 21000,
+            accountGasLimits: bytes32(uint256(100_000) << 128 | uint256(100_000)),
+            preVerificationGas: 21_000,
             gasFees: bytes32(uint256(1 gwei) << 128 | uint256(1 gwei)),
             paymasterAndData: "",
             signature: signature

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IHook} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {MODULE_TYPE_HOOK} from "../erc7579-smartaccount/types/Constants.sol";
+import { IHook } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { MODULE_TYPE_HOOK } from "../erc7579-smartaccount/types/Constants.sol";
 
 /**
  * @title AuditHook
@@ -38,8 +38,8 @@ contract AuditHook is IHook {
 
     /// @notice Configuration for each smart account
     struct AccountConfig {
-        uint256 highValueThreshold;    // Value above which transactions are flagged
-        uint256 flaggedDelay;          // Required delay for flagged transactions (0 = no delay)
+        uint256 highValueThreshold; // Value above which transactions are flagged
+        uint256 flaggedDelay; // Required delay for flagged transactions (0 = no delay)
         bool isEnabled;
     }
 
@@ -48,7 +48,7 @@ contract AuditHook is IHook {
         AccountConfig config;
         AuditEntry[] auditLog;
         mapping(address => bool) blocklist;
-        mapping(bytes32 => uint256) pendingExecutions;  // txHash => timestamp when allowed
+        mapping(bytes32 => uint256) pendingExecutions; // txHash => timestamp when allowed
         uint256 totalTransactions;
         uint256 totalValueTransferred;
         uint256 flaggedCount;
@@ -66,11 +66,7 @@ contract AuditHook is IHook {
         bytes4 selector,
         bool isFlagged
     );
-    event TransactionFlagged(
-        address indexed account,
-        bytes32 indexed txHash,
-        uint256 allowedAfter
-    );
+    event TransactionFlagged(address indexed account, bytes32 indexed txHash, uint256 allowedAfter);
     event BlocklistUpdated(address indexed account, address indexed target, bool isBlocked);
     event ConfigUpdated(address indexed account, uint256 highValueThreshold, uint256 flaggedDelay);
     event TransactionBlocked(address indexed account, address indexed target, string reason);
@@ -89,21 +85,19 @@ contract AuditHook is IHook {
     function onInstall(bytes calldata data) external payable override {
         if (data.length == 0) {
             // Default configuration
-            accountStorage[msg.sender].config = AccountConfig({
-                highValueThreshold: 1 ether,
-                flaggedDelay: 0,
-                isEnabled: true
-            });
+            accountStorage[msg.sender].config =
+                AccountConfig({ highValueThreshold: 1 ether, flaggedDelay: 0, isEnabled: true });
         } else {
             (uint256 threshold, uint256 delay) = abi.decode(data, (uint256, uint256));
-            accountStorage[msg.sender].config = AccountConfig({
-                highValueThreshold: threshold,
-                flaggedDelay: delay,
-                isEnabled: true
-            });
+            accountStorage[msg.sender].config =
+                AccountConfig({ highValueThreshold: threshold, flaggedDelay: delay, isEnabled: true });
         }
 
-        emit ConfigUpdated(msg.sender, accountStorage[msg.sender].config.highValueThreshold, accountStorage[msg.sender].config.flaggedDelay);
+        emit ConfigUpdated(
+            msg.sender,
+            accountStorage[msg.sender].config.highValueThreshold,
+            accountStorage[msg.sender].config.flaggedDelay
+        );
     }
 
     /// @notice Called when the module is uninstalled
@@ -131,11 +125,12 @@ contract AuditHook is IHook {
      * @param msgData The calldata being executed
      * @return hookData Encoded audit entry index
      */
-    function preCheck(
-        address msgSender,
-        uint256 msgValue,
-        bytes calldata msgData
-    ) external payable override returns (bytes memory hookData) {
+    function preCheck(address msgSender, uint256 msgValue, bytes calldata msgData)
+        external
+        payable
+        override
+        returns (bytes memory hookData)
+    {
         AccountStorage storage store = accountStorage[msg.sender];
 
         if (!store.config.isEnabled) revert ModuleNotEnabled();
@@ -177,16 +172,19 @@ contract AuditHook is IHook {
 
         // Create audit entry
         uint256 logIndex = store.auditLog.length;
-        store.auditLog.push(AuditEntry({
-            timestamp: block.timestamp,
-            sender: msgSender,
-            target: target,
-            value: msgValue,
-            selector: selector,
-            dataHash: keccak256(msgData),
-            isFlagged: isFlagged,
-            isExecuted: false
-        }));
+        store.auditLog
+        .push(
+            AuditEntry({
+                timestamp: block.timestamp,
+                sender: msgSender,
+                target: target,
+                value: msgValue,
+                selector: selector,
+                dataHash: keccak256(msgData),
+                isFlagged: isFlagged,
+                isExecuted: false
+            })
+        );
 
         // Update statistics
         store.totalTransactions++;
@@ -267,11 +265,7 @@ contract AuditHook is IHook {
      * @param value Transaction value
      * @param data Transaction data
      */
-    function queueFlaggedTransaction(
-        address target,
-        uint256 value,
-        bytes calldata data
-    ) external {
+    function queueFlaggedTransaction(address target, uint256 value, bytes calldata data) external {
         AccountStorage storage store = accountStorage[msg.sender];
 
         if (!store.config.isEnabled) revert ModuleNotEnabled();
@@ -303,10 +297,7 @@ contract AuditHook is IHook {
      * @param account The smart account
      * @param index Log index
      */
-    function getAuditEntry(
-        address account,
-        uint256 index
-    ) external view returns (AuditEntry memory) {
+    function getAuditEntry(address account, uint256 index) external view returns (AuditEntry memory) {
         return accountStorage[account].auditLog[index];
     }
 
@@ -324,11 +315,11 @@ contract AuditHook is IHook {
      * @param startIndex Start index (inclusive)
      * @param endIndex End index (exclusive)
      */
-    function getAuditEntries(
-        address account,
-        uint256 startIndex,
-        uint256 endIndex
-    ) external view returns (AuditEntry[] memory entries) {
+    function getAuditEntries(address account, uint256 startIndex, uint256 endIndex)
+        external
+        view
+        returns (AuditEntry[] memory entries)
+    {
         AccountStorage storage store = accountStorage[account];
         uint256 length = store.auditLog.length;
 
@@ -345,12 +336,11 @@ contract AuditHook is IHook {
      * @notice Get account statistics
      * @param account The smart account
      */
-    function getStatistics(address account) external view returns (
-        uint256 totalTransactions,
-        uint256 totalValueTransferred,
-        uint256 flaggedCount,
-        uint256 pendingCount
-    ) {
+    function getStatistics(address account)
+        external
+        view
+        returns (uint256 totalTransactions, uint256 totalValueTransferred, uint256 flaggedCount, uint256 pendingCount)
+    {
         AccountStorage storage store = accountStorage[account];
         return (
             store.totalTransactions,
@@ -376,12 +366,11 @@ contract AuditHook is IHook {
      * @param value Value
      * @param data Calldata
      */
-    function getPendingExecutionTime(
-        address account,
-        address target,
-        uint256 value,
-        bytes calldata data
-    ) external view returns (uint256) {
+    function getPendingExecutionTime(address account, address target, uint256 value, bytes calldata data)
+        external
+        view
+        returns (uint256)
+    {
         bytes32 txHash = _getTxHash(account, target, value, data);
         return accountStorage[account].pendingExecutions[txHash];
     }
@@ -393,12 +382,11 @@ contract AuditHook is IHook {
      * @param value Value
      * @param data Calldata
      */
-    function canExecute(
-        address account,
-        address target,
-        uint256 value,
-        bytes calldata data
-    ) external view returns (bool, string memory reason) {
+    function canExecute(address account, address target, uint256 value, bytes calldata data)
+        external
+        view
+        returns (bool, string memory reason)
+    {
         AccountStorage storage store = accountStorage[account];
 
         if (!store.config.isEnabled) {
@@ -426,12 +414,11 @@ contract AuditHook is IHook {
 
     // ============ Internal Functions ============
 
-    function _getTxHash(
-        address account,
-        address target,
-        uint256 value,
-        bytes calldata data
-    ) internal pure returns (bytes32) {
+    function _getTxHash(address account, address target, uint256 value, bytes calldata data)
+        internal
+        pure
+        returns (bytes32)
+    {
         // forge-lint: disable-next-line(asm-keccak256)
         return keccak256(abi.encodePacked(account, target, value, data));
     }

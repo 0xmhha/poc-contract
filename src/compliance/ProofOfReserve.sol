@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /**
  * @title IAggregatorV3
@@ -14,20 +14,14 @@ interface IAggregatorV3 {
     function decimals() external view returns (uint8);
     function description() external view returns (string memory);
     function version() external view returns (uint256);
-    function getRoundData(uint80 _roundId) external view returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    );
-    function latestRoundData() external view returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    );
+    function getRoundData(uint80 _roundId)
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+    function latestRoundData()
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
 }
 
 /**
@@ -54,8 +48,8 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
     using SafeCast for int256;
 
     // ============ Constants ============
-    uint256 public constant MIN_RESERVE_RATIO = 10000; // 100% in basis points
-    uint256 public constant BASIS_POINTS = 10000;
+    uint256 public constant MIN_RESERVE_RATIO = 10_000; // 100% in basis points
+    uint256 public constant BASIS_POINTS = 10_000;
     uint256 public constant DEFAULT_HEARTBEAT = 1 hours;
     uint256 public constant MAX_STALENESS = 24 hours;
 
@@ -91,25 +85,13 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
     bool public autoPauseEnabled;
 
     // ============ Events ============
-    event OracleConfigured(
-        address indexed oracle,
-        uint8 decimals,
-        uint256 heartbeat
-    );
+    event OracleConfigured(address indexed oracle, uint8 decimals, uint256 heartbeat);
     event StablecoinConfigured(address indexed stablecoin);
     event ReserveVerified(
-        uint256 indexed verificationId,
-        uint256 totalSupply,
-        uint256 totalReserve,
-        uint256 reserveRatio,
-        bool isHealthy
+        uint256 indexed verificationId, uint256 totalSupply, uint256 totalReserve, uint256 reserveRatio, bool isHealthy
     );
     event ReserveHealthy(uint256 reserveRatio);
-    event ReserveUnhealthy(
-        uint256 totalSupply,
-        uint256 totalReserve,
-        uint256 reserveRatio
-    );
+    event ReserveUnhealthy(uint256 totalSupply, uint256 totalReserve, uint256 reserveRatio);
     event AutoPauseTriggered(uint256 reserveRatio, uint256 consecutiveUnhealthy);
     event AutoPauseThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
     event AutoPauseToggled(bool enabled);
@@ -126,10 +108,7 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
     error InvalidThreshold();
 
     // ============ Constructor ============
-    constructor(
-        address initialOwner,
-        uint256 _autoPauseThreshold
-    ) Ownable(initialOwner) {
+    constructor(address initialOwner, uint256 _autoPauseThreshold) Ownable(initialOwner) {
         autoPauseThreshold = _autoPauseThreshold > 0 ? _autoPauseThreshold : 3;
         autoPauseEnabled = true;
     }
@@ -141,10 +120,7 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
      * @param oracle Address of the Chainlink PoR oracle
      * @param heartbeat Expected update frequency
      */
-    function configureOracle(
-        address oracle,
-        uint256 heartbeat
-    ) external onlyOwner {
+    function configureOracle(address oracle, uint256 heartbeat) external onlyOwner {
         if (oracle == address(0)) revert InvalidAddress();
         if (heartbeat == 0 || heartbeat > MAX_STALENESS) revert InvalidHeartbeat();
 
@@ -152,24 +128,13 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
         uint8 decimals = aggregator.decimals();
 
         // Verify oracle is responsive
-        (
-            uint80 roundId,
-            int256 answer,
-            ,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = aggregator.latestRoundData();
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = aggregator.latestRoundData();
 
         if (roundId == 0 || answeredInRound < roundId) revert InvalidOracleData();
         if (answer <= 0) revert InvalidOracleData();
         if (block.timestamp - updatedAt > MAX_STALENESS) revert StaleOracleData();
 
-        reserveOracle = OracleConfig({
-            oracle: oracle,
-            decimals: decimals,
-            heartbeat: heartbeat,
-            isActive: true
-        });
+        reserveOracle = OracleConfig({ oracle: oracle, decimals: decimals, heartbeat: heartbeat, isActive: true });
 
         emit OracleConfigured(oracle, decimals, heartbeat);
     }
@@ -262,13 +227,7 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
 
         // Get reserve data from Chainlink
         IAggregatorV3 aggregator = IAggregatorV3(reserveOracle.oracle);
-        (
-            uint80 roundId,
-            int256 answer,
-            ,
-            uint256 updatedAt,
-            uint80 answeredInRound
-        ) = aggregator.latestRoundData();
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = aggregator.latestRoundData();
 
         // Validate oracle data
         if (roundId == 0 || answeredInRound < roundId) revert InvalidOracleData();
@@ -311,13 +270,7 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
         verificationCount++;
         lastVerificationTime = block.timestamp;
 
-        emit ReserveVerified(
-            verificationCount,
-            totalSupply,
-            totalReserve,
-            reserveRatio,
-            isHealthy
-        );
+        emit ReserveVerified(verificationCount, totalSupply, totalReserve, reserveRatio, isHealthy);
     }
 
     // ============ View Functions ============
@@ -329,17 +282,16 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
      * @return reserveRatio Reserve ratio in basis points
      * @return isHealthy True if reserve ratio meets minimum threshold
      */
-    function getCurrentStatus() external view returns (
-        uint256 totalSupply,
-        uint256 totalReserve,
-        uint256 reserveRatio,
-        bool isHealthy
-    ) {
+    function getCurrentStatus()
+        external
+        view
+        returns (uint256 totalSupply, uint256 totalReserve, uint256 reserveRatio, bool isHealthy)
+    {
         if (reserveOracle.oracle == address(0)) revert OracleNotConfigured();
         if (address(stablecoin) == address(0)) revert StablecoinNotConfigured();
 
         IAggregatorV3 aggregator = IAggregatorV3(reserveOracle.oracle);
-        (, int256 answer, , uint256 updatedAt,) = aggregator.latestRoundData();
+        (, int256 answer,, uint256 updatedAt,) = aggregator.latestRoundData();
 
         if (answer <= 0 || block.timestamp - updatedAt > reserveOracle.heartbeat * 2) {
             return (0, 0, 0, false);
@@ -424,15 +376,13 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
      * @return sufficient True if reserves would remain sufficient
      * @return projectedRatio Projected reserve ratio after mint
      */
-    function checkMintAllowed(
-        uint256 mintAmount
-    ) external view returns (bool sufficient, uint256 projectedRatio) {
+    function checkMintAllowed(uint256 mintAmount) external view returns (bool sufficient, uint256 projectedRatio) {
         if (reserveOracle.oracle == address(0) || address(stablecoin) == address(0)) {
             return (false, 0);
         }
 
         IAggregatorV3 aggregator = IAggregatorV3(reserveOracle.oracle);
-        (, int256 answer, , ,) = aggregator.latestRoundData();
+        (, int256 answer,,,) = aggregator.latestRoundData();
 
         if (answer <= 0) return (false, 0);
 

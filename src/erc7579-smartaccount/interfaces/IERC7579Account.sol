@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-import {ExecMode} from "../utils/ExecLib.sol";
+import { ExecMode } from "../utils/ExecLib.sol";
 
 struct Execution {
     address target;

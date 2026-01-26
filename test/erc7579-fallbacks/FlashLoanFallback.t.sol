@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {FlashLoanFallback} from "../../src/erc7579-fallbacks/FlashLoanFallback.sol";
-import {MockFallbackAccount, MockERC20, MockFlashLoanProvider} from "./mocks/MockFallbackAccount.sol";
+import { Test } from "forge-std/Test.sol";
+import { FlashLoanFallback } from "../../src/erc7579-fallbacks/FlashLoanFallback.sol";
+import { MockFallbackAccount, MockERC20, MockFlashLoanProvider } from "./mocks/MockFallbackAccount.sol";
 
 contract FlashLoanFallbackTest is Test {
     FlashLoanFallback public fallbackModule;
@@ -14,7 +14,8 @@ contract FlashLoanFallbackTest is Test {
     address public user;
 
     // Callback selectors
-    bytes4 constant AAVE_EXECUTE_OPERATION = bytes4(keccak256("executeOperation(address[],uint256[],uint256[],address,bytes)"));
+    bytes4 constant AAVE_EXECUTE_OPERATION =
+        bytes4(keccak256("executeOperation(address[],uint256[],uint256[],address,bytes)"));
     bytes4 constant ERC3156_ON_FLASH_LOAN = bytes4(keccak256("onFlashLoan(address,address,uint256,uint256,bytes)"));
 
     function setUp() public {
@@ -27,11 +28,11 @@ contract FlashLoanFallbackTest is Test {
         flashLoanProvider = new MockFlashLoanProvider();
 
         // Fund contracts
-        token.mint(address(flashLoanProvider), 1000000 ether);
-        token.mint(address(account), 10000 ether); // For repayment fees
+        token.mint(address(flashLoanProvider), 1_000_000 ether);
+        token.mint(address(account), 10_000 ether); // For repayment fees
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             INSTALLATION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -73,7 +74,7 @@ contract FlashLoanFallbackTest is Test {
         assertFalse(fallbackModule.isModuleType(2), "Should not be executor");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         CONFIGURATION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -126,7 +127,7 @@ contract FlashLoanFallbackTest is Test {
         assertTrue(fallbackModule.isWhitelisted(address(account), protocols[1]));
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         AAVE FLASH LOAN TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -148,15 +149,7 @@ contract FlashLoanFallbackTest is Test {
         token.approve(address(flashLoanProvider), type(uint256).max);
 
         // Execute flash loan
-        flashLoanProvider.flashLoan(
-            address(account),
-            assets,
-            amounts,
-            modes,
-            address(account),
-            "",
-            0
-        );
+        flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
 
         // Verify log
         assertEq(fallbackModule.getFlashLoanLogLength(address(account)), 1);
@@ -182,15 +175,7 @@ contract FlashLoanFallbackTest is Test {
 
         // Should revert because provider not whitelisted
         vm.expectRevert();
-        flashLoanProvider.flashLoan(
-            address(account),
-            assets,
-            amounts,
-            modes,
-            address(account),
-            "",
-            0
-        );
+        flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
     }
 
     function test_ExecuteOperation_NoWhitelistRequired() public {
@@ -216,20 +201,12 @@ contract FlashLoanFallbackTest is Test {
         token.approve(address(flashLoanProvider), type(uint256).max);
 
         // Should work without whitelist
-        flashLoanProvider.flashLoan(
-            address(account),
-            assets,
-            amounts,
-            modes,
-            address(account),
-            "",
-            0
-        );
+        flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
 
         assertEq(fallbackModule.getFlashLoanLogLength(address(account)), 1);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         ERC-3156 FLASH LOAN TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -241,12 +218,7 @@ contract FlashLoanFallbackTest is Test {
         token.approve(address(flashLoanProvider), type(uint256).max);
 
         // Execute ERC-3156 flash loan
-        flashLoanProvider.flashLoanERC3156(
-            address(account),
-            address(token),
-            500 ether,
-            ""
-        );
+        flashLoanProvider.flashLoanERC3156(address(account), address(token), 500 ether, "");
 
         // Verify log
         assertEq(fallbackModule.getFlashLoanLogLength(address(account)), 1);
@@ -257,7 +229,7 @@ contract FlashLoanFallbackTest is Test {
         assertEq(log.amounts[0], 500 ether);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         CALLBACK REGISTRATION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -285,12 +257,7 @@ contract FlashLoanFallbackTest is Test {
         bytes32 callbackId = keccak256("testCallback");
 
         vm.startPrank(address(account));
-        fallbackModule.registerCallback(
-            callbackId,
-            address(token),
-            "",
-            false
-        );
+        fallbackModule.registerCallback(callbackId, address(token), "", false);
         fallbackModule.clearCallback(callbackId);
         vm.stopPrank();
 
@@ -298,14 +265,15 @@ contract FlashLoanFallbackTest is Test {
         assertEq(callback.target, address(0));
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             VIEW FUNCTION TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_WillAcceptProtocol_Enabled() public {
         _installModuleWithWhitelist();
 
-        (bool willAccept, string memory reason) = fallbackModule.willAcceptProtocol(address(account), address(flashLoanProvider));
+        (bool willAccept, string memory reason) =
+            fallbackModule.willAcceptProtocol(address(account), address(flashLoanProvider));
         assertTrue(willAccept);
         assertEq(reason, "");
     }
@@ -313,14 +281,16 @@ contract FlashLoanFallbackTest is Test {
     function test_WillAcceptProtocol_NotWhitelisted() public {
         _installModule();
 
-        (bool willAccept, string memory reason) = fallbackModule.willAcceptProtocol(address(account), address(flashLoanProvider));
+        (bool willAccept, string memory reason) =
+            fallbackModule.willAcceptProtocol(address(account), address(flashLoanProvider));
         assertFalse(willAccept);
         assertEq(reason, "Protocol not whitelisted");
     }
 
     function test_WillAcceptProtocol_NotEnabled() public {
         // Don't install module
-        (bool willAccept, string memory reason) = fallbackModule.willAcceptProtocol(address(account), address(flashLoanProvider));
+        (bool willAccept, string memory reason) =
+            fallbackModule.willAcceptProtocol(address(account), address(flashLoanProvider));
         assertFalse(willAccept);
         assertEq(reason, "Module not enabled");
     }
@@ -343,15 +313,7 @@ contract FlashLoanFallbackTest is Test {
             uint256[] memory modes = new uint256[](1);
             modes[0] = 0;
 
-            flashLoanProvider.flashLoan(
-                address(account),
-                assets,
-                amounts,
-                modes,
-                address(account),
-                "",
-                0
-            );
+            flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
         }
 
         // Get logs range
@@ -369,7 +331,7 @@ contract FlashLoanFallbackTest is Test {
         assertEq(logs.length, 0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 

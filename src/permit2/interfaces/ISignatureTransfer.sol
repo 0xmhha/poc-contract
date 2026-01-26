@@ -3,7 +3,7 @@
 // Adapted for StableNet PoC - Solidity version updated to ^0.8.28
 pragma solidity ^0.8.28;
 
-import {IEIP712} from "./IEIP712.sol";
+import { IEIP712 } from "./IEIP712.sol";
 
 /// @title SignatureTransfer
 /// @notice Handles ERC20 token transfers through signature based actions
@@ -13,8 +13,9 @@ interface ISignatureTransfer is IEIP712 {
     /// @param maxAmount The maximum amount a spender can request to transfer
     error InvalidAmount(uint256 maxAmount);
 
-    /// @notice Thrown when the number of tokens permissioned to a spender does not match the number of tokens being transferred
-    /// @dev If the spender does not need to transfer the number of tokens permitted, the spender can request amount 0 to be transferred
+    /// @notice Thrown when the number of tokens permissioned to a spender does not match the number of tokens being
+    /// transferred @dev If the spender does not need to transfer the number of tokens permitted, the spender can
+    /// request amount 0 to be transferred
     error LengthMismatch();
 
     /// @notice Emits an event when the owner successfully invalidates an unordered nonce.
@@ -59,8 +60,9 @@ interface ISignatureTransfer is IEIP712 {
         uint256 deadline;
     }
 
-    /// @notice A map from token owner address and a caller specified word index to a bitmap. Used to set bits in the bitmap to prevent against signature replay protection
-    /// @dev Uses unordered nonces so that permit messages do not need to be spent in a certain order
+    /// @notice A map from token owner address and a caller specified word index to a bitmap. Used to set bits in the
+    /// bitmap to prevent against signature replay protection @dev Uses unordered nonces so that permit messages do not
+    /// need to be spent in a certain order
     /// @dev The mapping is indexed first by the token owner, then by an index specified in the nonce
     /// @dev It returns a uint256 bitmap
     /// @dev The index, or wordPosition is capped at type(uint248).max
@@ -81,8 +83,8 @@ interface ISignatureTransfer is IEIP712 {
 
     /// @notice Transfers a token using a signed permit message
     /// @notice Includes extra data provided by the caller to verify signature over
-    /// @dev The witness type string must follow EIP712 ordering of nested structs and must include the TokenPermissions type definition
-    /// @dev Reverts if the requested amount is greater than the permitted signed amount
+    /// @dev The witness type string must follow EIP712 ordering of nested structs and must include the TokenPermissions
+    /// type definition @dev Reverts if the requested amount is greater than the permitted signed amount
     /// @param permit The permit data signed over by the owner
     /// @param owner The owner of the tokens to transfer
     /// @param transferDetails The spender's requested transfer details for the permitted token
@@ -111,8 +113,8 @@ interface ISignatureTransfer is IEIP712 {
     ) external;
 
     /// @notice Transfers multiple tokens using a signed permit message
-    /// @dev The witness type string must follow EIP712 ordering of nested structs and must include the TokenPermissions type definition
-    /// @notice Includes extra data provided by the caller to verify signature over
+    /// @dev The witness type string must follow EIP712 ordering of nested structs and must include the TokenPermissions
+    /// type definition @notice Includes extra data provided by the caller to verify signature over
     /// @param permit The permit data signed over by the owner
     /// @param owner The owner of the tokens to transfer
     /// @param transferDetails Specifies the recipient and requested amount for the token transfer

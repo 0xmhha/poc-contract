@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import {BridgeValidator} from "./BridgeValidator.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import { BridgeValidator } from "./BridgeValidator.sol";
 
 /**
  * @title FraudProofVerifier
@@ -36,16 +36,10 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
 
     // ============ Events ============
     event FraudProofSubmitted(
-        bytes32 indexed requestId,
-        FraudProofType proofType,
-        address indexed submitter,
-        bytes32 proofHash
+        bytes32 indexed requestId, FraudProofType proofType, address indexed submitter, bytes32 proofHash
     );
     event FraudProofVerified(
-        bytes32 indexed requestId,
-        FraudProofType proofType,
-        bool isValid,
-        address indexed verifier
+        bytes32 indexed requestId, FraudProofType proofType, bool isValid, address indexed verifier
     );
     event OptimisticVerifierUpdated(address oldVerifier, address newVerifier);
     event BridgeValidatorUpdated(address oldValidator, address newValidator);
@@ -59,11 +53,11 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      */
     enum FraudProofType {
         None,
-        InvalidSignature,   // MPC signature verification failed
-        DoubleSpending,     // Same funds used multiple times
-        InvalidAmount,      // Amount mismatch
-        InvalidToken,       // Unauthorized token
-        ReplayAttack        // Nonce reuse
+        InvalidSignature, // MPC signature verification failed
+        DoubleSpending, // Same funds used multiple times
+        InvalidAmount, // Amount mismatch
+        InvalidToken, // Unauthorized token
+        ReplayAttack // Nonce reuse
     }
 
     // ============ Structs ============
@@ -154,7 +148,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Initialize the FraudProofVerifier
      */
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable(msg.sender) { }
 
     // ============ External Functions ============
 
@@ -163,9 +157,12 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param proof The fraud proof data
      * @return proofHash Hash of the submitted proof
      */
-    function submitFraudProof(
-        FraudProof calldata proof
-    ) external whenNotPaused nonReentrant returns (bytes32 proofHash) {
+    function submitFraudProof(FraudProof calldata proof)
+        external
+        whenNotPaused
+        nonReentrant
+        returns (bytes32 proofHash)
+    {
         if (proof.proofType == FraudProofType.None) revert InvalidProofType();
         if (proof.requestId == bytes32(0)) revert InvalidRequestId();
 
@@ -173,13 +170,9 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
         if (proofRecords[proof.requestId].submittedAt > 0) revert ProofAlreadySubmitted();
 
         // Compute proof hash
-        proofHash = keccak256(abi.encode(
-            proof.requestId,
-            proof.proofType,
-            proof.merkleProof,
-            proof.stateProof,
-            proof.evidence
-        ));
+        proofHash = keccak256(
+            abi.encode(proof.requestId, proof.proofType, proof.merkleProof, proof.stateProof, proof.evidence)
+        );
 
         // Store proof record
         proofRecords[proof.requestId] = ProofRecord({
@@ -201,9 +194,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param proof The fraud proof to verify
      * @return isValid Whether the fraud proof is valid
      */
-    function verifyFraudProof(
-        FraudProof calldata proof
-    ) external whenNotPaused nonReentrant returns (bool isValid) {
+    function verifyFraudProof(FraudProof calldata proof) external whenNotPaused nonReentrant returns (bool isValid) {
         ProofRecord storage record = proofRecords[proof.requestId];
 
         // Verify proof was submitted
@@ -215,13 +206,9 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
 
         // Verify proof hash matches
         // forge-lint: disable-next-line(asm-keccak256)
-        bytes32 proofHash = keccak256(abi.encode(
-            proof.requestId,
-            proof.proofType,
-            proof.merkleProof,
-            proof.stateProof,
-            proof.evidence
-        ));
+        bytes32 proofHash = keccak256(
+            abi.encode(proof.requestId, proof.proofType, proof.merkleProof, proof.stateProof, proof.evidence)
+        );
 
         if (proofHash != record.proofHash) revert InvalidProof();
 
@@ -261,11 +248,11 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param proof Merkle proof path
      * @return valid Whether the proof is valid
      */
-    function verifyMerkleProof(
-        uint256 chainId,
-        bytes32 leaf,
-        bytes32[] calldata proof
-    ) external view returns (bool valid) {
+    function verifyMerkleProof(uint256 chainId, bytes32 leaf, bytes32[] calldata proof)
+        external
+        view
+        returns (bool valid)
+    {
         bytes32 root = stateRoots[chainId];
         if (root == bytes32(0)) return false;
 
@@ -306,11 +293,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param newRoot New state root
      * @param blockNumber Block number of the state root
      */
-    function updateStateRoot(
-        uint256 chainId,
-        bytes32 newRoot,
-        uint256 blockNumber
-    ) external onlyOwner {
+    function updateStateRoot(uint256 chainId, bytes32 newRoot, uint256 blockNumber) external onlyOwner {
         stateRoots[chainId] = newRoot;
         stateRootBlockNumbers[chainId] = blockNumber;
 
@@ -323,11 +306,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param token Token address
      * @param authorized Whether the token is authorized
      */
-    function setAuthorizedToken(
-        uint256 chainId,
-        address token,
-        bool authorized
-    ) external onlyOwner {
+    function setAuthorizedToken(uint256 chainId, address token, bool authorized) external onlyOwner {
         authorizedTokens[chainId][token] = authorized;
     }
 
@@ -337,11 +316,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param tokens Array of token addresses
      * @param authorized Whether the tokens are authorized
      */
-    function batchSetAuthorizedTokens(
-        uint256 chainId,
-        address[] calldata tokens,
-        bool authorized
-    ) external onlyOwner {
+    function batchSetAuthorizedTokens(uint256 chainId, address[] calldata tokens, bool authorized) external onlyOwner {
         for (uint256 i = 0; i < tokens.length; i++) {
             authorizedTokens[chainId][tokens[i]] = authorized;
         }
@@ -431,20 +406,16 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
         if (bridgeValidator == address(0)) revert ZeroAddress();
 
         // Decode evidence: BridgeMessage struct and signatures array
-        (
-            BridgeValidator.BridgeMessage memory message,
-            bytes[] memory signatures
-        ) = abi.decode(proof.evidence, (BridgeValidator.BridgeMessage, bytes[]));
+        (BridgeValidator.BridgeMessage memory message, bytes[] memory signatures) =
+            abi.decode(proof.evidence, (BridgeValidator.BridgeMessage, bytes[]));
 
         // Basic validation
         if (signatures.length == 0) return false;
 
         // Call BridgeValidator to verify signatures
         // If verification returns false, fraud is proven (signatures are invalid)
-        try BridgeValidator(bridgeValidator).verifySignaturesView(message, signatures) returns (
-            bool valid,
-            uint256 validCount
-        ) {
+        try BridgeValidator(bridgeValidator)
+            .verifySignaturesView(message, signatures) returns (bool valid, uint256 validCount) {
             // Fraud is proven if signatures are NOT valid
             // validCount helps understand how many signatures were actually valid
             if (!valid) {
@@ -476,8 +447,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
         // Decode evidence: (bytes32 txHash1, bytes32 txHash2, bytes32 inputHash)
         if (proof.evidence.length == 0) return false;
 
-        (bytes32 txHash1, bytes32 txHash2, bytes32 inputHash) =
-            abi.decode(proof.evidence, (bytes32, bytes32, bytes32));
+        (bytes32 txHash1, bytes32 txHash2, bytes32 inputHash) = abi.decode(proof.evidence, (bytes32, bytes32, bytes32));
 
         // Verify merkle proofs for both transactions
         if (proof.merkleProof.length == 0) return false;
@@ -487,11 +457,8 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
         if (txHash1 == txHash2) return false; // Same tx is not double-spend
 
         // Record the double-spend evidence
-        doubleSpendEvidence[proof.requestId] = DoubleSpendEvidence({
-            txHash1: txHash1,
-            txHash2: txHash2,
-            sameInputs: true
-        });
+        doubleSpendEvidence[proof.requestId] =
+            DoubleSpendEvidence({ txHash1: txHash1, txHash2: txHash2, sameInputs: true });
 
         emit DoubleSpendRecorded(proof.requestId, txHash1, txHash2);
 
@@ -541,8 +508,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
         // Decode evidence: (bytes32 nonceHash, bytes32 previousTxHash)
         if (proof.evidence.length == 0) return false;
 
-        (bytes32 nonceHash, bytes32 previousTxHash) =
-            abi.decode(proof.evidence, (bytes32, bytes32));
+        (bytes32 nonceHash, bytes32 previousTxHash) = abi.decode(proof.evidence, (bytes32, bytes32));
 
         // Check if nonce was already used
         if (!usedNonces[nonceHash]) return false;
@@ -566,11 +532,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
 
         // For now, use low-level call
         (bool success,) = optimisticVerifier.call(
-            abi.encodeWithSignature(
-                "resolveChallenge(bytes32,bool)",
-                requestId,
-                fraudProven
-            )
+            abi.encodeWithSignature("resolveChallenge(bytes32,bool)", requestId, fraudProven)
         );
 
         // We don't revert if call fails - just log

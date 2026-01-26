@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {OptimisticVerifier} from "../../src/bridge/OptimisticVerifier.sol";
+import { Test } from "forge-std/Test.sol";
+import { OptimisticVerifier } from "../../src/bridge/OptimisticVerifier.sol";
 
 contract OptimisticVerifierTest is Test {
     OptimisticVerifier public verifier;
@@ -26,7 +26,9 @@ contract OptimisticVerifierTest is Test {
         uint256 challengeDeadline
     );
     event RequestChallenged(bytes32 indexed requestId, address indexed challenger, uint256 bondAmount, string reason);
-    event ChallengeResolved(bytes32 indexed requestId, bool challengeSuccessful, address indexed challenger, uint256 reward);
+    event ChallengeResolved(
+        bytes32 indexed requestId, bool challengeSuccessful, address indexed challenger, uint256 reward
+    );
     event RequestApproved(bytes32 indexed requestId, uint256 timestamp);
     event RequestExecuted(bytes32 indexed requestId, uint256 timestamp);
     event RequestCancelled(bytes32 indexed requestId, string reason);
@@ -138,7 +140,7 @@ contract OptimisticVerifierTest is Test {
         vm.prank(challenger);
         vm.expectEmit(true, true, false, true);
         emit RequestChallenged(requestId, challenger, CHALLENGE_BOND, "Suspicious activity");
-        verifier.challengeRequest{value: CHALLENGE_BOND}(requestId, "Suspicious activity");
+        verifier.challengeRequest{ value: CHALLENGE_BOND }(requestId, "Suspicious activity");
 
         OptimisticVerifier.BridgeRequest memory request = verifier.getRequest(requestId);
         assertEq(uint256(request.status), uint256(OptimisticVerifier.RequestStatus.Challenged));
@@ -154,7 +156,7 @@ contract OptimisticVerifierTest is Test {
 
         vm.prank(challenger);
         vm.expectRevert(OptimisticVerifier.RequestNotFound.selector);
-        verifier.challengeRequest{value: CHALLENGE_BOND}(keccak256("nonexistent"), "test");
+        verifier.challengeRequest{ value: CHALLENGE_BOND }(keccak256("nonexistent"), "test");
     }
 
     function test_ChallengeRequest_RevertsOnNotPending() public {
@@ -169,7 +171,7 @@ contract OptimisticVerifierTest is Test {
 
         vm.prank(challenger);
         vm.expectRevert(OptimisticVerifier.RequestNotPending.selector);
-        verifier.challengeRequest{value: CHALLENGE_BOND}(requestId, "test");
+        verifier.challengeRequest{ value: CHALLENGE_BOND }(requestId, "test");
     }
 
     function test_ChallengeRequest_RevertsOnPeriodEnded() public {
@@ -183,7 +185,7 @@ contract OptimisticVerifierTest is Test {
 
         vm.prank(challenger);
         vm.expectRevert(OptimisticVerifier.ChallengePeriodEnded.selector);
-        verifier.challengeRequest{value: CHALLENGE_BOND}(requestId, "test");
+        verifier.challengeRequest{ value: CHALLENGE_BOND }(requestId, "test");
     }
 
     function test_ChallengeRequest_RevertsOnInsufficientBond() public {
@@ -193,7 +195,7 @@ contract OptimisticVerifierTest is Test {
 
         vm.prank(challenger);
         vm.expectRevert(OptimisticVerifier.InsufficientChallengeBond.selector);
-        verifier.challengeRequest{value: 0.5 ether}(requestId, "test");
+        verifier.challengeRequest{ value: 0.5 ether }(requestId, "test");
     }
 
     // ============ Resolve Challenge Tests ============
@@ -276,7 +278,7 @@ contract OptimisticVerifierTest is Test {
         address challenger = makeAddr("challenger");
         vm.deal(challenger, 2 ether);
         vm.prank(challenger);
-        verifier.challengeRequest{value: CHALLENGE_BOND}(requestId, "test");
+        verifier.challengeRequest{ value: CHALLENGE_BOND }(requestId, "test");
 
         vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
 
@@ -494,7 +496,7 @@ contract OptimisticVerifierTest is Test {
 
         vm.deal(makeAddr("sender"), 1 ether);
         vm.prank(makeAddr("sender"));
-        (bool success,) = address(verifier).call{value: 1 ether}("");
+        (bool success,) = address(verifier).call{ value: 1 ether }("");
 
         assertTrue(success);
         assertEq(address(verifier).balance, balanceBefore + 1 ether);
@@ -518,7 +520,7 @@ contract OptimisticVerifierTest is Test {
         vm.deal(challenger, 2 ether);
 
         vm.prank(challenger);
-        verifier.challengeRequest{value: CHALLENGE_BOND}(requestId, "Challenge reason");
+        verifier.challengeRequest{ value: CHALLENGE_BOND }(requestId, "Challenge reason");
 
         return requestId;
     }

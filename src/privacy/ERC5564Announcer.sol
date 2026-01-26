@@ -22,12 +22,8 @@ interface IERC5564Announcer {
     );
 
     /// @notice Emit an announcement for a stealth address transaction
-    function announce(
-        uint256 schemeId,
-        address stealthAddress,
-        bytes memory ephemeralPubKey,
-        bytes memory metadata
-    ) external;
+    function announce(uint256 schemeId, address stealthAddress, bytes memory ephemeralPubKey, bytes memory metadata)
+        external;
 }
 
 /**
@@ -45,7 +41,7 @@ interface IERC5564Announcer {
  *   - Remaining bytes: Application-specific data
  */
 contract ERC5564Announcer is IERC5564Announcer {
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
@@ -53,7 +49,7 @@ contract ERC5564Announcer is IERC5564Announcer {
     error InvalidEphemeralPubKey();
     error UnsupportedScheme(uint256 schemeId);
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
@@ -61,13 +57,9 @@ contract ERC5564Announcer is IERC5564Announcer {
     event SchemeRegistered(uint256 indexed schemeId, string description);
 
     /// @notice Emitted for batch announcements
-    event BatchAnnouncement(
-        uint256 indexed schemeId,
-        address indexed caller,
-        uint256 count
-    );
+    event BatchAnnouncement(uint256 indexed schemeId, address indexed caller, uint256 count);
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
@@ -83,7 +75,7 @@ contract ERC5564Announcer is IERC5564Announcer {
     /// @notice Whether to enforce scheme validation
     bool public enforceSchemeValidation;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
@@ -96,7 +88,7 @@ contract ERC5564Announcer is IERC5564Announcer {
         emit SchemeRegistered(2, "secp256r1");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            CORE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -107,12 +99,10 @@ contract ERC5564Announcer is IERC5564Announcer {
      * @param ephemeralPubKey Ephemeral public key used by sender
      * @param metadata Additional data (first byte = view tag)
      */
-    function announce(
-        uint256 schemeId,
-        address stealthAddress,
-        bytes memory ephemeralPubKey,
-        bytes memory metadata
-    ) external override {
+    function announce(uint256 schemeId, address stealthAddress, bytes memory ephemeralPubKey, bytes memory metadata)
+        external
+        override
+    {
         // Validate inputs
         if (stealthAddress == address(0)) revert InvalidStealthAddress();
         if (ephemeralPubKey.length == 0) revert InvalidEphemeralPubKey();
@@ -147,29 +137,22 @@ contract ERC5564Announcer is IERC5564Announcer {
     ) external {
         uint256 length = stealthAddresses.length;
 
-        require(
-            length == ephemeralPubKeys.length && length == metadatas.length,
-            "Array length mismatch"
-        );
+        require(length == ephemeralPubKeys.length && length == metadatas.length, "Array length mismatch");
 
         // Optional scheme validation
         if (enforceSchemeValidation && !supportedSchemes[schemeId]) {
             revert UnsupportedScheme(schemeId);
         }
 
-        for (uint256 i = 0; i < length; ) {
+        for (uint256 i = 0; i < length;) {
             if (stealthAddresses[i] == address(0)) revert InvalidStealthAddress();
             if (ephemeralPubKeys[i].length == 0) revert InvalidEphemeralPubKey();
 
-            emit Announcement(
-                schemeId,
-                stealthAddresses[i],
-                msg.sender,
-                ephemeralPubKeys[i],
-                metadatas[i]
-            );
+            emit Announcement(schemeId, stealthAddresses[i], msg.sender, ephemeralPubKeys[i], metadatas[i]);
 
-            unchecked { i++; }
+            unchecked {
+                i++;
+            }
         }
 
         // Update counters
@@ -201,7 +184,7 @@ contract ERC5564Announcer is IERC5564Announcer {
 
         // Transfer native tokens
         if (msg.value > 0) {
-            (bool success, ) = stealthAddress.call{value: msg.value}("");
+            (bool success,) = stealthAddress.call{ value: msg.value }("");
             require(success, "Native transfer failed");
         }
 
@@ -215,7 +198,7 @@ contract ERC5564Announcer is IERC5564Announcer {
         emit Announcement(schemeId, stealthAddress, msg.sender, ephemeralPubKey, metadata);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -234,19 +217,11 @@ contract ERC5564Announcer is IERC5564Announcer {
      * @return secp256k1Count Announcements using secp256k1
      * @return secp256r1Count Announcements using secp256r1
      */
-    function getStats() external view returns (
-        uint256 total,
-        uint256 secp256k1Count,
-        uint256 secp256r1Count
-    ) {
-        return (
-            totalAnnouncements,
-            announcementsByScheme[1],
-            announcementsByScheme[2]
-        );
+    function getStats() external view returns (uint256 total, uint256 secp256k1Count, uint256 secp256r1Count) {
+        return (totalAnnouncements, announcementsByScheme[1], announcementsByScheme[2]);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -268,10 +243,7 @@ contract ERC5564Announcer is IERC5564Announcer {
      * @param data Additional metadata
      * @return metadata Encoded metadata with view tag as first byte
      */
-    function encodeMetadata(
-        bytes1 viewTag,
-        bytes calldata data
-    ) external pure returns (bytes memory metadata) {
+    function encodeMetadata(bytes1 viewTag, bytes calldata data) external pure returns (bytes memory metadata) {
         metadata = abi.encodePacked(viewTag, data);
     }
 }

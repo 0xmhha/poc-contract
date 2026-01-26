@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IFallback, IModule} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {MODULE_TYPE_FALLBACK} from "../erc7579-smartaccount/types/Constants.sol";
+import { IFallback, IModule } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { MODULE_TYPE_FALLBACK } from "../erc7579-smartaccount/types/Constants.sol";
 
 /**
  * @title TokenReceiverFallback
@@ -27,8 +27,8 @@ import {MODULE_TYPE_FALLBACK} from "../erc7579-smartaccount/types/Constants.sol"
 contract TokenReceiverFallback is IFallback {
     /// @notice Configuration for each smart account
     struct AccountConfig {
-        bool acceptAllTokens;       // If true, accept all tokens (default behavior)
-        bool logTransfers;          // If true, emit events for transfers
+        bool acceptAllTokens; // If true, accept all tokens (default behavior)
+        bool logTransfers; // If true, emit events for transfers
         bool isEnabled;
     }
 
@@ -37,16 +37,16 @@ contract TokenReceiverFallback is IFallback {
         uint256 timestamp;
         address token;
         address from;
-        uint256 tokenId;    // For ERC-721/1155
-        uint256 amount;     // For ERC-1155/777
+        uint256 tokenId; // For ERC-721/1155
+        uint256 amount; // For ERC-1155/777
         bytes32 dataHash;
     }
 
     /// @notice Storage for each smart account
     struct AccountStorage {
         AccountConfig config;
-        mapping(address => bool) tokenWhitelist;  // Tokens that are always accepted
-        mapping(address => bool) tokenBlacklist;  // Tokens that are always rejected
+        mapping(address => bool) tokenWhitelist; // Tokens that are always accepted
+        mapping(address => bool) tokenBlacklist; // Tokens that are always rejected
         TransferLog[] transferLogs;
     }
 
@@ -54,12 +54,12 @@ contract TokenReceiverFallback is IFallback {
     mapping(address => AccountStorage) internal accountStorage;
 
     // ERC-721 callback selector
-    bytes4 private constant ERC721_RECEIVED = 0x150b7a02;
+    bytes4 private constant ERC721_RECEIVED = 0_x15_0b7_a02;
     // ERC-1155 callback selectors
-    bytes4 private constant ERC1155_RECEIVED = 0xf23a6e61;
-    bytes4 private constant ERC1155_BATCH_RECEIVED = 0xbc197c81;
+    bytes4 private constant ERC1155_RECEIVED = 0_xf2_3a6_e61;
+    bytes4 private constant ERC1155_BATCH_RECEIVED = 0_xbc_197_c81;
     // ERC-777 callback selector
-    bytes4 private constant ERC777_TOKENS_RECEIVED = 0x0023de29;
+    bytes4 private constant ERC777_TOKENS_RECEIVED = 0_x00_23d_e29;
 
     // Events
     event TokenReceived(
@@ -86,18 +86,12 @@ contract TokenReceiverFallback is IFallback {
     function onInstall(bytes calldata data) external payable override {
         if (data.length == 0) {
             // Default: accept all tokens, no logging
-            accountStorage[msg.sender].config = AccountConfig({
-                acceptAllTokens: true,
-                logTransfers: false,
-                isEnabled: true
-            });
+            accountStorage[msg.sender].config =
+                AccountConfig({ acceptAllTokens: true, logTransfers: false, isEnabled: true });
         } else {
             (bool acceptAll, bool logTransfers) = abi.decode(data, (bool, bool));
-            accountStorage[msg.sender].config = AccountConfig({
-                acceptAllTokens: acceptAll,
-                logTransfers: logTransfers,
-                isEnabled: true
-            });
+            accountStorage[msg.sender].config =
+                AccountConfig({ acceptAllTokens: acceptAll, logTransfers: logTransfers, isEnabled: true });
         }
 
         emit ConfigUpdated(
@@ -133,12 +127,10 @@ contract TokenReceiverFallback is IFallback {
      * @param data Additional data with no specified format
      * @return bytes4 `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`
      */
-    function onERC721Received(
-        address operator,
-        address from,
-        uint256 tokenId,
-        bytes calldata data
-    ) external returns (bytes4) {
+    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
+        external
+        returns (bytes4)
+    {
         (address token, address smartAccount) = _extractContext();
 
         _validateAndLogTransfer(smartAccount, token, from, tokenId, 1, data, "ERC721");
@@ -157,13 +149,10 @@ contract TokenReceiverFallback is IFallback {
      * @param data Additional data with no specified format
      * @return bytes4 `bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))`
      */
-    function onERC1155Received(
-        address operator,
-        address from,
-        uint256 id,
-        uint256 value,
-        bytes calldata data
-    ) external returns (bytes4) {
+    function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes calldata data)
+        external
+        returns (bytes4)
+    {
         (address token, address smartAccount) = _extractContext();
 
         _validateAndLogTransfer(smartAccount, token, from, id, value, data, "ERC1155");
@@ -378,11 +367,11 @@ contract TokenReceiverFallback is IFallback {
      * @param startIndex Start index (inclusive)
      * @param endIndex End index (exclusive)
      */
-    function getTransferLogs(
-        address account,
-        uint256 startIndex,
-        uint256 endIndex
-    ) external view returns (TransferLog[] memory logs) {
+    function getTransferLogs(address account, uint256 startIndex, uint256 endIndex)
+        external
+        view
+        returns (TransferLog[] memory logs)
+    {
         AccountStorage storage store = accountStorage[account];
         uint256 length = store.transferLogs.length;
 
@@ -461,13 +450,16 @@ contract TokenReceiverFallback is IFallback {
         uint256 amount,
         bytes calldata data
     ) internal {
-        store.transferLogs.push(TransferLog({
-            timestamp: block.timestamp,
-            token: token,
-            from: from,
-            tokenId: tokenId,
-            amount: amount,
-            dataHash: keccak256(data)
-        }));
+        store.transferLogs
+        .push(
+            TransferLog({
+                timestamp: block.timestamp,
+                token: token,
+                from: from,
+                tokenId: tokenId,
+                amount: amount,
+                dataHash: keccak256(data)
+            })
+        );
     }
 }

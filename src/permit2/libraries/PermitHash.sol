@@ -3,8 +3,8 @@
 // Adapted for StableNet PoC - Solidity version updated to ^0.8.28
 pragma solidity ^0.8.28;
 
-import {IAllowanceTransfer} from "../interfaces/IAllowanceTransfer.sol";
-import {ISignatureTransfer} from "../interfaces/ISignatureTransfer.sol";
+import { IAllowanceTransfer } from "../interfaces/IAllowanceTransfer.sol";
+import { ISignatureTransfer } from "../interfaces/ISignatureTransfer.sol";
 
 library PermitHash {
     bytes32 public constant _PERMIT_DETAILS_TYPEHASH =
@@ -100,8 +100,9 @@ library PermitHash {
         bytes32 witness,
         string calldata witnessTypeString
     ) internal view returns (bytes32) {
-        bytes32 typeHash =
-            keccak256(abi.encodePacked(_PERMIT_BATCH_WITNESS_TRANSFER_FROM_TYPEHASH_STUB, witnessTypeString));
+        bytes32 typeHash = keccak256(
+            abi.encodePacked(_PERMIT_BATCH_WITNESS_TRANSFER_FROM_TYPEHASH_STUB, witnessTypeString)
+        );
 
         uint256 numPermitted = permit.permitted.length;
         bytes32[] memory tokenPermissionHashes = new bytes32[](numPermitted);

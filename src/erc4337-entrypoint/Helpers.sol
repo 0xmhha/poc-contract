@@ -6,12 +6,11 @@ import { UserOperationLib } from "./UserOperationLib.sol";
 
 using UserOperationLib for bytes;
 
- /*
-  * For simulation purposes, validateUserOp (and validatePaymasterUserOp)
-  * must return this value in case of signature failure, instead of revert.
-  */
+/*
+ * For simulation purposes, validateUserOp (and validatePaymasterUserOp)
+ * must return this value in case of signature failure, instead of revert.
+ */
 uint256 constant SIG_VALIDATION_FAILED = 1;
-
 
 /*
  * For simulation purposes, validateUserOp (and validatePaymasterUserOp)
@@ -19,16 +18,15 @@ uint256 constant SIG_VALIDATION_FAILED = 1;
  */
 uint256 constant SIG_VALIDATION_SUCCESS = 0;
 
-
 /**
  * Returned data from validateUserOp.
  * validateUserOp returns a uint256, which is created by `_packedValidationData` and
  * parsed by `_parseValidationData`.
- * @param aggregator  - address(0) - The account validated the signature by itself.
+ * @param aggregator - address(0) - The account validated the signature by itself.
  *                      address(1) - The account failed to validate the signature.
  *                      otherwise - This is an address of a signature aggregator that must
  *                                  be used to validate the signature.
- * @param validAfter  - This UserOp is valid only after this timestamp.
+ * @param validAfter - This UserOp is valid only after this timestamp.
  * @param validUntil - Last timestamp this operation is valid at, or 0 for "indefinitely".
  */
 struct ValidationData {
@@ -43,9 +41,7 @@ struct ValidationData {
  * @param validationData - The packed validation data.
  * @return data - The unpacked in-memory validation data.
  */
-function _parseValidationData(
-    uint256 validationData
-) pure returns (ValidationData memory data) {
+function _parseValidationData(uint256 validationData) pure returns (ValidationData memory data) {
     // casting to 'uint160' is safe because we're extracting the low 160 bits for the aggregator address
     // forge-lint: disable-next-line(unsafe-typecast)
     address aggregator = address(uint160(validationData));
@@ -66,36 +62,26 @@ function _parseValidationData(
  * @param data - The ValidationData to pack.
  * @return the packed validation data.
  */
-function _packValidationData(
-    ValidationData memory data
-) pure returns (uint256) {
-    return
-        uint160(data.aggregator) |
-        (uint256(data.validUntil) << 160) |
-        (uint256(data.validAfter) << (160 + 48));
+function _packValidationData(ValidationData memory data) pure returns (uint256) {
+    return uint160(data.aggregator) | (uint256(data.validUntil) << 160) | (uint256(data.validAfter) << (160 + 48));
 }
 
 /**
  * Helper to pack the return value for validateUserOp, when not using an aggregator.
- * @param sigFailed  - True for signature failure, false for success.
+ * @param sigFailed - True for signature failure, false for success.
  * @param validUntil - Last timestamp this operation is valid at, or 0 for "indefinitely".
  * @param validAfter - First timestamp this UserOperation is valid.
  * @return the packed validation data.
  */
-function _packValidationData(
-    bool sigFailed,
-    uint48 validUntil,
-    uint48 validAfter
-) pure returns (uint256) {
-    return
-        (sigFailed ?  SIG_VALIDATION_FAILED : SIG_VALIDATION_SUCCESS) |
-        (uint256(validUntil) << 160) |
-        (uint256(validAfter) << (160 + 48));
+function _packValidationData(bool sigFailed, uint48 validUntil, uint48 validAfter) pure returns (uint256) {
+    return (sigFailed ? SIG_VALIDATION_FAILED : SIG_VALIDATION_SUCCESS) | (uint256(validUntil) << 160)
+        | (uint256(validAfter) << (160 + 48));
 }
 
 /**
  * keccak function over calldata.
- * @dev copy calldata into memory, do keccak and drop allocated memory. Strangely, this is more efficient than letting solidity do it.
+ * @dev copy calldata into memory, do keccak and drop allocated memory. Strangely, this is more efficient than letting
+ * solidity do it.
  *
  * @param data - the calldata bytes array to perform keccak on.
  * @return ret - the keccak hash of the 'data' array.
@@ -116,8 +102,8 @@ function calldataKeccak(bytes calldata data) pure returns (bytes32 ret) {
  *      keccak256(abi.encodePacked(data[0:len], suffix))
  * But more efficient, and doesn't move the free memory pointer, allowing the memory to be reused later.
  *
- * @param data   Calldata byte array to read from.
- * @param len    Number of bytes to copy from `data` starting at its offset.
+ * @param data Calldata byte array to read from.
+ * @param len Number of bytes to copy from `data` starting at its offset.
  * @param suffix 8-byte value appended to the data bytes before hashing.
  *
  * @return ret The hash of (data[0:len] || suffix).
@@ -138,7 +124,8 @@ function calldataKeccakWithSuffix(bytes calldata data, uint256 len, bytes8 suffi
  * read the previous 2 bytes as pmSignatureLength,
  * and ignore this suffix from the hash.
  * This means that the trailing pmSignatureLength+10 bytes are not covered by the UserOpHash, and thus are not signed.
- * @dev copy calldata into memory, do keccak and drop allocated memory. Strangely, this is more efficient than letting solidity do it.
+ * @dev copy calldata into memory, do keccak and drop allocated memory. Strangely, this is more efficient than letting
+ * solidity do it.
  *
  * @param data - the calldata bytes array to perform keccak on.
  * @return ret - the keccak hash of the 'data' array.
@@ -147,13 +134,16 @@ function paymasterDataKeccak(bytes calldata data) pure returns (bytes32 ret) {
     uint256 pmSignatureLength = data.getPaymasterSignatureLength();
     if (pmSignatureLength > 0) {
         unchecked {
-            //keccak everything up to the paymasterSignature, but still append the sig magic.
-            return calldataKeccakWithSuffix(data, data.length - (pmSignatureLength + UserOperationLib.PAYMASTER_SUFFIX_LEN), UserOperationLib.PAYMASTER_SIG_MAGIC);
+            // keccak everything up to the paymasterSignature, but still append the sig magic.
+            return calldataKeccakWithSuffix(
+                data,
+                data.length - (pmSignatureLength + UserOperationLib.PAYMASTER_SUFFIX_LEN),
+                UserOperationLib.PAYMASTER_SIG_MAGIC
+            );
         }
     }
     return calldataKeccak(data);
 }
-
 
 /**
  * The minimum of two numbers.
@@ -161,9 +151,9 @@ function paymasterDataKeccak(bytes calldata data) pure returns (bytes32 ret) {
  * @param b - Second number.
  * @return - the minimum value.
  */
-    function min(uint256 a, uint256 b) pure returns (uint256) {
-        return a < b ? a : b;
-    }
+function min(uint256 a, uint256 b) pure returns (uint256) {
+    return a < b ? a : b;
+}
 
 /**
  * standard solidity memory allocation finalization.
@@ -171,18 +161,19 @@ function paymasterDataKeccak(bytes calldata data) pure returns (bytes32 ret) {
  * @param memPointer - The current memory pointer
  * @param allocationSize - Bytes allocated from memPointer.
  */
-    function finalizeAllocation(uint256 memPointer, uint256 allocationSize) pure {
+function finalizeAllocation(uint256 memPointer, uint256 allocationSize) pure {
 
-        assembly ("memory-safe"){
-            finalize_allocation(memPointer, allocationSize)
 
-            function finalize_allocation(memPtr, size) {
-                let newFreePtr := add(memPtr, round_up_to_mul_of_32(size))
-                mstore(64, newFreePtr)
-            }
+    assembly ("memory-safe") {
+        finalize_allocation(memPointer, allocationSize)
 
-            function round_up_to_mul_of_32(value) -> result {
-                result := and(add(value, 31), not(31))
-            }
+        function finalize_allocation(memPtr, size) {
+            let newFreePtr := add(memPtr, round_up_to_mul_of_32(size))
+            mstore(64, newFreePtr)
+        }
+
+        function round_up_to_mul_of_32(value) -> result {
+            result := and(add(value, 31), not(31))
         }
     }
+}

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {BridgeRateLimiter} from "../../src/bridge/BridgeRateLimiter.sol";
+import { Test } from "forge-std/Test.sol";
+import { BridgeRateLimiter } from "../../src/bridge/BridgeRateLimiter.sol";
 
 contract BridgeRateLimiterTest is Test {
     BridgeRateLimiter public limiter;
@@ -12,15 +12,11 @@ contract BridgeRateLimiterTest is Test {
     address public token;
 
     uint256 public constant PRECISION = 1e18;
-    uint256 public constant TOKEN_PRICE = 1 * PRECISION; // $1
+    uint256 public constant TOKEN_PRICE = 1 * PRECISION; //$1
     uint8 public constant TOKEN_DECIMALS = 18;
 
     event TransactionRecorded(
-        address indexed token,
-        uint256 amount,
-        uint256 usdValue,
-        uint256 hourlyUsage,
-        uint256 dailyUsage
+        address indexed token, uint256 amount, uint256 usdValue, uint256 hourlyUsage, uint256 dailyUsage
     );
     event AlertTriggered(string limitType, uint256 currentUsage, uint256 limit, uint256 percentage);
     event AutoPauseActivated(string reason, uint256 currentUsage, uint256 limit);

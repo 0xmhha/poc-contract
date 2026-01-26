@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title RegulatoryRegistry
@@ -61,19 +61,10 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
     uint256 public activeRegulatorCount;
 
     // ============ Events ============
-    event RegulatorRegistered(
-        address indexed regulator,
-        string name,
-        string jurisdiction,
-        uint8 accessLevel
-    );
+    event RegulatorRegistered(address indexed regulator, string name, string jurisdiction, uint8 accessLevel);
     event RegulatorDeactivated(address indexed regulator, string reason);
     event RegulatorReactivated(address indexed regulator);
-    event RegulatorAccessLevelUpdated(
-        address indexed regulator,
-        uint8 oldLevel,
-        uint8 newLevel
-    );
+    event RegulatorAccessLevelUpdated(address indexed regulator, uint8 oldLevel, uint8 newLevel);
     event MRKPublicKeyUpdated(address indexed regulator, bytes32 keyHash);
 
     event TraceRequestCreated(
@@ -83,21 +74,10 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
         bytes32 legalBasisHash,
         string jurisdiction
     );
-    event TraceRequestApproved(
-        uint256 indexed requestId,
-        address indexed approver,
-        uint8 approvalCount
-    );
+    event TraceRequestApproved(uint256 indexed requestId, address indexed approver, uint8 approvalCount);
     event TraceRequestFullyApproved(uint256 indexed requestId);
-    event TraceRequestExecuted(
-        uint256 indexed requestId,
-        address indexed executor
-    );
-    event TraceRequestCancelled(
-        uint256 indexed requestId,
-        address indexed canceller,
-        string reason
-    );
+    event TraceRequestExecuted(uint256 indexed requestId, address indexed executor);
+    event TraceRequestCancelled(uint256 indexed requestId, address indexed canceller, string reason);
     event TraceRequestExpired(uint256 indexed requestId);
 
     event ApproverAdded(address indexed approver);
@@ -190,10 +170,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param regulator Address of the regulator
      * @param reason Reason for deactivation
      */
-    function deactivateRegulator(
-        address regulator,
-        string calldata reason
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function deactivateRegulator(address regulator, string calldata reason) external onlyRole(DEFAULT_ADMIN_ROLE) {
         Regulator storage reg = regulators[regulator];
         if (reg.registeredAt == 0) revert RegulatorNotFound();
         if (!reg.isActive) revert RegulatorNotActive();
@@ -209,9 +186,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @notice Reactivate a deactivated regulator
      * @param regulator Address of the regulator
      */
-    function reactivateRegulator(
-        address regulator
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function reactivateRegulator(address regulator) external onlyRole(DEFAULT_ADMIN_ROLE) {
         Regulator storage reg = regulators[regulator];
         if (reg.registeredAt == 0) revert RegulatorNotFound();
         if (reg.isActive) revert RegulatorAlreadyExists();
@@ -228,10 +203,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param regulator Address of the regulator
      * @param newLevel New access level
      */
-    function updateAccessLevel(
-        address regulator,
-        uint8 newLevel
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function updateAccessLevel(address regulator, uint8 newLevel) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newLevel == 0 || newLevel > 5) revert InvalidAccessLevel();
 
         Regulator storage reg = regulators[regulator];
@@ -247,9 +219,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @notice Store hash of Master Regulatory Key public key
      * @param mrkPublicKeyHash Hash of the MRK public key
      */
-    function setMrkPublicKey(
-        bytes32 mrkPublicKeyHash
-    ) external onlyRole(REGULATOR_ROLE) {
+    function setMrkPublicKey(bytes32 mrkPublicKeyHash) external onlyRole(REGULATOR_ROLE) {
         Regulator storage reg = regulators[msg.sender];
         if (!reg.isActive) revert RegulatorNotActive();
 
@@ -266,11 +236,13 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param requiredAccessLevel Minimum access level required
      * @return requestId The ID of the created request
      */
-    function createTraceRequest(
-        address targetAccount,
-        bytes32 legalBasisHash,
-        uint8 requiredAccessLevel
-    ) external onlyRole(REGULATOR_ROLE) whenNotPaused nonReentrant returns (uint256 requestId) {
+    function createTraceRequest(address targetAccount, bytes32 legalBasisHash, uint8 requiredAccessLevel)
+        external
+        onlyRole(REGULATOR_ROLE)
+        whenNotPaused
+        nonReentrant
+        returns (uint256 requestId)
+    {
         if (targetAccount == address(0)) revert InvalidAddress();
         if (legalBasisHash == bytes32(0)) revert InvalidAddress();
         if (requiredAccessLevel == 0 || requiredAccessLevel > 5) revert InvalidAccessLevel();
@@ -296,22 +268,14 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
             requiredAccessLevel: requiredAccessLevel
         });
 
-        emit TraceRequestCreated(
-            requestId,
-            msg.sender,
-            targetAccount,
-            legalBasisHash,
-            reg.jurisdiction
-        );
+        emit TraceRequestCreated(requestId, msg.sender, targetAccount, legalBasisHash, reg.jurisdiction);
     }
 
     /**
      * @notice Approve a trace request (requires 2-of-3 approvers)
      * @param requestId ID of the trace request
      */
-    function approveTraceRequest(
-        uint256 requestId
-    ) external onlyRole(APPROVER_ROLE) whenNotPaused nonReentrant {
+    function approveTraceRequest(uint256 requestId) external onlyRole(APPROVER_ROLE) whenNotPaused nonReentrant {
         TraceRequest storage request = traceRequests[requestId];
 
         if (request.id == 0) revert RequestNotFound();
@@ -338,9 +302,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @notice Execute an approved trace request
      * @param requestId ID of the trace request
      */
-    function executeTraceRequest(
-        uint256 requestId
-    ) external onlyRole(REGULATOR_ROLE) whenNotPaused nonReentrant {
+    function executeTraceRequest(uint256 requestId) external onlyRole(REGULATOR_ROLE) whenNotPaused nonReentrant {
         TraceRequest storage request = traceRequests[requestId];
 
         if (request.id == 0) revert RequestNotFound();
@@ -366,10 +328,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param requestId ID of the trace request
      * @param reason Reason for cancellation
      */
-    function cancelTraceRequest(
-        uint256 requestId,
-        string calldata reason
-    ) external {
+    function cancelTraceRequest(uint256 requestId, string calldata reason) external {
         TraceRequest storage request = traceRequests[requestId];
 
         if (request.id == 0) revert RequestNotFound();
@@ -393,10 +352,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param oldApprover Address of approver to remove
      * @param newApprover Address of new approver
      */
-    function replaceApprover(
-        address oldApprover,
-        address newApprover
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function replaceApprover(address oldApprover, address newApprover) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newApprover == address(0)) revert InvalidAddress();
         if (!hasRole(APPROVER_ROLE, oldApprover)) revert ApproverNotFound();
         if (hasRole(APPROVER_ROLE, newApprover)) revert MaxApproversReached();
@@ -423,9 +379,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param regulator Address of the regulator
      * @return Regulator struct
      */
-    function getRegulator(
-        address regulator
-    ) external view returns (Regulator memory) {
+    function getRegulator(address regulator) external view returns (Regulator memory) {
         return regulators[regulator];
     }
 
@@ -434,9 +388,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param requestId ID of the trace request
      * @return TraceRequest struct
      */
-    function getTraceRequest(
-        uint256 requestId
-    ) external view returns (TraceRequest memory) {
+    function getTraceRequest(uint256 requestId) external view returns (TraceRequest memory) {
         return traceRequests[requestId];
     }
 
@@ -463,9 +415,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @return ready True if ready
      * @return reason Reason if not ready
      */
-    function canExecuteTraceRequest(
-        uint256 requestId
-    ) external view returns (bool ready, string memory reason) {
+    function canExecuteTraceRequest(uint256 requestId) external view returns (bool ready, string memory reason) {
         TraceRequest storage request = traceRequests[requestId];
 
         if (request.id == 0) return (false, "Request not found");
@@ -482,16 +432,12 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param regulator Address of the regulator
      * @return count Number of pending requests
      */
-    function getPendingRequestCount(
-        address regulator
-    ) external view returns (uint256 count) {
+    function getPendingRequestCount(address regulator) external view returns (uint256 count) {
         for (uint256 i = 1; i < nextRequestId; i++) {
             TraceRequest storage request = traceRequests[i];
             if (
-                request.regulator == regulator &&
-                !request.isExecuted &&
-                !request.isCancelled &&
-                block.timestamp <= request.expiresAt
+                request.regulator == regulator && !request.isExecuted && !request.isCancelled
+                    && block.timestamp <= request.expiresAt
             ) {
                 count++;
             }

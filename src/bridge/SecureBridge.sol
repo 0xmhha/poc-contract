@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {BridgeValidator} from "./BridgeValidator.sol";
-import {OptimisticVerifier} from "./OptimisticVerifier.sol";
-import {BridgeRateLimiter} from "./BridgeRateLimiter.sol";
-import {BridgeGuardian} from "./BridgeGuardian.sol";
+import { BridgeValidator } from "./BridgeValidator.sol";
+import { OptimisticVerifier } from "./OptimisticVerifier.sol";
+import { BridgeRateLimiter } from "./BridgeRateLimiter.sol";
+import { BridgeGuardian } from "./BridgeGuardian.sol";
 
 /**
  * @title SecureBridge
@@ -57,23 +57,9 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         uint256 targetChain,
         uint256 fee
     );
-    event BridgeCompleted(
-        bytes32 indexed requestId,
-        address indexed recipient,
-        address token,
-        uint256 amount
-    );
-    event BridgeRefunded(
-        bytes32 indexed requestId,
-        address indexed sender,
-        address token,
-        uint256 amount
-    );
-    event TokenMapped(
-        address indexed sourceToken,
-        uint256 indexed targetChain,
-        address targetToken
-    );
+    event BridgeCompleted(bytes32 indexed requestId, address indexed recipient, address token, uint256 amount);
+    event BridgeRefunded(bytes32 indexed requestId, address indexed sender, address token, uint256 amount);
+    event TokenMapped(address indexed sourceToken, uint256 indexed targetChain, address targetToken);
     event ChainSupportUpdated(uint256 indexed chainId, bool supported);
     event FeeUpdated(uint256 oldFee, uint256 newFee);
     event FeeRecipientUpdated(address oldRecipient, address newRecipient);
@@ -184,13 +170,13 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
      * @param deadline Transaction deadline
      * @return requestId Unique request identifier
      */
-    function initiateBridge(
-        address token,
-        uint256 amount,
-        address recipient,
-        uint256 targetChain,
-        uint256 deadline
-    ) external payable whenNotPaused nonReentrant returns (bytes32 requestId) {
+    function initiateBridge(address token, uint256 amount, address recipient, uint256 targetChain, uint256 deadline)
+        external
+        payable
+        whenNotPaused
+        nonReentrant
+        returns (bytes32 requestId)
+    {
         // Validate inputs
         if (amount == 0) revert InvalidAmount();
         if (recipient == address(0)) revert InvalidRecipient();
@@ -207,21 +193,14 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         if (!allowed) revert RateLimitExceeded();
 
         // Calculate fee
-        uint256 fee = (amount * bridgeFeeBps) / 10000;
+        uint256 fee = (amount * bridgeFeeBps) / 10_000;
         uint256 amountAfterFee = amount - fee;
 
         // Generate request ID
         uint256 nonce = userNonces[msg.sender]++;
-        requestId = keccak256(abi.encode(
-            msg.sender,
-            recipient,
-            token,
-            amount,
-            CHAIN_ID,
-            targetChain,
-            nonce,
-            block.timestamp
-        ));
+        requestId = keccak256(
+            abi.encode(msg.sender, recipient, token, amount, CHAIN_ID, targetChain, nonce, block.timestamp)
+        );
 
         // Handle token transfer
         if (token == address(0)) {
@@ -229,7 +208,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
             if (msg.value < amount) revert InsufficientFee();
             // Refund excess
             if (msg.value > amount) {
-                (bool refundSuccess,) = payable(msg.sender).call{value: msg.value - amount}("");
+                (bool refundSuccess,) = payable(msg.sender).call{ value: msg.value - amount }("");
                 if (!refundSuccess) revert NativeTransferFailed();
             }
         } else {
@@ -252,26 +231,9 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         feesCollected[token] += fee;
 
         // Submit to optimistic verifier
-        optimisticVerifier.submitRequest(
-            requestId,
-            msg.sender,
-            recipient,
-            token,
-            amountAfterFee,
-            CHAIN_ID,
-            targetChain
-        );
+        optimisticVerifier.submitRequest(requestId, msg.sender, recipient, token, amountAfterFee, CHAIN_ID, targetChain);
 
-        emit BridgeInitiated(
-            requestId,
-            msg.sender,
-            recipient,
-            token,
-            amountAfterFee,
-            CHAIN_ID,
-            targetChain,
-            fee
-        );
+        emit BridgeInitiated(requestId, msg.sender, recipient, token, amountAfterFee, CHAIN_ID, targetChain, fee);
     }
 
     /**
@@ -344,7 +306,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         // Release tokens
         if (targetToken == address(0)) {
             // Native token
-            (bool success,) = payable(recipient).call{value: amount}("");
+            (bool success,) = payable(recipient).call{ value: amount }("");
             if (!success) revert NativeTransferFailed();
         } else {
             // ERC20 token
@@ -372,15 +334,15 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
 
         // Check optimistic verifier status - must be Refunded or Cancelled
         OptimisticVerifier.RequestStatus status = optimisticVerifier.getRequestStatus(requestId);
-        if (status != OptimisticVerifier.RequestStatus.Refunded &&
-            status != OptimisticVerifier.RequestStatus.Cancelled) {
+        if (status != OptimisticVerifier.RequestStatus.Refunded && status != OptimisticVerifier.RequestStatus.Cancelled)
+        {
             revert RequestNotApproved();
         }
 
         deposit.refunded = true;
 
         // Update TVL (deduct fee that was already taken)
-        uint256 fee = (deposit.amount * bridgeFeeBps) / 10000;
+        uint256 fee = (deposit.amount * bridgeFeeBps) / 10_000;
         uint256 refundAmount = deposit.amount - fee;
 
         if (totalValueLocked[deposit.token] >= refundAmount) {
@@ -389,7 +351,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
 
         // Refund tokens to original sender
         if (deposit.token == address(0)) {
-            (bool success,) = payable(deposit.sender).call{value: refundAmount}("");
+            (bool success,) = payable(deposit.sender).call{ value: refundAmount }("");
             if (!success) revert NativeTransferFailed();
         } else {
             IERC20(deposit.token).safeTransfer(deposit.sender, refundAmount);
@@ -416,11 +378,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
      * @param targetChain Target chain ID
      * @param targetToken Token on target chain
      */
-    function setTokenMapping(
-        address sourceToken,
-        uint256 targetChain,
-        address targetToken
-    ) external onlyOwner {
+    function setTokenMapping(address sourceToken, uint256 targetChain, address targetToken) external onlyOwner {
         tokenMappings[sourceToken][targetChain] = targetToken;
         emit TokenMapped(sourceToken, targetChain, targetToken);
     }
@@ -506,7 +464,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         feesCollected[token] -= amount;
 
         if (token == address(0)) {
-            (bool success,) = payable(feeRecipient).call{value: amount}("");
+            (bool success,) = payable(feeRecipient).call{ value: amount }("");
             if (!success) revert NativeTransferFailed();
         } else {
             IERC20(token).safeTransfer(feeRecipient, amount);
@@ -519,15 +477,11 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
      * @param to Recipient address
      * @param amount Amount to withdraw
      */
-    function emergencyWithdraw(
-        address token,
-        address to,
-        uint256 amount
-    ) external onlyOwner {
+    function emergencyWithdraw(address token, address to, uint256 amount) external onlyOwner {
         if (to == address(0)) revert ZeroAddress();
 
         if (token == address(0)) {
-            (bool success,) = payable(to).call{value: amount}("");
+            (bool success,) = payable(to).call{ value: amount }("");
             if (!success) revert NativeTransferFailed();
         } else {
             IERC20(token).safeTransfer(to, amount);
@@ -576,7 +530,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
      * @return fee Fee amount
      */
     function calculateFee(uint256 amount) external view returns (uint256) {
-        return (amount * bridgeFeeBps) / 10000;
+        return (amount * bridgeFeeBps) / 10_000;
     }
 
     /**
@@ -593,10 +547,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
      * @param sourceChain Source chain ID
      * @return targetToken Target token address
      */
-    function getTargetToken(
-        address sourceToken,
-        uint256 sourceChain
-    ) external view returns (address) {
+    function getTargetToken(address sourceToken, uint256 sourceChain) external view returns (address) {
         return tokenMappings[sourceToken][sourceChain];
     }
 
@@ -614,5 +565,5 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Allow contract to receive ETH
      */
-    receive() external payable {}
+    receive() external payable { }
 }

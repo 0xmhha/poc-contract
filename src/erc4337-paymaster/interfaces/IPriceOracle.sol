@@ -22,9 +22,7 @@ interface IPriceOracle {
      * @return price The price with 18 decimals precision
      * @return updatedAt Timestamp of last price update
      */
-    function getPriceWithTimestamp(
-        address token
-    ) external view returns (uint256 price, uint256 updatedAt);
+    function getPriceWithTimestamp(address token) external view returns (uint256 price, uint256 updatedAt);
 
     /**
      * @notice Check if the oracle has a valid price for a token

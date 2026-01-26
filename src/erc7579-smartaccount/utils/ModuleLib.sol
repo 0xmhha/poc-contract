@@ -2,8 +2,8 @@
 
 pragma solidity ^0.8.0;
 
-import {ExcessivelySafeCall} from "ExcessivelySafeCall/ExcessivelySafeCall.sol";
-import {IModule} from "../interfaces/IERC7579Modules.sol";
+import { ExcessivelySafeCall } from "ExcessivelySafeCall/ExcessivelySafeCall.sol";
+import { IModule } from "../interfaces/IERC7579Modules.sol";
 
 library ModuleLib {
     event ModuleUninstallResult(address module, bool result);

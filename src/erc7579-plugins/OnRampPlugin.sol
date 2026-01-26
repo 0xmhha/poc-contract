@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IExecutor} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {MODULE_TYPE_EXECUTOR} from "../erc7579-smartaccount/types/Constants.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ECDSA} from "solady/utils/ECDSA.sol";
+import { IExecutor } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { MODULE_TYPE_EXECUTOR } from "../erc7579-smartaccount/types/Constants.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
 
 /**
  * @title OnRampPlugin
@@ -55,16 +55,16 @@ contract OnRampPlugin is IExecutor {
     /// @notice KYC level
     enum KYCLevel {
         NONE,
-        BASIC,      // Email + Phone
-        STANDARD,   // ID verification
-        ENHANCED    // Full verification
+        BASIC, // Email + Phone
+        STANDARD, // ID verification
+        ENHANCED // Full verification
     }
 
     /// @notice Provider configuration
     struct Provider {
         string name;
-        address signer;           // Address that signs completed orders
-        address tokenAddress;     // Token this provider delivers
+        address signer; // Address that signs completed orders
+        address tokenAddress; // Token this provider delivers
         ProviderStatus status;
         uint256 minAmount;
         uint256 maxAmount;
@@ -76,13 +76,13 @@ contract OnRampPlugin is IExecutor {
 
     /// @notice On-ramp order
     struct Order {
-        bytes32 orderId;          // External order ID from provider
+        bytes32 orderId; // External order ID from provider
         uint256 providerId;
         address recipient;
-        uint256 fiatAmount;       // Amount in fiat (scaled by 100 for cents)
-        string fiatCurrency;      // e.g., "USD", "EUR", "KRW"
-        uint256 cryptoAmount;     // Amount of crypto to deliver
-        uint256 exchangeRate;     // Rate at time of order (18 decimals)
+        uint256 fiatAmount; // Amount in fiat (scaled by 100 for cents)
+        string fiatCurrency; // e.g., "USD", "EUR", "KRW"
+        uint256 cryptoAmount; // Amount of crypto to deliver
+        uint256 exchangeRate; // Rate at time of order (18 decimals)
         OrderStatus status;
         uint256 createdAt;
         uint256 completedAt;
@@ -92,7 +92,7 @@ contract OnRampPlugin is IExecutor {
     struct UserKyc {
         KYCLevel level;
         uint256 verifiedAt;
-        bytes32 verificationHash;  // Hash of KYC documents
+        bytes32 verificationHash; // Hash of KYC documents
         bool isBlacklisted;
     }
 
@@ -122,7 +122,7 @@ contract OnRampPlugin is IExecutor {
     uint256 public orderExpiry;
 
     /// @notice Basis points
-    uint256 public constant BASIS_POINTS = 10000;
+    uint256 public constant BASIS_POINTS = 10_000;
 
     // Events
     event ProviderAdded(uint256 indexed providerId, string name, address signer);
@@ -134,12 +134,7 @@ contract OnRampPlugin is IExecutor {
         uint256 fiatAmount,
         uint256 cryptoAmount
     );
-    event OrderCompleted(
-        bytes32 indexed orderId,
-        address indexed recipient,
-        uint256 cryptoAmount,
-        uint256 fee
-    );
+    event OrderCompleted(bytes32 indexed orderId, address indexed recipient, uint256 cryptoAmount, uint256 fee);
     event OrderCancelled(bytes32 indexed orderId);
     event KYCUpdated(address indexed user, KYCLevel level);
 
@@ -162,11 +157,7 @@ contract OnRampPlugin is IExecutor {
      * @param _feeBps Fee in basis points
      * @param _orderExpiry Order expiry time in seconds
      */
-    constructor(
-        address _treasury,
-        uint256 _feeBps,
-        uint256 _orderExpiry
-    ) {
+    constructor(address _treasury, uint256 _feeBps, uint256 _orderExpiry) {
         if (_treasury == address(0)) revert ZeroAddress();
         treasury = _treasury;
         feeBps = _feeBps;
@@ -259,12 +250,7 @@ contract OnRampPlugin is IExecutor {
      * @param maxAmount New maximum
      * @param dailyLimit New daily limit
      */
-    function setProviderLimits(
-        uint256 providerId,
-        uint256 minAmount,
-        uint256 maxAmount,
-        uint256 dailyLimit
-    ) external {
+    function setProviderLimits(uint256 providerId, uint256 minAmount, uint256 maxAmount, uint256 dailyLimit) external {
         Provider storage provider = providers[providerId];
         provider.minAmount = minAmount;
         provider.maxAmount = maxAmount;
@@ -279,16 +265,9 @@ contract OnRampPlugin is IExecutor {
      * @param level KYC level
      * @param verificationHash Hash of verification documents
      */
-    function setUserKyc(
-        address user,
-        KYCLevel level,
-        bytes32 verificationHash
-    ) external {
+    function setUserKyc(address user, KYCLevel level, bytes32 verificationHash) external {
         userKyc[user] = UserKyc({
-            level: level,
-            verifiedAt: block.timestamp,
-            verificationHash: verificationHash,
-            isBlacklisted: false
+            level: level, verifiedAt: block.timestamp, verificationHash: verificationHash, isBlacklisted: false
         });
 
         emit KYCUpdated(user, level);
@@ -382,17 +361,9 @@ contract OnRampPlugin is IExecutor {
 
         // Verify signature
         // forge-lint: disable-next-line(asm-keccak256)
-        bytes32 messageHash = keccak256(abi.encodePacked(
-            orderId,
-            order.recipient,
-            order.cryptoAmount,
-            block.chainid
-        ));
+        bytes32 messageHash = keccak256(abi.encodePacked(orderId, order.recipient, order.cryptoAmount, block.chainid));
 
-        address recovered = ECDSA.recover(
-            ECDSA.toEthSignedMessageHash(messageHash),
-            signature
-        );
+        address recovered = ECDSA.recover(ECDSA.toEthSignedMessageHash(messageHash), signature);
 
         if (recovered != provider.signer) revert InvalidSignature();
 
@@ -512,10 +483,7 @@ contract OnRampPlugin is IExecutor {
 
     // ============ Internal Functions ============
 
-    function _checkAndUpdateDailyLimit(
-        Provider storage provider,
-        uint256 amount
-    ) internal {
+    function _checkAndUpdateDailyLimit(Provider storage provider, uint256 amount) internal {
         // Reset daily limit if 24 hours passed
         if (block.timestamp >= provider.lastResetTime + 1 days) {
             provider.dailyUsed = 0;

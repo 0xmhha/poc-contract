@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IFallback, IModule} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {MODULE_TYPE_FALLBACK} from "../erc7579-smartaccount/types/Constants.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IFallback, IModule } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { MODULE_TYPE_FALLBACK } from "../erc7579-smartaccount/types/Constants.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title FlashLoanFallback
@@ -34,15 +34,15 @@ contract FlashLoanFallback is IFallback {
 
     /// @notice Configuration for each smart account
     struct AccountConfig {
-        bool requireWhitelistedProtocol;  // Only allow whitelisted protocols
-        bool logFlashLoans;               // Log all flash loan operations
+        bool requireWhitelistedProtocol; // Only allow whitelisted protocols
+        bool logFlashLoans; // Log all flash loan operations
         bool isEnabled;
     }
 
     /// @notice Flash loan callback data
     struct FlashLoanCallback {
-        address target;        // Contract to call
-        bytes callData;        // Data to execute
+        address target; // Contract to call
+        bytes callData; // Data to execute
         bool executeAfterRepay; // Execute after repayment (for post-callbacks)
     }
 
@@ -60,8 +60,8 @@ contract FlashLoanFallback is IFallback {
     /// @notice Storage for each smart account
     struct AccountStorage {
         AccountConfig config;
-        mapping(address => bool) protocolWhitelist;  // Whitelisted flash loan providers
-        mapping(bytes32 => FlashLoanCallback) callbacks;  // Pending callbacks by hash
+        mapping(address => bool) protocolWhitelist; // Whitelisted flash loan providers
+        mapping(bytes32 => FlashLoanCallback) callbacks; // Pending callbacks by hash
         FlashLoanLog[] flashLoanLogs;
     }
 
@@ -73,11 +73,7 @@ contract FlashLoanFallback is IFallback {
 
     // Events
     event FlashLoanExecuted(
-        address indexed account,
-        address indexed protocol,
-        address[] tokens,
-        uint256[] amounts,
-        uint256[] premiums
+        address indexed account, address indexed protocol, address[] tokens, uint256[] amounts, uint256[] premiums
     );
     event ProtocolWhitelistUpdated(address indexed account, address indexed protocol, bool isWhitelisted);
     event ConfigUpdated(address indexed account, bool requireWhitelist, bool logFlashLoans);
@@ -97,17 +93,12 @@ contract FlashLoanFallback is IFallback {
     function onInstall(bytes calldata data) external payable override {
         if (data.length == 0) {
             // Default: require whitelist, log enabled
-            accountStorage[msg.sender].config = AccountConfig({
-                requireWhitelistedProtocol: true,
-                logFlashLoans: true,
-                isEnabled: true
-            });
+            accountStorage[msg.sender].config =
+                AccountConfig({ requireWhitelistedProtocol: true, logFlashLoans: true, isEnabled: true });
         } else {
             (bool requireWhitelist, bool logFlashLoans) = abi.decode(data, (bool, bool));
             accountStorage[msg.sender].config = AccountConfig({
-                requireWhitelistedProtocol: requireWhitelist,
-                logFlashLoans: logFlashLoans,
-                isEnabled: true
+                requireWhitelistedProtocol: requireWhitelist, logFlashLoans: logFlashLoans, isEnabled: true
             });
         }
 
@@ -181,23 +172,14 @@ contract FlashLoanFallback is IFallback {
      * @param fee1 Fee amount for token1
      * @param data Encoded parameters for the operation
      */
-    function uniswapV3FlashCallback(
-        uint256 fee0,
-        uint256 fee1,
-        bytes calldata data
-    ) external {
+    function uniswapV3FlashCallback(uint256 fee0, uint256 fee1, bytes calldata data) external {
         (address protocol, address smartAccount) = _extractContext();
 
         _validateProtocol(smartAccount, protocol);
 
         // Decode callback data
-        (
-            address token0,
-            address token1,
-            uint256 amount0,
-            uint256 amount1,
-            bytes memory callbackData
-        ) = abi.decode(data, (address, address, uint256, uint256, bytes));
+        (address token0, address token1, uint256 amount0, uint256 amount1, bytes memory callbackData) =
+            abi.decode(data, (address, address, uint256, uint256, bytes));
 
         // Execute callback if provided
         if (callbackData.length > 0) {
@@ -270,13 +252,10 @@ contract FlashLoanFallback is IFallback {
      * @param data Encoded parameters for the operation
      * @return bytes32 The callback success value
      */
-    function onFlashLoan(
-        address initiator,
-        address token,
-        uint256 amount,
-        uint256 fee,
-        bytes calldata data
-    ) external returns (bytes32) {
+    function onFlashLoan(address initiator, address token, uint256 amount, uint256 fee, bytes calldata data)
+        external
+        returns (bytes32)
+    {
         (address protocol, address smartAccount) = _extractContext();
 
         _validateProtocol(smartAccount, protocol);
@@ -357,17 +336,11 @@ contract FlashLoanFallback is IFallback {
      * @param callData Data to execute
      * @param executeAfterRepay Whether to execute after repayment
      */
-    function registerCallback(
-        bytes32 callbackId,
-        address target,
-        bytes calldata callData,
-        bool executeAfterRepay
-    ) external {
-        accountStorage[msg.sender].callbacks[callbackId] = FlashLoanCallback({
-            target: target,
-            callData: callData,
-            executeAfterRepay: executeAfterRepay
-        });
+    function registerCallback(bytes32 callbackId, address target, bytes calldata callData, bool executeAfterRepay)
+        external
+    {
+        accountStorage[msg.sender].callbacks[callbackId] =
+            FlashLoanCallback({ target: target, callData: callData, executeAfterRepay: executeAfterRepay });
 
         emit CallbackRegistered(msg.sender, callbackId);
     }
@@ -450,11 +423,11 @@ contract FlashLoanFallback is IFallback {
      * @param startIndex Start index (inclusive)
      * @param endIndex End index (exclusive)
      */
-    function getFlashLoanLogs(
-        address account,
-        uint256 startIndex,
-        uint256 endIndex
-    ) external view returns (FlashLoanLog[] memory logs) {
+    function getFlashLoanLogs(address account, uint256 startIndex, uint256 endIndex)
+        external
+        view
+        returns (FlashLoanLog[] memory logs)
+    {
         AccountStorage storage store = accountStorage[account];
         uint256 length = store.flashLoanLogs.length;
 
@@ -535,15 +508,18 @@ contract FlashLoanFallback is IFallback {
         AccountStorage storage store = accountStorage[smartAccount];
 
         if (store.config.logFlashLoans) {
-            store.flashLoanLogs.push(FlashLoanLog({
-                timestamp: block.timestamp,
-                protocol: protocol,
-                tokens: tokens,
-                amounts: amounts,
-                premiums: premiums,
-                initiatorHash: keccak256(abi.encodePacked(initiator)),
-                success: success
-            }));
+            store.flashLoanLogs
+            .push(
+                FlashLoanLog({
+                    timestamp: block.timestamp,
+                    protocol: protocol,
+                    tokens: tokens,
+                    amounts: amounts,
+                    premiums: premiums,
+                    initiatorHash: keccak256(abi.encodePacked(initiator)),
+                    success: success
+                })
+            );
 
             emit FlashLoanExecuted(smartAccount, protocol, tokens, amounts, premiums);
         }

@@ -3,8 +3,8 @@
 
 pragma solidity ^0.8.20;
 
-import {Panic} from "../Panic.sol";
-import {SafeCast} from "./SafeCast.sol";
+import { Panic } from "../Panic.sol";
+import { SafeCast } from "./SafeCast.sol";
 
 /**
  * @dev Standard math utilities missing in the Solidity language.
@@ -218,9 +218,9 @@ library Math {
                 Panic.panic(ternary(denominator == 0, Panic.DIVISION_BY_ZERO, Panic.UNDER_OVERFLOW));
             }
 
-            ///////////////////////////////////////////////
+            // /////////////////////////////////////////////
             // 512 by 256 division.
-            ///////////////////////////////////////////////
+            // /////////////////////////////////////////////
 
             // Make division exact by subtracting the remainder from [high low].
             uint256 remainder;
@@ -251,8 +251,10 @@ library Math {
             // Shift in bits from high into low.
             low |= high * twos;
 
-            // Invert denominator mod 2²⁵⁶. Now that denominator is an odd number, it has an inverse modulo 2²⁵⁶ such
-            // that denominator * inv ≡ 1 mod 2²⁵⁶. Compute the inverse by starting with a seed that is correct for
+            // Invert denominator mod 2²⁵⁶. Now that denominator is an odd number, it has an inverse modulo
+            // 2²⁵⁶ such
+            // that denominator * inv ≡ 1 mod 2²⁵⁶. Compute the inverse by starting with a seed that is correct
+            // for
             // four bits. That is, denominator * inv ≡ 1 mod 2⁴.
             uint256 inverse = (3 * denominator) ^ 2;
 
@@ -266,8 +268,10 @@ library Math {
             inverse *= 2 - denominator * inverse; // inverse mod 2²⁵⁶
 
             // Because the division is now exact we can divide by multiplying with the modular inverse of denominator.
-            // This will give us the correct result modulo 2²⁵⁶. Since the preconditions guarantee that the outcome is
-            // less than 2²⁵⁶, this is the final result. We don't need to compute the high bits of the result and high
+            // This will give us the correct result modulo 2²⁵⁶. Since the preconditions guarantee that the outcome
+            // is
+            // less than 2²⁵⁶, this is the final result. We don't need to compute the high bits of the result and
+            // high
             // is no longer required.
             result = low * inverse;
             return result;
@@ -410,11 +414,11 @@ library Math {
         if (m == 0) return (false, 0);
         assembly ("memory-safe") {
             let ptr := mload(0x40)
-            // | Offset    | Content    | Content (Hex)                                                      |
+            // | Offset | Content | Content (Hex) |
             // |-----------|------------|--------------------------------------------------------------------|
-            // | 0x00:0x1f | size of b  | 0x0000000000000000000000000000000000000000000000000000000000000020 |
-            // | 0x20:0x3f | size of e  | 0x0000000000000000000000000000000000000000000000000000000000000020 |
-            // | 0x40:0x5f | size of m  | 0x0000000000000000000000000000000000000000000000000000000000000020 |
+            // | 0x00:0x1f | size of b | 0x0000000000000000000000000000000000000000000000000000000000000020 |
+            // | 0x20:0x3f | size of e | 0x0000000000000000000000000000000000000000000000000000000000000020 |
+            // | 0x40:0x5f | size of m | 0x0000000000000000000000000000000000000000000000000000000000000020 |
             // | 0x60:0x7f | value of b | 0x<.............................................................b> |
             // | 0x80:0x9f | value of e | 0x<.............................................................e> |
             // | 0xa0:0xbf | value of m | 0x<.............................................................m> |
@@ -446,11 +450,11 @@ library Math {
     /**
      * @dev Variant of {tryModExp} that supports inputs of arbitrary length.
      */
-    function tryModExp(
-        bytes memory b,
-        bytes memory e,
-        bytes memory m
-    ) internal view returns (bool success, bytes memory result) {
+    function tryModExp(bytes memory b, bytes memory e, bytes memory m)
+        internal
+        view
+        returns (bool success, bytes memory result)
+    {
         if (_zeroBytes(m)) return (false, new bytes(0));
 
         uint256 mLen = m.length;
@@ -501,7 +505,8 @@ library Math {
             // the current value as `ε_n = | x_n - sqrt(a) |`.
             //
             // For our first estimation, we consider `e` the smallest power of 2 which is bigger than the square root
-            // of the target. (i.e. `2**(e-1) ≤ sqrt(a) < 2**e`). We know that `e ≤ 128` because `(2¹²⁸)² = 2²⁵⁶` is
+            // of the target. (i.e. `2**(e-1) ≤ sqrt(a) < 2**e`). We know that `e ≤ 128` because `(2¹²⁸)² =
+            // 2²⁵⁶` is
             // bigger than any uint256.
             //
             // By noticing that
@@ -551,42 +556,42 @@ library Math {
             //
             // One should note that:
             // x_{n+1}² - a = ((x_n + a / x_n) / 2)² - a
-            //              = ((x_n² + a) / (2 * x_n))² - a
-            //              = (x_n⁴ + 2 * a * x_n² + a²) / (4 * x_n²) - a
-            //              = (x_n⁴ + 2 * a * x_n² + a² - 4 * a * x_n²) / (4 * x_n²)
-            //              = (x_n⁴ - 2 * a * x_n² + a²) / (4 * x_n²)
-            //              = (x_n² - a)² / (2 * x_n)²
-            //              = ((x_n² - a) / (2 * x_n))²
-            //              ≥ 0
+            // = ((x_n² + a) / (2 * x_n))² - a
+            // = (x_n⁴ + 2 * a * x_n² + a²) / (4 * x_n²) - a
+            // = (x_n⁴ + 2 * a * x_n² + a² - 4 * a * x_n²) / (4 * x_n²)
+            // = (x_n⁴ - 2 * a * x_n² + a²) / (4 * x_n²)
+            // = (x_n² - a)² / (2 * x_n)²
+            // = ((x_n² - a) / (2 * x_n))²
+            // ≥ 0
             // Which proves that for all n ≥ 1, sqrt(a) ≤ x_n
             //
             // This gives us the proof of quadratic convergence of the sequence:
             // ε_{n+1} = | x_{n+1} - sqrt(a) |
-            //         = | (x_n + a / x_n) / 2 - sqrt(a) |
-            //         = | (x_n² + a - 2*x_n*sqrt(a)) / (2 * x_n) |
-            //         = | (x_n - sqrt(a))² / (2 * x_n) |
-            //         = | ε_n² / (2 * x_n) |
-            //         = ε_n² / | (2 * x_n) |
+            // = | (x_n + a / x_n) / 2 - sqrt(a) |
+            // = | (x_n² + a - 2*x_n*sqrt(a)) / (2 * x_n) |
+            // = | (x_n - sqrt(a))² / (2 * x_n) |
+            // = | ε_n² / (2 * x_n) |
+            // = ε_n² / | (2 * x_n) |
             //
             // For the first iteration, we have a special case where x_0 is known:
             // ε_1 = ε_0² / | (2 * x_0) |
-            //     ≤ (2**(e-2))² / (2 * (2**(e-1) + 2**(e-2)))
-            //     ≤ 2**(2*e-4) / (3 * 2**(e-1))
-            //     ≤ 2**(e-3) / 3
-            //     ≤ 2**(e-3-log2(3))
-            //     ≤ 2**(e-4.5)
+            // ≤ (2**(e-2))² / (2 * (2**(e-1) + 2**(e-2)))
+            // ≤ 2**(2*e-4) / (3 * 2**(e-1))
+            // ≤ 2**(e-3) / 3
+            // ≤ 2**(e-3-log2(3))
+            // ≤ 2**(e-4.5)
             //
             // For the following iterations, we use the fact that, 2**(e-1) ≤ sqrt(a) ≤ x_n:
             // ε_{n+1} = ε_n² / | (2 * x_n) |
-            //         ≤ (2**(e-k))² / (2 * 2**(e-1))
-            //         ≤ 2**(2*e-2*k) / 2**e
-            //         ≤ 2**(e-2*k)
-            xn = (xn + a / xn) >> 1; // ε_1 := | x_1 - sqrt(a) | ≤ 2**(e-4.5)  -- special case, see above
-            xn = (xn + a / xn) >> 1; // ε_2 := | x_2 - sqrt(a) | ≤ 2**(e-9)    -- general case with k = 4.5
-            xn = (xn + a / xn) >> 1; // ε_3 := | x_3 - sqrt(a) | ≤ 2**(e-18)   -- general case with k = 9
-            xn = (xn + a / xn) >> 1; // ε_4 := | x_4 - sqrt(a) | ≤ 2**(e-36)   -- general case with k = 18
-            xn = (xn + a / xn) >> 1; // ε_5 := | x_5 - sqrt(a) | ≤ 2**(e-72)   -- general case with k = 36
-            xn = (xn + a / xn) >> 1; // ε_6 := | x_6 - sqrt(a) | ≤ 2**(e-144)  -- general case with k = 72
+            // ≤ (2**(e-k))² / (2 * 2**(e-1))
+            // ≤ 2**(2*e-2*k) / 2**e
+            // ≤ 2**(e-2*k)
+            xn = (xn + a / xn) >> 1; // ε_1 := | x_1 - sqrt(a) | ≤ 2**(e-4.5) -- special case, see above
+            xn = (xn + a / xn) >> 1; // ε_2 := | x_2 - sqrt(a) | ≤ 2**(e-9) -- general case with k = 4.5
+            xn = (xn + a / xn) >> 1; // ε_3 := | x_3 - sqrt(a) | ≤ 2**(e-18) -- general case with k = 9
+            xn = (xn + a / xn) >> 1; // ε_4 := | x_4 - sqrt(a) | ≤ 2**(e-36) -- general case with k = 18
+            xn = (xn + a / xn) >> 1; // ε_5 := | x_5 - sqrt(a) | ≤ 2**(e-72) -- general case with k = 36
+            xn = (xn + a / xn) >> 1; // ε_6 := | x_6 - sqrt(a) | ≤ 2**(e-144) -- general case with k = 72
 
             // Because e ≤ 128 (as discussed during the first estimation phase), we know have reached a precision
             // ε_6 ≤ 2**(e-144) < 1. Given we're operating on integers, then we can ensure that xn is now either
@@ -611,13 +616,13 @@ library Math {
      */
     function log2(uint256 x) internal pure returns (uint256 r) {
         // If value has upper 128 bits set, log2 result is at least 128
-        r = SafeCast.toUint(x > 0xffffffffffffffffffffffffffffffff) << 7;
+        r = SafeCast.toUint(x > 0_xff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff) << 7;
         // If upper 64 bits of 128-bit half set, add 64 to result
-        r |= SafeCast.toUint((x >> r) > 0xffffffffffffffff) << 6;
+        r |= SafeCast.toUint((x >> r) > 0xf_fff_fff_fff_fff_fff) << 6;
         // If upper 32 bits of 64-bit half set, add 32 to result
-        r |= SafeCast.toUint((x >> r) > 0xffffffff) << 5;
+        r |= SafeCast.toUint((x >> r) > 0_xff_fff_fff) << 5;
         // If upper 16 bits of 32-bit half set, add 16 to result
-        r |= SafeCast.toUint((x >> r) > 0xffff) << 4;
+        r |= SafeCast.toUint((x >> r) > 0xf_fff) << 4;
         // If upper 8 bits of 16-bit half set, add 8 to result
         r |= SafeCast.toUint((x >> r) > 0xff) << 3;
         // If upper 4 bits of 8-bit half set, add 4 to result
@@ -625,28 +630,31 @@ library Math {
 
         // Shifts value right by the current result and use it as an index into this lookup table:
         //
-        // | x (4 bits) |  index  | table[index] = MSB position |
+        // | x (4 bits) | index | table[index] = MSB position |
         // |------------|---------|-----------------------------|
-        // |    0000    |    0    |        table[0] = 0         |
-        // |    0001    |    1    |        table[1] = 0         |
-        // |    0010    |    2    |        table[2] = 1         |
-        // |    0011    |    3    |        table[3] = 1         |
-        // |    0100    |    4    |        table[4] = 2         |
-        // |    0101    |    5    |        table[5] = 2         |
-        // |    0110    |    6    |        table[6] = 2         |
-        // |    0111    |    7    |        table[7] = 2         |
-        // |    1000    |    8    |        table[8] = 3         |
-        // |    1001    |    9    |        table[9] = 3         |
-        // |    1010    |   10    |        table[10] = 3        |
-        // |    1011    |   11    |        table[11] = 3        |
-        // |    1100    |   12    |        table[12] = 3        |
-        // |    1101    |   13    |        table[13] = 3        |
-        // |    1110    |   14    |        table[14] = 3        |
-        // |    1111    |   15    |        table[15] = 3        |
+        // | 0000 | 0 | table[0] = 0 |
+        // | 0001 | 1 | table[1] = 0 |
+        // | 0010 | 2 | table[2] = 1 |
+        // | 0011 | 3 | table[3] = 1 |
+        // | 0100 | 4 | table[4] = 2 |
+        // | 0101 | 5 | table[5] = 2 |
+        // | 0110 | 6 | table[6] = 2 |
+        // | 0111 | 7 | table[7] = 2 |
+        // | 1000 | 8 | table[8] = 3 |
+        // | 1001 | 9 | table[9] = 3 |
+        // | 1010 | 10 | table[10] = 3 |
+        // | 1011 | 11 | table[11] = 3 |
+        // | 1100 | 12 | table[12] = 3 |
+        // | 1101 | 13 | table[13] = 3 |
+        // | 1110 | 14 | table[14] = 3 |
+        // | 1111 | 15 | table[15] = 3 |
         //
         // The lookup table is represented as a 32-byte value with the MSB positions for 0-15 in the last 16 bytes.
         assembly ("memory-safe") {
-            r := or(r, byte(shr(r, x), 0x0000010102020202030303030303030300000000000000000000000000000000))
+            r := or(
+                r,
+                byte(shr(r, x), 0x0_000_010_102_020_202_030_303_030_303_030_300_000_000_000_000_000_000_000_000_000_000)
+            )
         }
     }
 
@@ -718,13 +726,13 @@ library Math {
      */
     function log256(uint256 x) internal pure returns (uint256 r) {
         // If value has upper 128 bits set, log2 result is at least 128
-        r = SafeCast.toUint(x > 0xffffffffffffffffffffffffffffffff) << 7;
+        r = SafeCast.toUint(x > 0_xff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff) << 7;
         // If upper 64 bits of 128-bit half set, add 64 to result
-        r |= SafeCast.toUint((x >> r) > 0xffffffffffffffff) << 6;
+        r |= SafeCast.toUint((x >> r) > 0xf_fff_fff_fff_fff_fff) << 6;
         // If upper 32 bits of 64-bit half set, add 32 to result
-        r |= SafeCast.toUint((x >> r) > 0xffffffff) << 5;
+        r |= SafeCast.toUint((x >> r) > 0_xff_fff_fff) << 5;
         // If upper 16 bits of 32-bit half set, add 16 to result
-        r |= SafeCast.toUint((x >> r) > 0xffff) << 4;
+        r |= SafeCast.toUint((x >> r) > 0xf_fff) << 4;
         // Add 1 if upper 8 bits of 16-bit half set, and divide accumulated result by 8
         return (r >> 3) | SafeCast.toUint((x >> r) > 0xff);
     }

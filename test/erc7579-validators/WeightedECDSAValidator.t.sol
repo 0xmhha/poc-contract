@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {WeightedECDSAValidator} from "../../src/erc7579-validators/WeightedECDSAValidator.sol";
-import {PackedUserOperation} from "../../src/erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { Test } from "forge-std/Test.sol";
+import { WeightedECDSAValidator } from "../../src/erc7579-validators/WeightedECDSAValidator.sol";
+import { PackedUserOperation } from "../../src/erc7579-smartaccount/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_FAILED_UINT,
     MODULE_TYPE_VALIDATOR,
     ERC1271_MAGICVALUE,
     ERC1271_INVALID
 } from "../../src/erc7579-smartaccount/types/Constants.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract WeightedECDSAValidatorTest is Test {
     using MessageHashUtils for bytes32;
@@ -20,9 +20,9 @@ contract WeightedECDSAValidatorTest is Test {
     address public smartAccount;
 
     // Guardian keys (sorted in descending order for installation)
-    uint256 public guardian1PrivateKey = 0x1111;
-    uint256 public guardian2PrivateKey = 0x2222;
-    uint256 public guardian3PrivateKey = 0x3333;
+    uint256 public guardian1PrivateKey = 0x1_111;
+    uint256 public guardian2PrivateKey = 0x2_222;
+    uint256 public guardian3PrivateKey = 0x3_333;
 
     address public guardian1;
     address public guardian2;
@@ -213,7 +213,7 @@ contract WeightedECDSAValidatorTest is Test {
         _installValidator();
 
         // Create new guardian set
-        uint256 newGuardianKey = 0x4444;
+        uint256 newGuardianKey = 0x4_444;
         address newGuardian = vm.addr(newGuardianKey);
 
         address[] memory newGuardians = new address[](1);
@@ -392,12 +392,11 @@ contract WeightedECDSAValidatorTest is Test {
             nonce: 0,
             initCode: "",
             callData: "",
-            accountGasLimits: bytes32(uint256(100000) << 128 | uint256(100000)),
-            preVerificationGas: 21000,
+            accountGasLimits: bytes32(uint256(100_000) << 128 | uint256(100_000)),
+            preVerificationGas: 21_000,
             gasFees: bytes32(uint256(1 gwei) << 128 | uint256(1 gwei)),
             paymasterAndData: "",
             signature: ""
         });
     }
-
 }

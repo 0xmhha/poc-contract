@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title AuditLogger
@@ -23,25 +23,25 @@ contract AuditLogger is AccessControl, ReentrancyGuard {
 
     // ============ Enums ============
     enum ActionType {
-        TRACE_REQUEST,       // 0 - Trace request created
-        TRACE_APPROVAL,      // 1 - Trace request approved
-        TRACE_EXECUTION,     // 2 - Trace request executed
-        DATA_ACCESS,         // 3 - Data accessed by regulator
-        REPORT_GENERATION,   // 4 - Compliance report generated
-        KYC_UPDATE,          // 5 - KYC status changed
-        RESERVE_VERIFY,      // 6 - Reserve verification performed
-        SANCTIONS_UPDATE,    // 7 - Sanctions list updated
-        CONFIG_CHANGE,       // 8 - System configuration changed
-        EMERGENCY_ACTION,    // 9 - Emergency action taken
-        CUSTOM               // 10 - Custom action type
+        TRACE_REQUEST, // 0 - Trace request created
+        TRACE_APPROVAL, // 1 - Trace request approved
+        TRACE_EXECUTION, // 2 - Trace request executed
+        DATA_ACCESS, // 3 - Data accessed by regulator
+        REPORT_GENERATION, // 4 - Compliance report generated
+        KYC_UPDATE, // 5 - KYC status changed
+        RESERVE_VERIFY, // 6 - Reserve verification performed
+        SANCTIONS_UPDATE, // 7 - Sanctions list updated
+        CONFIG_CHANGE, // 8 - System configuration changed
+        EMERGENCY_ACTION, // 9 - Emergency action taken
+        CUSTOM // 10 - Custom action type
     }
 
     enum Severity {
-        INFO,      // 0 - Informational
-        LOW,       // 1 - Low importance
-        MEDIUM,    // 2 - Medium importance
-        HIGH,      // 3 - High importance
-        CRITICAL   // 4 - Critical event
+        INFO, // 0 - Informational
+        LOW, // 1 - Low importance
+        MEDIUM, // 2 - Medium importance
+        HIGH, // 3 - High importance
+        CRITICAL // 4 - Critical event
     }
 
     // ============ Structs ============
@@ -51,12 +51,12 @@ contract AuditLogger is AccessControl, ReentrancyGuard {
         address actor;
         ActionType actionType;
         address targetAccount;
-        bytes32 dataHash;           // Hash of action data
+        bytes32 dataHash; // Hash of action data
         string jurisdiction;
-        bytes32 legalBasisHash;     // Hash of legal basis document
+        bytes32 legalBasisHash; // Hash of legal basis document
         Severity severity;
         string description;
-        bytes32 correlationId;      // Link related entries
+        bytes32 correlationId; // Link related entries
         bool isRegulatorAction;
     }
 
@@ -104,12 +104,7 @@ contract AuditLogger is AccessControl, ReentrancyGuard {
         bytes32 legalBasisHash
     );
 
-    event EmergencyLogged(
-        uint256 indexed logId,
-        address indexed actor,
-        string description,
-        Severity severity
-    );
+    event EmergencyLogged(uint256 indexed logId, address indexed actor, string description, Severity severity);
 
     event RetentionPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
 
@@ -207,9 +202,10 @@ contract AuditLogger is AccessControl, ReentrancyGuard {
         bytes32 legalBasisHash,
         uint256 traceRequestId
     ) external onlyRole(LOGGER_ROLE) nonReentrant returns (uint256 logId) {
-        if (actionType != ActionType.TRACE_REQUEST &&
-            actionType != ActionType.TRACE_APPROVAL &&
-            actionType != ActionType.TRACE_EXECUTION) {
+        if (
+            actionType != ActionType.TRACE_REQUEST && actionType != ActionType.TRACE_APPROVAL
+                && actionType != ActionType.TRACE_EXECUTION
+        ) {
             revert InvalidActionType();
         }
 
@@ -267,12 +263,12 @@ contract AuditLogger is AccessControl, ReentrancyGuard {
      * @param provider KYC provider address
      * @return logId The ID of the created log
      */
-    function logKycUpdate(
-        address account,
-        uint8 oldStatus,
-        uint8 newStatus,
-        address provider
-    ) external onlyRole(LOGGER_ROLE) nonReentrant returns (uint256 logId) {
+    function logKycUpdate(address account, uint8 oldStatus, uint8 newStatus, address provider)
+        external
+        onlyRole(LOGGER_ROLE)
+        nonReentrant
+        returns (uint256 logId)
+    {
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 dataHash = keccak256(abi.encodePacked(account, oldStatus, newStatus, provider, block.timestamp));
 
@@ -315,14 +311,15 @@ contract AuditLogger is AccessControl, ReentrancyGuard {
      * @param isHealthy Whether reserve is healthy
      * @return logId The ID of the created log
      */
-    function logReserveVerification(
-        uint256 totalSupply,
-        uint256 totalReserve,
-        uint256 reserveRatio,
-        bool isHealthy
-    ) external onlyRole(LOGGER_ROLE) nonReentrant returns (uint256 logId) {
+    function logReserveVerification(uint256 totalSupply, uint256 totalReserve, uint256 reserveRatio, bool isHealthy)
+        external
+        onlyRole(LOGGER_ROLE)
+        nonReentrant
+        returns (uint256 logId)
+    {
         // forge-lint: disable-next-line(asm-keccak256)
-        bytes32 dataHash = keccak256(abi.encodePacked(totalSupply, totalReserve, reserveRatio, isHealthy, block.timestamp));
+        bytes32 dataHash =
+            keccak256(abi.encodePacked(totalSupply, totalReserve, reserveRatio, isHealthy, block.timestamp));
 
         Severity severity = isHealthy ? Severity.INFO : Severity.CRITICAL;
         string memory description = isHealthy ? "Reserve verification passed" : "Reserve verification failed";
@@ -364,11 +361,12 @@ contract AuditLogger is AccessControl, ReentrancyGuard {
      * @param severity Severity level
      * @return logId The ID of the created log
      */
-    function logEmergencyAction(
-        address actor,
-        string calldata description,
-        Severity severity
-    ) external onlyRole(LOGGER_ROLE) nonReentrant returns (uint256 logId) {
+    function logEmergencyAction(address actor, string calldata description, Severity severity)
+        external
+        onlyRole(LOGGER_ROLE)
+        nonReentrant
+        returns (uint256 logId)
+    {
         if (bytes(description).length == 0) revert EmptyDescription();
 
         // forge-lint: disable-next-line(asm-keccak256)
@@ -413,12 +411,12 @@ contract AuditLogger is AccessControl, ReentrancyGuard {
      * @param legalBasisHash Legal basis for access
      * @return logId The ID of the created log
      */
-    function logDataAccess(
-        address regulator,
-        address targetAccount,
-        bytes32 dataType,
-        bytes32 legalBasisHash
-    ) external onlyRole(LOGGER_ROLE) nonReentrant returns (uint256 logId) {
+    function logDataAccess(address regulator, address targetAccount, bytes32 dataType, bytes32 legalBasisHash)
+        external
+        onlyRole(LOGGER_ROLE)
+        nonReentrant
+        returns (uint256 logId)
+    {
         if (regulator == address(0)) revert InvalidAddress();
         if (targetAccount == address(0)) revert InvalidAddress();
 
@@ -540,10 +538,7 @@ contract AuditLogger is AccessControl, ReentrancyGuard {
      * @param endTime End timestamp
      * @return logIds Array of log IDs in range
      */
-    function getLogsInRange(
-        uint256 startTime,
-        uint256 endTime
-    ) external view returns (uint256[] memory logIds) {
+    function getLogsInRange(uint256 startTime, uint256 endTime) external view returns (uint256[] memory logIds) {
         uint256 count = 0;
 
         // First pass: count matching logs
@@ -570,10 +565,7 @@ contract AuditLogger is AccessControl, ReentrancyGuard {
      * @param limit Maximum number of logs to return
      * @return logs Array of AuditLog structs
      */
-    function getRecentLogs(
-        uint256 offset,
-        uint256 limit
-    ) external view returns (AuditLog[] memory logs) {
+    function getRecentLogs(uint256 offset, uint256 limit) external view returns (AuditLog[] memory logs) {
         uint256 total = auditLogs.length;
         if (offset >= total) {
             return new AuditLog[](0);

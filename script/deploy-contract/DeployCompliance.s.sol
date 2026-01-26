@@ -2,12 +2,12 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {KYCRegistry} from "../../src/compliance/KYCRegistry.sol";
-import {AuditLogger} from "../../src/compliance/AuditLogger.sol";
-import {ProofOfReserve} from "../../src/compliance/ProofOfReserve.sol";
-import {RegulatoryRegistry} from "../../src/compliance/RegulatoryRegistry.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { KYCRegistry } from "../../src/compliance/KYCRegistry.sol";
+import { AuditLogger } from "../../src/compliance/AuditLogger.sol";
+import { ProofOfReserve } from "../../src/compliance/ProofOfReserve.sol";
+import { RegulatoryRegistry } from "../../src/compliance/RegulatoryRegistry.sol";
 
 /**
  * @title DeployComplianceScript
@@ -42,7 +42,7 @@ contract DeployComplianceScript is DeploymentHelper {
     uint256 constant DEFAULT_RETENTION_PERIOD = 7 * 365 days; // 7 years
     uint256 constant DEFAULT_AUTO_PAUSE_THRESHOLD = 3;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();

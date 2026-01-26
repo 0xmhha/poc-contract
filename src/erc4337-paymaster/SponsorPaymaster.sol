@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BasePaymaster} from "./BasePaymaster.sol";
-import {IEntryPoint} from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
-import {PackedUserOperation} from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
-import {UserOperationLib} from "../erc4337-entrypoint/UserOperationLib.sol";
-import {ECDSA} from "solady/utils/ECDSA.sol";
+import { BasePaymaster } from "./BasePaymaster.sol";
+import { IEntryPoint } from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
+import { PackedUserOperation } from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
+import { UserOperationLib } from "../erc4337-entrypoint/UserOperationLib.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
 
 /**
  * @title SponsorPaymaster
@@ -23,8 +23,8 @@ import {ECDSA} from "solady/utils/ECDSA.sol";
  * - Protocol subsidies for important operations
  *
  * PaymasterData format for Signature Mode:
- *   [0:8]   - validUntil (uint48)
- *   [8:16]  - validAfter (uint48)
+ *   [0:8] - validUntil (uint48)
+ *   [8:16] - validAfter (uint48)
  *   [16:20] - sponsorshipType (uint32)
  *   [20:84] - sponsor signature (64 bytes)
  */
@@ -34,10 +34,10 @@ contract SponsorPaymaster is BasePaymaster {
 
     /// @notice Sponsorship types
     enum SponsorshipType {
-        WHITELIST,      // 0: Simple whitelist
-        SIGNATURE,      // 1: Requires sponsor signature
-        BUDGET,         // 2: Budget-limited sponsorship
-        CAMPAIGN        // 3: Time-limited campaign
+        WHITELIST, // 0: Simple whitelist
+        SIGNATURE, // 1: Requires sponsor signature
+        BUDGET, // 2: Budget-limited sponsorship
+        CAMPAIGN // 3: Time-limited campaign
     }
 
     /// @notice User budget tracking
@@ -57,8 +57,8 @@ contract SponsorPaymaster is BasePaymaster {
         uint256 spent;
         uint256 maxPerUser;
         bool isActive;
-        bytes4 targetSelector;    // Optional: only sponsor specific functions
-        address targetContract;   // Optional: only sponsor calls to specific contract
+        bytes4 targetSelector; // Optional: only sponsor specific functions
+        address targetContract; // Optional: only sponsor calls to specific contract
     }
 
     /// @notice Signer for signature mode
@@ -94,12 +94,7 @@ contract SponsorPaymaster is BasePaymaster {
     event UserBudgetSet(address indexed user, uint256 limit, uint256 periodDuration);
     event CampaignCreated(uint256 indexed campaignId, string name, uint256 budget);
     event CampaignUpdated(uint256 indexed campaignId, bool isActive);
-    event GasSponsored(
-        address indexed user,
-        SponsorshipType sponsorshipType,
-        uint256 gasCost,
-        uint256 campaignId
-    );
+    event GasSponsored(address indexed user, SponsorshipType sponsorshipType, uint256 gasCost, uint256 campaignId);
 
     // Errors
     error NotWhitelisted();
@@ -117,11 +112,7 @@ contract SponsorPaymaster is BasePaymaster {
      * @param _owner The owner address
      * @param _signer The signer for signature mode
      */
-    constructor(
-        IEntryPoint _entryPoint,
-        address _owner,
-        address _signer
-    ) BasePaymaster(_entryPoint, _owner) {
+    constructor(IEntryPoint _entryPoint, address _owner, address _signer) BasePaymaster(_entryPoint, _owner) {
         signer = _signer;
         defaultBudgetPeriod = 1 days;
         defaultBudgetLimit = 0.1 ether; // Default: 0.1 ETH per day
@@ -164,10 +155,7 @@ contract SponsorPaymaster is BasePaymaster {
      * @param accounts Array of addresses
      * @param allowed Whether to whitelist all
      */
-    function setWhitelistBatch(
-        address[] calldata accounts,
-        bool allowed
-    ) external onlyOwner {
+    function setWhitelistBatch(address[] calldata accounts, bool allowed) external onlyOwner {
         for (uint256 i = 0; i < accounts.length; i++) {
             whitelist[accounts[i]] = allowed;
             emit WhitelistUpdated(accounts[i], allowed);
@@ -180,17 +168,9 @@ contract SponsorPaymaster is BasePaymaster {
      * @param limit Budget limit
      * @param periodDuration Budget period in seconds
      */
-    function setUserBudget(
-        address user,
-        uint256 limit,
-        uint256 periodDuration
-    ) external onlyOwner {
-        userBudgets[user] = UserBudget({
-            spent: 0,
-            limit: limit,
-            periodStart: block.timestamp,
-            periodDuration: periodDuration
-        });
+    function setUserBudget(address user, uint256 limit, uint256 periodDuration) external onlyOwner {
+        userBudgets[user] =
+            UserBudget({ spent: 0, limit: limit, periodStart: block.timestamp, periodDuration: periodDuration });
         emit UserBudgetSet(user, limit, periodDuration);
     }
 
@@ -252,11 +232,11 @@ contract SponsorPaymaster is BasePaymaster {
      * @return context Encoded context for postOp
      * @return validationData Validation result with time range
      */
-    function _validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 maxCost
-    ) internal override returns (bytes memory context, uint256 validationData) {
+    function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+        internal
+        override
+        returns (bytes memory context, uint256 validationData)
+    {
         bytes calldata paymasterData = _parsePaymasterData(userOp.paymasterAndData);
 
         // Determine sponsorship type from data
@@ -279,12 +259,7 @@ contract SponsorPaymaster is BasePaymaster {
                 // Verify signature
                 bytes memory sig = paymasterData[16:80];
                 // forge-lint: disable-next-line(asm-keccak256)
-                bytes32 hash = keccak256(abi.encode(
-                    userOp.sender,
-                    nonces[userOp.sender]++,
-                    validUntil,
-                    validAfter
-                ));
+                bytes32 hash = keccak256(abi.encode(userOp.sender, nonces[userOp.sender]++, validUntil, validAfter));
 
                 if (signer != ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig)) {
                     return ("", _packValidationDataFailure(validUntil, validAfter));
@@ -323,24 +298,18 @@ contract SponsorPaymaster is BasePaymaster {
      * @param actualGasCost Actual gas cost
      * @param actualUserOpFeePerGas Actual fee per gas
      */
-    function _postOp(
-        PostOpMode mode,
-        bytes calldata context,
-        uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
-    ) internal override {
+    function _postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+        internal
+        override
+    {
         (actualUserOpFeePerGas); // silence unused warning
 
         if (mode == PostOpMode.postOpReverted) {
             return;
         }
 
-        (
-            address user,
-            SponsorshipType sponsorType,
-            uint256 maxCost,
-            uint256 campaignId
-        ) = abi.decode(context, (address, SponsorshipType, uint256, uint256));
+        (address user, SponsorshipType sponsorType, uint256 maxCost, uint256 campaignId) =
+            abi.decode(context, (address, SponsorshipType, uint256, uint256));
 
         (maxCost); // silence unused warning
 
@@ -357,10 +326,7 @@ contract SponsorPaymaster is BasePaymaster {
 
     // ============ Internal Helpers ============
 
-    function _checkAndUpdateBudget(
-        address user,
-        uint256 amount
-    ) internal returns (bool) {
+    function _checkAndUpdateBudget(address user, uint256 amount) internal returns (bool) {
         UserBudget storage budget = userBudgets[user];
 
         // Initialize default budget if not set
@@ -384,11 +350,11 @@ contract SponsorPaymaster is BasePaymaster {
         return true;
     }
 
-    function _validateCampaign(
-        uint256 campaignId,
-        PackedUserOperation calldata userOp,
-        uint256 maxCost
-    ) internal view returns (bool) {
+    function _validateCampaign(uint256 campaignId, PackedUserOperation calldata userOp, uint256 maxCost)
+        internal
+        view
+        returns (bool)
+    {
         Campaign storage campaign = campaigns[campaignId];
 
         // Check campaign is active
@@ -472,10 +438,7 @@ contract SponsorPaymaster is BasePaymaster {
      * @param campaignId The campaign ID
      * @param user The user address
      */
-    function getCampaignUserSpent(
-        uint256 campaignId,
-        address user
-    ) external view returns (uint256) {
+    function getCampaignUserSpent(uint256 campaignId, address user) external view returns (uint256) {
         return campaignUserSpent[campaignId][user];
     }
 
@@ -485,9 +448,7 @@ contract SponsorPaymaster is BasePaymaster {
      */
     function isCampaignValid(uint256 campaignId) external view returns (bool) {
         Campaign storage campaign = campaigns[campaignId];
-        return campaign.isActive &&
-               block.timestamp >= campaign.startTime &&
-               block.timestamp <= campaign.endTime &&
-               campaign.spent < campaign.totalBudget;
+        return campaign.isActive && block.timestamp >= campaign.startTime && block.timestamp <= campaign.endTime
+            && campaign.spent < campaign.totalBudget;
     }
 }

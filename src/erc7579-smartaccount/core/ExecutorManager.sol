@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.0;
 
-import {IHook, IExecutor, IModule} from "../interfaces/IERC7579Modules.sol";
-import {IERC7579Account} from "../interfaces/IERC7579Account.sol";
-import {EXECUTOR_MANAGER_STORAGE_SLOT, MODULE_TYPE_EXECUTOR} from "../types/Constants.sol";
+import { IHook, IExecutor, IModule } from "../interfaces/IERC7579Modules.sol";
+import { IERC7579Account } from "../interfaces/IERC7579Account.sol";
+import { EXECUTOR_MANAGER_STORAGE_SLOT, MODULE_TYPE_EXECUTOR } from "../types/Constants.sol";
 
 abstract contract ExecutorManager {
     struct ExecutorConfig {

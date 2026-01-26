@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IExecutor} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {IERC7579Account} from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
-import {MODULE_TYPE_EXECUTOR} from "../erc7579-smartaccount/types/Constants.sol";
-import {ExecMode} from "../erc7579-smartaccount/types/Types.sol";
-import {IPriceOracle} from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { IExecutor } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { IERC7579Account } from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
+import { MODULE_TYPE_EXECUTOR } from "../erc7579-smartaccount/types/Constants.sol";
+import { ExecMode } from "../erc7579-smartaccount/types/Types.sol";
+import { IPriceOracle } from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
 
 /**
  * @title AutoSwapPlugin
@@ -32,12 +32,12 @@ import {IPriceOracle} from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
 contract AutoSwapPlugin is IExecutor {
     /// @notice Order types
     enum OrderType {
-        DCA,            // 0: Dollar Cost Averaging
-        LIMIT_BUY,      // 1: Buy when price drops to target
-        LIMIT_SELL,     // 2: Sell when price rises to target
-        STOP_LOSS,      // 3: Sell when price drops below threshold
-        TAKE_PROFIT,    // 4: Sell when price reaches profit target
-        TRAILING_STOP   // 5: Dynamic stop loss
+        DCA, // 0: Dollar Cost Averaging
+        LIMIT_BUY, // 1: Buy when price drops to target
+        LIMIT_SELL, // 2: Sell when price rises to target
+        STOP_LOSS, // 3: Sell when price drops below threshold
+        TAKE_PROFIT, // 4: Sell when price reaches profit target
+        TRAILING_STOP // 5: Dynamic stop loss
     }
 
     /// @notice Order status
@@ -54,15 +54,15 @@ contract AutoSwapPlugin is IExecutor {
         OrderStatus status;
         address tokenIn;
         address tokenOut;
-        uint256 amountIn;           // Amount per execution (for DCA) or total (for others)
-        uint256 amountOutMin;       // Minimum output (slippage protection)
-        uint256 targetPrice;        // Price trigger (in tokenOut per tokenIn, 18 decimals)
-        uint256 interval;           // For DCA: time between executions
+        uint256 amountIn; // Amount per execution (for DCA) or total (for others)
+        uint256 amountOutMin; // Minimum output (slippage protection)
+        uint256 targetPrice; // Price trigger (in tokenOut per tokenIn, 18 decimals)
+        uint256 interval; // For DCA: time between executions
         uint256 lastExecutionTime;
         uint256 executionsRemaining; // For DCA: remaining executions (0 = unlimited)
-        uint256 expiry;             // Order expiration timestamp (0 = no expiry)
-        uint256 trailingPercent;    // For trailing stop: percentage below peak (basis points)
-        uint256 peakPrice;          // For trailing stop: highest observed price
+        uint256 expiry; // Order expiration timestamp (0 = no expiry)
+        uint256 trailingPercent; // For trailing stop: percentage below peak (basis points)
+        uint256 peakPrice; // For trailing stop: highest observed price
     }
 
     /// @notice Account storage
@@ -82,7 +82,7 @@ contract AutoSwapPlugin is IExecutor {
     mapping(address => AccountStorage) internal accountStorage;
 
     /// @notice Basis points
-    uint256 public constant BASIS_POINTS = 10000;
+    uint256 public constant BASIS_POINTS = 10_000;
 
     /// @notice Price precision
     uint256 public constant PRICE_PRECISION = 1e18;
@@ -97,11 +97,7 @@ contract AutoSwapPlugin is IExecutor {
         uint256 amountIn
     );
     event OrderExecuted(
-        address indexed account,
-        uint256 indexed orderId,
-        uint256 amountIn,
-        uint256 amountOut,
-        uint256 price
+        address indexed account, uint256 indexed orderId, uint256 amountIn, uint256 amountOut, uint256 price
     );
     event OrderCancelled(address indexed account, uint256 indexed orderId);
     event OrderExpired(address indexed account, uint256 indexed orderId);
@@ -185,7 +181,7 @@ contract AutoSwapPlugin is IExecutor {
             interval,
             executionCount,
             expiry,
-            0  // No trailing percent
+            0 // No trailing percent
         );
     }
 
@@ -220,7 +216,7 @@ contract AutoSwapPlugin is IExecutor {
             0, // No interval
             1, // Single execution
             expiry,
-            0  // No trailing percent
+            0 // No trailing percent
         );
     }
 
@@ -255,7 +251,7 @@ contract AutoSwapPlugin is IExecutor {
             0, // No interval
             1, // Single execution
             expiry,
-            0  // No trailing percent
+            0 // No trailing percent
         );
     }
 
@@ -290,7 +286,7 @@ contract AutoSwapPlugin is IExecutor {
             0, // No interval
             1, // Single execution
             expiry,
-            0  // No trailing percent
+            0 // No trailing percent
         );
     }
 
@@ -325,7 +321,7 @@ contract AutoSwapPlugin is IExecutor {
             0, // No interval
             1, // Single execution
             expiry,
-            0  // No trailing percent
+            0 // No trailing percent
         );
     }
 
@@ -460,10 +456,7 @@ contract AutoSwapPlugin is IExecutor {
      * @param account The smart account
      * @param orderIds Array of order IDs
      */
-    function executeOrderBatch(
-        address account,
-        uint256[] calldata orderIds
-    ) external returns (uint256 successCount) {
+    function executeOrderBatch(address account, uint256[] calldata orderIds) external returns (uint256 successCount) {
         for (uint256 i = 0; i < orderIds.length; i++) {
             try this.executeOrder(account, orderIds[i]) {
                 successCount++;
@@ -508,10 +501,7 @@ contract AutoSwapPlugin is IExecutor {
      * @param tokenIn Input token
      * @param tokenOut Output token
      */
-    function getCurrentPrice(
-        address tokenIn,
-        address tokenOut
-    ) external view returns (uint256) {
+    function getCurrentPrice(address tokenIn, address tokenOut) external view returns (uint256) {
         return _getCurrentPrice(tokenIn, tokenOut);
     }
 
@@ -587,10 +577,7 @@ contract AutoSwapPlugin is IExecutor {
         return false;
     }
 
-    function _getCurrentPrice(
-        address tokenIn,
-        address tokenOut
-    ) internal view returns (uint256) {
+    function _getCurrentPrice(address tokenIn, address tokenOut) internal view returns (uint256) {
         (uint256 priceIn,) = ORACLE.getPriceWithTimestamp(tokenIn);
         (uint256 priceOut,) = ORACLE.getPriceWithTimestamp(tokenOut);
 
@@ -599,10 +586,7 @@ contract AutoSwapPlugin is IExecutor {
         return (priceIn * PRICE_PRECISION) / priceOut;
     }
 
-    function _executeSwap(
-        address account,
-        Order storage order
-    ) internal returns (uint256 amountOut) {
+    function _executeSwap(address account, Order storage order) internal returns (uint256 amountOut) {
         // Build swap call data for DEX router
         // This is a simplified example - actual implementation would use the DEXIntegration contract
         bytes memory swapCall = abi.encodeWithSignature(
@@ -615,11 +599,7 @@ contract AutoSwapPlugin is IExecutor {
         );
 
         // Execute via smart account
-        bytes memory execData = abi.encodePacked(
-            DEX_ROUTER,
-            uint256(0),
-            swapCall
-        );
+        bytes memory execData = abi.encodePacked(DEX_ROUTER, uint256(0), swapCall);
 
         ExecMode execMode = ExecMode.wrap(bytes32(0));
         bytes[] memory results = IERC7579Account(account).executeFromExecutor(execMode, execData);

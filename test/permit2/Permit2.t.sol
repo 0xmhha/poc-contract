@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test, console} from "forge-std/Test.sol";
-import {Permit2} from "../../src/permit2/Permit2.sol";
-import {ISignatureTransfer} from "../../src/permit2/interfaces/ISignatureTransfer.sol";
-import {IAllowanceTransfer} from "../../src/permit2/interfaces/IAllowanceTransfer.sol";
-import {PermitHash} from "../../src/permit2/libraries/PermitHash.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { Permit2 } from "../../src/permit2/Permit2.sol";
+import { ISignatureTransfer } from "../../src/permit2/interfaces/ISignatureTransfer.sol";
+import { IAllowanceTransfer } from "../../src/permit2/interfaces/IAllowanceTransfer.sol";
+import { PermitHash } from "../../src/permit2/libraries/PermitHash.sol";
 
 // Mock ERC20 token for testing
 contract MockERC20 {
@@ -57,7 +57,7 @@ contract Permit2Test is Test {
 
     function setUp() public {
         // Setup accounts
-        ownerPrivateKey = 0xA11CE;
+        ownerPrivateKey = 0_xA1_1CE;
         owner = vm.addr(ownerPrivateKey);
         spender = makeAddr("spender");
         recipient = makeAddr("recipient");
@@ -74,7 +74,7 @@ contract Permit2Test is Test {
         token.approve(address(permit2), type(uint256).max);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             DEPLOYMENT TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -84,9 +84,8 @@ contract Permit2Test is Test {
     }
 
     function test_DomainSeparator() public view {
-        bytes32 expectedDomainSeparator = keccak256(
-            abi.encode(DOMAIN_TYPEHASH, keccak256("Permit2"), block.chainid, address(permit2))
-        );
+        bytes32 expectedDomainSeparator =
+            keccak256(abi.encode(DOMAIN_TYPEHASH, keccak256("Permit2"), block.chainid, address(permit2)));
         assertEq(permit2.DOMAIN_SEPARATOR(), expectedDomainSeparator);
     }
 
@@ -104,7 +103,7 @@ contract Permit2Test is Test {
         assertEq(newDomainSeparator, expected);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         ALLOWANCE TRANSFER TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -179,7 +178,7 @@ contract Permit2Test is Test {
 
         // Lockdown specific token approval
         IAllowanceTransfer.TokenSpenderPair[] memory approvals = new IAllowanceTransfer.TokenSpenderPair[](1);
-        approvals[0] = IAllowanceTransfer.TokenSpenderPair({token: address(token), spender: spender});
+        approvals[0] = IAllowanceTransfer.TokenSpenderPair({ token: address(token), spender: spender });
 
         vm.prank(owner);
         permit2.lockdown(approvals);
@@ -189,7 +188,7 @@ contract Permit2Test is Test {
         assertEq(allowedAmount, 0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         SIGNATURE TRANSFER TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -199,13 +198,13 @@ contract Permit2Test is Test {
         uint256 deadline = block.timestamp + 1 hours;
 
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: amount}),
+            permitted: ISignatureTransfer.TokenPermissions({ token: address(token), amount: amount }),
             nonce: nonce,
             deadline: deadline
         });
 
         ISignatureTransfer.SignatureTransferDetails memory transferDetails =
-            ISignatureTransfer.SignatureTransferDetails({to: recipient, requestedAmount: amount});
+            ISignatureTransfer.SignatureTransferDetails({ to: recipient, requestedAmount: amount });
 
         bytes memory signature = _signPermitTransferFrom(permit, spender);
 
@@ -222,13 +221,13 @@ contract Permit2Test is Test {
         uint256 deadline = block.timestamp - 1; // Expired
 
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: amount}),
+            permitted: ISignatureTransfer.TokenPermissions({ token: address(token), amount: amount }),
             nonce: nonce,
             deadline: deadline
         });
 
         ISignatureTransfer.SignatureTransferDetails memory transferDetails =
-            ISignatureTransfer.SignatureTransferDetails({to: recipient, requestedAmount: amount});
+            ISignatureTransfer.SignatureTransferDetails({ to: recipient, requestedAmount: amount });
 
         bytes memory signature = _signPermitTransferFrom(permit, spender);
 
@@ -243,13 +242,13 @@ contract Permit2Test is Test {
 
         // First transfer
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: amount}),
+            permitted: ISignatureTransfer.TokenPermissions({ token: address(token), amount: amount }),
             nonce: 0,
             deadline: deadline
         });
 
         ISignatureTransfer.SignatureTransferDetails memory transferDetails =
-            ISignatureTransfer.SignatureTransferDetails({to: recipient, requestedAmount: amount});
+            ISignatureTransfer.SignatureTransferDetails({ to: recipient, requestedAmount: amount });
 
         bytes memory signature = _signPermitTransferFrom(permit, spender);
 
@@ -278,13 +277,13 @@ contract Permit2Test is Test {
         uint256 deadline = block.timestamp + 1 hours;
 
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: amount}),
+            permitted: ISignatureTransfer.TokenPermissions({ token: address(token), amount: amount }),
             nonce: 0,
             deadline: deadline
         });
 
         ISignatureTransfer.SignatureTransferDetails memory transferDetails =
-            ISignatureTransfer.SignatureTransferDetails({to: recipient, requestedAmount: amount});
+            ISignatureTransfer.SignatureTransferDetails({ to: recipient, requestedAmount: amount });
 
         bytes memory signature = _signPermitTransferFrom(permit, spender);
 
@@ -293,7 +292,7 @@ contract Permit2Test is Test {
         permit2.permitTransferFrom(permit, transferDetails, owner, signature);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 

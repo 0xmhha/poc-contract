@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {SessionKeyExecutor} from "../../src/erc7579-executors/SessionKeyExecutor.sol";
-import {MockSmartAccount} from "./mocks/MockSmartAccount.sol";
-import {MockERC20} from "../erc4337-paymaster/mocks/MockERC20.sol";
-import {MODULE_TYPE_EXECUTOR} from "../../src/erc7579-smartaccount/types/Constants.sol";
+import { Test } from "forge-std/Test.sol";
+import { SessionKeyExecutor } from "../../src/erc7579-executors/SessionKeyExecutor.sol";
+import { MockSmartAccount } from "./mocks/MockSmartAccount.sol";
+import { MockERC20 } from "../erc4337-paymaster/mocks/MockERC20.sol";
+import { MODULE_TYPE_EXECUTOR } from "../../src/erc7579-smartaccount/types/Constants.sol";
 
 contract SessionKeyExecutorTest is Test {
     SessionKeyExecutor public executor;
@@ -23,7 +23,7 @@ contract SessionKeyExecutorTest is Test {
 
     function setUp() public {
         owner = makeAddr("owner");
-        sessionKeyPrivateKey = 0xBEEF;
+        sessionKeyPrivateKey = 0xB_EEF;
         sessionKey = vm.addr(sessionKeyPrivateKey);
         recipient = makeAddr("recipient");
 
@@ -47,21 +47,11 @@ contract SessionKeyExecutorTest is Test {
 
         // Prepare permissions
         SessionKeyExecutor.Permission[] memory perms = new SessionKeyExecutor.Permission[](1);
-        perms[0] = SessionKeyExecutor.Permission({
-            target: address(token),
-            selector: bytes4(0),
-            maxValue: 0,
-            allowed: true
-        });
+        perms[0] =
+            SessionKeyExecutor.Permission({ target: address(token), selector: bytes4(0), maxValue: 0, allowed: true });
 
         bytes memory permData = abi.encode(perms);
-        bytes memory installData = abi.encode(
-            sessionKey,
-            VALID_AFTER,
-            VALID_UNTIL,
-            SPENDING_LIMIT,
-            permData
-        );
+        bytes memory installData = abi.encode(sessionKey, VALID_AFTER, VALID_UNTIL, SPENDING_LIMIT, permData);
 
         vm.prank(address(newAccount));
         newAccount.installModule(MODULE_TYPE_EXECUTOR, address(newExecutor), installData);

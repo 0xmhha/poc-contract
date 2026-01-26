@@ -2,10 +2,10 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {ERC7715PermissionManager} from "../../src/subscription/ERC7715PermissionManager.sol";
-import {SubscriptionManager} from "../../src/subscription/SubscriptionManager.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { ERC7715PermissionManager } from "../../src/subscription/ERC7715PermissionManager.sol";
+import { SubscriptionManager } from "../../src/subscription/SubscriptionManager.sol";
 
 /**
  * @title DeploySubscriptionScript
@@ -24,14 +24,15 @@ import {SubscriptionManager} from "../../src/subscription/SubscriptionManager.so
  *   - Add SubscriptionManager as authorized executor in PermissionManager
  *
  * Usage:
- *   FOUNDRY_PROFILE=subscription forge script script/deploy-contract/DeploySubscription.s.sol:DeploySubscriptionScript \
+ *   FOUNDRY_PROFILE=subscription forge script script/deploy-contract/DeploySubscription.s.sol:DeploySubscriptionScript
+ * \
  *     --rpc-url <RPC_URL> --broadcast
  */
 contract DeploySubscriptionScript is DeploymentHelper {
     ERC7715PermissionManager public permissionManager;
     SubscriptionManager public subscriptionManager;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();

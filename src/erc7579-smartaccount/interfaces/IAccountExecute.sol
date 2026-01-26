@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.7.5;
 
-import {PackedUserOperation} from "./PackedUserOperation.sol";
+import { PackedUserOperation } from "./PackedUserOperation.sol";
 
 interface IAccountExecute {
     /**
@@ -10,8 +10,8 @@ interface IAccountExecute {
      * to the account.
      * The account should skip the methodSig, and use the callData (and optionally, other UserOp fields)
      *
-     * @param userOp              - The operation that was just validated.
-     * @param userOpHash          - Hash of the user's request data.
+     * @param userOp - The operation that was just validated.
+     * @param userOpHash - Hash of the user's request data.
      */
     function executeUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash) external payable;
 }

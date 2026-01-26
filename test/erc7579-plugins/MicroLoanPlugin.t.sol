@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {MicroLoanPlugin} from "../../src/erc7579-plugins/MicroLoanPlugin.sol";
-import {IPriceOracle} from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
-import {MODULE_TYPE_EXECUTOR} from "../../src/erc7579-smartaccount/types/Constants.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { MicroLoanPlugin } from "../../src/erc7579-plugins/MicroLoanPlugin.sol";
+import { IPriceOracle } from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { MODULE_TYPE_EXECUTOR } from "../../src/erc7579-smartaccount/types/Constants.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {
@@ -80,8 +80,8 @@ contract MicroLoanPluginTest is Test {
         plugin = new MicroLoanPlugin(
             oracle,
             feeRecipient,
-            500,   // 5% protocol fee
-            500    // 5% liquidation bonus
+            500, // 5% protocol fee
+            500 // 5% liquidation bonus
         );
 
         // Set prices (1:1 for simplicity)
@@ -89,9 +89,9 @@ contract MicroLoanPluginTest is Test {
         oracle.setPrice(address(collateralToken), 1e18);
 
         // Fund plugin with liquidity
-        borrowToken.mint(owner, 10000 ether);
-        borrowToken.approve(address(plugin), 10000 ether);
-        plugin.depositLiquidity(address(borrowToken), 10000 ether);
+        borrowToken.mint(owner, 10_000 ether);
+        borrowToken.approve(address(plugin), 10_000 ether);
+        plugin.depositLiquidity(address(borrowToken), 10_000 ether);
 
         // Fund borrower with collateral
         collateralToken.mint(borrower, 1000 ether);
@@ -100,11 +100,11 @@ contract MicroLoanPluginTest is Test {
         configId = plugin.createLoanConfig(
             address(borrowToken),
             address(collateralToken),
-            15000,           // 150% collateral ratio
-            1000,            // 10% annual interest
-            1000 ether,      // max loan
-            1 ether,         // min loan
-            30 days          // max duration
+            15_000, // 150% collateral ratio
+            1000, // 10% annual interest
+            1000 ether, // max loan
+            1 ether, // min loan
+            30 days // max duration
         );
         vm.stopPrank();
 
@@ -156,13 +156,7 @@ contract MicroLoanPluginTest is Test {
         vm.expectEmit(true, false, false, true);
         emit LoanConfigCreated(1, address(borrowToken), address(collateralToken));
         uint256 newConfigId = plugin.createLoanConfig(
-            address(borrowToken),
-            address(collateralToken),
-            12000,
-            800,
-            500 ether,
-            0.5 ether,
-            60 days
+            address(borrowToken), address(collateralToken), 12_000, 800, 500 ether, 0.5 ether, 60 days
         );
 
         assertEq(newConfigId, 1);
@@ -180,7 +174,7 @@ contract MicroLoanPluginTest is Test {
 
         assertEq(_borrowToken, address(borrowToken));
         assertEq(_collateralToken, address(collateralToken));
-        assertEq(collateralRatio, 12000);
+        assertEq(collateralRatio, 12_000);
         assertEq(interestRateBps, 800);
         assertEq(maxLoanAmount, 500 ether);
         assertEq(minLoanAmount, 0.5 ether);
@@ -194,7 +188,7 @@ contract MicroLoanPluginTest is Test {
         emit LoanConfigUpdated(configId, false);
         plugin.setLoanConfigActive(configId, false);
 
-        (,,,,,,,bool isActive) = plugin.loanConfigs(configId);
+        (,,,,,,, bool isActive) = plugin.loanConfigs(configId);
         assertFalse(isActive);
     }
 
@@ -210,7 +204,7 @@ contract MicroLoanPluginTest is Test {
         plugin.depositLiquidity(address(borrowToken), 100 ether);
         vm.stopPrank();
 
-        assertEq(plugin.liquidityPool(address(borrowToken)), 10100 ether);
+        assertEq(plugin.liquidityPool(address(borrowToken)), 10_100 ether);
     }
 
     function test_WithdrawLiquidity_Success() public {
@@ -228,7 +222,7 @@ contract MicroLoanPluginTest is Test {
     function test_WithdrawLiquidity_RevertsOnInsufficientLiquidity() public {
         vm.prank(owner);
         vm.expectRevert(MicroLoanPlugin.InsufficientLiquidity.selector);
-        plugin.withdrawLiquidity(address(borrowToken), 20000 ether, owner);
+        plugin.withdrawLiquidity(address(borrowToken), 20_000 ether, owner);
     }
 
     // ============ Borrow Tests ============

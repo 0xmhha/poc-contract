@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {OnRampPlugin} from "../../src/erc7579-plugins/OnRampPlugin.sol";
-import {MODULE_TYPE_EXECUTOR} from "../../src/erc7579-smartaccount/types/Constants.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { OnRampPlugin } from "../../src/erc7579-plugins/OnRampPlugin.sol";
+import { MODULE_TYPE_EXECUTOR } from "../../src/erc7579-smartaccount/types/Constants.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {
@@ -37,12 +37,7 @@ contract OnRampPluginTest is Test {
         uint256 fiatAmount,
         uint256 cryptoAmount
     );
-    event OrderCompleted(
-        bytes32 indexed orderId,
-        address indexed recipient,
-        uint256 cryptoAmount,
-        uint256 fee
-    );
+    event OrderCompleted(bytes32 indexed orderId, address indexed recipient, uint256 cryptoAmount, uint256 fee);
     event OrderCancelled(bytes32 indexed orderId);
     event KYCUpdated(address indexed user, OnRampPlugin.KYCLevel level);
 
@@ -57,8 +52,8 @@ contract OnRampPluginTest is Test {
 
         plugin = new OnRampPlugin(
             treasury,
-            100,        // 1% fee
-            24 hours    // order expiry
+            100, // 1% fee
+            24 hours // order expiry
         );
 
         // Add provider
@@ -66,14 +61,14 @@ contract OnRampPluginTest is Test {
             "Moonpay",
             providerSigner,
             address(token),
-            10 ether,       // min amount
-            10000 ether,    // max amount
-            100000 ether,   // daily limit
+            10 ether, // min amount
+            10_000 ether, // max amount
+            100_000 ether, // daily limit
             OnRampPlugin.KYCLevel.BASIC
         );
 
         // Fund plugin with tokens
-        token.mint(address(plugin), 100000 ether);
+        token.mint(address(plugin), 100_000 ether);
 
         // Set user KYC
         plugin.setUserKyc(recipient, OnRampPlugin.KYCLevel.STANDARD, keccak256("kyc-docs"));
@@ -129,13 +124,7 @@ contract OnRampPluginTest is Test {
         vm.expectEmit(true, false, false, true);
         emit ProviderAdded(1, "Transak", newSigner);
         uint256 newProviderId = plugin.addProvider(
-            "Transak",
-            newSigner,
-            address(token),
-            5 ether,
-            5000 ether,
-            50000 ether,
-            OnRampPlugin.KYCLevel.NONE
+            "Transak", newSigner, address(token), 5 ether, 5000 ether, 50_000 ether, OnRampPlugin.KYCLevel.NONE
         );
 
         assertEq(newProviderId, 1);
@@ -150,13 +139,7 @@ contract OnRampPluginTest is Test {
         vm.prank(admin);
         vm.expectRevert(OnRampPlugin.ZeroAddress.selector);
         plugin.addProvider(
-            "Test",
-            address(0),
-            address(token),
-            10 ether,
-            10000 ether,
-            100000 ether,
-            OnRampPlugin.KYCLevel.NONE
+            "Test", address(0), address(token), 10 ether, 10_000 ether, 100_000 ether, OnRampPlugin.KYCLevel.NONE
         );
     }
 
@@ -188,12 +171,12 @@ contract OnRampPluginTest is Test {
 
     function test_SetProviderLimits_Success() public {
         vm.prank(admin);
-        plugin.setProviderLimits(providerId, 20 ether, 20000 ether, 200000 ether);
+        plugin.setProviderLimits(providerId, 20 ether, 20_000 ether, 200_000 ether);
 
         OnRampPlugin.Provider memory provider = plugin.getProvider(providerId);
         assertEq(provider.minAmount, 20 ether);
-        assertEq(provider.maxAmount, 20000 ether);
-        assertEq(provider.dailyLimit, 200000 ether);
+        assertEq(provider.maxAmount, 20_000 ether);
+        assertEq(provider.dailyLimit, 200_000 ether);
     }
 
     // ============ KYC Management Tests ============
@@ -226,22 +209,22 @@ contract OnRampPluginTest is Test {
 
         vm.prank(admin);
         vm.expectEmit(true, true, true, true);
-        emit OrderCreated(orderId, providerId, recipient, 10000, 100 ether);
+        emit OrderCreated(orderId, providerId, recipient, 10_000, 100 ether);
         plugin.createOrder(
             orderId,
             providerId,
             recipient,
-            10000,        // $100 in cents
+            10_000, // $100 in cents
             "USD",
             100 ether,
-            1e18          // 1:1 exchange rate
+            1e18 // 1:1 exchange rate
         );
 
         OnRampPlugin.Order memory order = plugin.getOrder(orderId);
         assertEq(order.orderId, orderId);
         assertEq(order.providerId, providerId);
         assertEq(order.recipient, recipient);
-        assertEq(order.fiatAmount, 10000);
+        assertEq(order.fiatAmount, 10_000);
         assertEq(keccak256(bytes(order.fiatCurrency)), keccak256(bytes("USD")));
         assertEq(order.cryptoAmount, 100 ether);
         assertEq(uint8(order.status), uint8(OnRampPlugin.OrderStatus.PENDING));
@@ -253,15 +236,7 @@ contract OnRampPluginTest is Test {
 
         vm.prank(admin);
         vm.expectRevert(OnRampPlugin.ProviderNotActive.selector);
-        plugin.createOrder(
-            keccak256("order"),
-            providerId,
-            recipient,
-            10000,
-            "USD",
-            100 ether,
-            1e18
-        );
+        plugin.createOrder(keccak256("order"), providerId, recipient, 10_000, "USD", 100 ether, 1e18);
     }
 
     function test_CreateOrder_RevertsOnAmountBelowMinimum() public {
@@ -273,7 +248,7 @@ contract OnRampPluginTest is Test {
             recipient,
             100,
             "USD",
-            1 ether,     // Below 10 ether minimum
+            1 ether, // Below 10 ether minimum
             1e18
         );
     }
@@ -285,9 +260,9 @@ contract OnRampPluginTest is Test {
             keccak256("order"),
             providerId,
             recipient,
-            1500000,
+            1_500_000,
             "USD",
-            15000 ether, // Above 10000 ether maximum
+            15_000 ether, // Above 10000 ether maximum
             1e18
         );
     }
@@ -297,15 +272,7 @@ contract OnRampPluginTest is Test {
         plugin.setUserBlacklist(recipient, true);
 
         vm.expectRevert(OnRampPlugin.UserBlacklisted.selector);
-        plugin.createOrder(
-            keccak256("order"),
-            providerId,
-            recipient,
-            10000,
-            "USD",
-            100 ether,
-            1e18
-        );
+        plugin.createOrder(keccak256("order"), providerId, recipient, 10_000, "USD", 100 ether, 1e18);
         vm.stopPrank();
     }
 
@@ -314,15 +281,7 @@ contract OnRampPluginTest is Test {
 
         vm.prank(admin);
         vm.expectRevert(OnRampPlugin.InsufficientKYC.selector);
-        plugin.createOrder(
-            keccak256("order"),
-            providerId,
-            noKycUser,
-            10000,
-            "USD",
-            100 ether,
-            1e18
-        );
+        plugin.createOrder(keccak256("order"), providerId, noKycUser, 10_000, "USD", 100 ether, 1e18);
     }
 
     function test_CreateOrder_RevertsOnDailyLimitExceeded() public {
@@ -330,27 +289,13 @@ contract OnRampPluginTest is Test {
         vm.startPrank(admin);
         for (uint256 i = 0; i < 10; i++) {
             plugin.createOrder(
-                keccak256(abi.encodePacked("order", i)),
-                providerId,
-                recipient,
-                1000000,
-                "USD",
-                10000 ether,
-                1e18
+                keccak256(abi.encodePacked("order", i)), providerId, recipient, 1_000_000, "USD", 10_000 ether, 1e18
             );
         }
 
         // This one exceeds the limit
         vm.expectRevert(OnRampPlugin.DailyLimitExceeded.selector);
-        plugin.createOrder(
-            keccak256("order-overflow"),
-            providerId,
-            recipient,
-            1000000,
-            "USD",
-            10000 ether,
-            1e18
-        );
+        plugin.createOrder(keccak256("order-overflow"), providerId, recipient, 1_000_000, "USD", 10_000 ether, 1e18);
         vm.stopPrank();
     }
 
@@ -361,21 +306,16 @@ contract OnRampPluginTest is Test {
 
         // Create order
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         // Create signature
-        bytes32 messageHash = keccak256(abi.encodePacked(
-            orderId,
-            recipient,
-            uint256(100 ether),
-            block.chainid
-        ));
+        bytes32 messageHash = keccak256(abi.encodePacked(orderId, recipient, uint256(100 ether), block.chainid));
         bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(providerSignerKey, ethSignedHash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // Calculate expected amounts
-        uint256 fee = (100 ether * 100) / 10000; // 1%
+        uint256 fee = (100 ether * 100) / 10_000; //1%
         uint256 netAmount = 100 ether - fee;
 
         vm.expectEmit(true, true, false, true);
@@ -395,15 +335,10 @@ contract OnRampPluginTest is Test {
         bytes32 orderId = keccak256("order-1");
 
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         // Create signature
-        bytes32 messageHash = keccak256(abi.encodePacked(
-            orderId,
-            recipient,
-            uint256(100 ether),
-            block.chainid
-        ));
+        bytes32 messageHash = keccak256(abi.encodePacked(orderId, recipient, uint256(100 ether), block.chainid));
         bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(providerSignerKey, ethSignedHash);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -418,7 +353,7 @@ contract OnRampPluginTest is Test {
         bytes32 orderId = keccak256("order-1");
 
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         // Cancel the order
         vm.prank(admin);
@@ -433,7 +368,7 @@ contract OnRampPluginTest is Test {
         bytes32 orderId = keccak256("order-1");
 
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         // Move past expiry
         vm.warp(block.timestamp + 25 hours);
@@ -447,16 +382,11 @@ contract OnRampPluginTest is Test {
         bytes32 orderId = keccak256("order-1");
 
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         // Wrong signature (signed by different key)
         (, uint256 wrongKey) = makeAddrAndKey("wrongSigner");
-        bytes32 messageHash = keccak256(abi.encodePacked(
-            orderId,
-            recipient,
-            uint256(100 ether),
-            block.chainid
-        ));
+        bytes32 messageHash = keccak256(abi.encodePacked(orderId, recipient, uint256(100 ether), block.chainid));
         bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, ethSignedHash);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -471,7 +401,7 @@ contract OnRampPluginTest is Test {
         bytes32 orderId = keccak256("order-1");
 
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         vm.prank(admin);
         vm.expectEmit(true, false, false, false);
@@ -486,7 +416,7 @@ contract OnRampPluginTest is Test {
         bytes32 orderId = keccak256("order-1");
 
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         vm.prank(admin);
         plugin.cancelOrder(orderId);
@@ -500,7 +430,7 @@ contract OnRampPluginTest is Test {
         bytes32 orderId = keccak256("order-1");
 
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         vm.prank(admin);
         plugin.refundOrder(orderId);
@@ -513,7 +443,7 @@ contract OnRampPluginTest is Test {
         bytes32 orderId = keccak256("order-1");
 
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         vm.prank(admin);
         plugin.cancelOrder(orderId);
@@ -527,8 +457,8 @@ contract OnRampPluginTest is Test {
 
     function test_GetUserOrders() public {
         vm.startPrank(admin);
-        plugin.createOrder(keccak256("order-1"), providerId, recipient, 10000, "USD", 100 ether, 1e18);
-        plugin.createOrder(keccak256("order-2"), providerId, recipient, 20000, "USD", 200 ether, 1e18);
+        plugin.createOrder(keccak256("order-1"), providerId, recipient, 10_000, "USD", 100 ether, 1e18);
+        plugin.createOrder(keccak256("order-2"), providerId, recipient, 20_000, "USD", 200 ether, 1e18);
         vm.stopPrank();
 
         bytes32[] memory orders = plugin.getUserOrders(recipient);
@@ -539,7 +469,7 @@ contract OnRampPluginTest is Test {
         bytes32 orderId = keccak256("order-1");
 
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         assertTrue(plugin.canClaimOrder(orderId));
     }
@@ -548,15 +478,10 @@ contract OnRampPluginTest is Test {
         bytes32 orderId = keccak256("order-1");
 
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         // Claim the order
-        bytes32 messageHash = keccak256(abi.encodePacked(
-            orderId,
-            recipient,
-            uint256(100 ether),
-            block.chainid
-        ));
+        bytes32 messageHash = keccak256(abi.encodePacked(orderId, recipient, uint256(100 ether), block.chainid));
         bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(providerSignerKey, ethSignedHash);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -569,7 +494,7 @@ contract OnRampPluginTest is Test {
         bytes32 orderId = keccak256("order-1");
 
         vm.prank(admin);
-        plugin.createOrder(orderId, providerId, recipient, 10000, "USD", 100 ether, 1e18);
+        plugin.createOrder(orderId, providerId, recipient, 10_000, "USD", 100 ether, 1e18);
 
         vm.warp(block.timestamp + 25 hours);
 
@@ -578,29 +503,29 @@ contract OnRampPluginTest is Test {
 
     function test_GetRemainingDailyLimit() public {
         uint256 remaining = plugin.getRemainingDailyLimit(providerId);
-        assertEq(remaining, 100000 ether);
+        assertEq(remaining, 100_000 ether);
 
         // Create an order
         vm.prank(admin);
-        plugin.createOrder(keccak256("order"), providerId, recipient, 10000, "USD", 1000 ether, 1e18);
+        plugin.createOrder(keccak256("order"), providerId, recipient, 10_000, "USD", 1000 ether, 1e18);
 
         remaining = plugin.getRemainingDailyLimit(providerId);
-        assertEq(remaining, 99000 ether);
+        assertEq(remaining, 99_000 ether);
     }
 
     function test_GetRemainingDailyLimit_ResetsAfterDay() public {
         // Use some limit
         vm.prank(admin);
-        plugin.createOrder(keccak256("order"), providerId, recipient, 10000, "USD", 1000 ether, 1e18);
+        plugin.createOrder(keccak256("order"), providerId, recipient, 10_000, "USD", 1000 ether, 1e18);
 
         uint256 remaining = plugin.getRemainingDailyLimit(providerId);
-        assertEq(remaining, 99000 ether);
+        assertEq(remaining, 99_000 ether);
 
         // Move forward 1 day
         vm.warp(block.timestamp + 1 days);
 
         remaining = plugin.getRemainingDailyLimit(providerId);
-        assertEq(remaining, 100000 ether);
+        assertEq(remaining, 100_000 ether);
     }
 
     function test_GetRemainingDailyLimit_ReturnsZeroWhenExhausted() public {
@@ -608,13 +533,7 @@ contract OnRampPluginTest is Test {
         vm.startPrank(admin);
         for (uint256 i = 0; i < 10; i++) {
             plugin.createOrder(
-                keccak256(abi.encodePacked("order", i)),
-                providerId,
-                recipient,
-                1000000,
-                "USD",
-                10000 ether,
-                1e18
+                keccak256(abi.encodePacked("order", i)), providerId, recipient, 1_000_000, "USD", 10_000 ether, 1e18
             );
         }
         vm.stopPrank();

@@ -3,7 +3,7 @@
 
 pragma solidity ^0.8.24;
 
-import {Math} from "./math/Math.sol";
+import { Math } from "./math/Math.sol";
 
 /**
  * @dev Bytes operations.
@@ -14,7 +14,9 @@ library Bytes {
      * * If `s` is present in the buffer, returns the index of the first instance
      * * If `s` is not present in the buffer, returns type(uint256).max
      *
-     * NOTE: replicates the behavior of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/indexOf[Javascript's `Array.indexOf`]
+     * NOTE: replicates the behavior of
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/indexOf[Javascript's
+     * `Array.indexOf`]
      */
     function indexOf(bytes memory buffer, bytes1 s) internal pure returns (uint256) {
         return indexOf(buffer, s, 0);
@@ -25,7 +27,9 @@ library Bytes {
      * * If `s` is present in the buffer (at or after `pos`), returns the index of the next instance
      * * If `s` is not present in the buffer (at or after `pos`), returns type(uint256).max
      *
-     * NOTE: replicates the behavior of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/indexOf[Javascript's `Array.indexOf`]
+     * NOTE: replicates the behavior of
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/indexOf[Javascript's
+     * `Array.indexOf`]
      */
     function indexOf(bytes memory buffer, bytes1 s, uint256 pos) internal pure returns (uint256) {
         uint256 length = buffer.length;
@@ -42,7 +46,9 @@ library Bytes {
      * * If `s` is present in the buffer, returns the index of the last instance
      * * If `s` is not present in the buffer, returns type(uint256).max
      *
-     * NOTE: replicates the behavior of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/lastIndexOf[Javascript's `Array.lastIndexOf`]
+     * NOTE: replicates the behavior of
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/lastIndexOf[Javascript's
+     * `Array.lastIndexOf`]
      */
     function lastIndexOf(bytes memory buffer, bytes1 s) internal pure returns (uint256) {
         return lastIndexOf(buffer, s, type(uint256).max);
@@ -53,7 +59,9 @@ library Bytes {
      * * If `s` is present in the buffer (at or before `pos`), returns the index of the previous instance
      * * If `s` is not present in the buffer (at or before `pos`), returns type(uint256).max
      *
-     * NOTE: replicates the behavior of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/lastIndexOf[Javascript's `Array.lastIndexOf`]
+     * NOTE: replicates the behavior of
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/lastIndexOf[Javascript's
+     * `Array.lastIndexOf`]
      */
     function lastIndexOf(bytes memory buffer, bytes1 s, uint256 pos) internal pure returns (uint256) {
         unchecked {
@@ -71,7 +79,9 @@ library Bytes {
      * @dev Copies the content of `buffer`, from `start` (included) to the end of `buffer` into a new bytes object in
      * memory.
      *
-     * NOTE: replicates the behavior of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice[Javascript's `Array.slice`]
+     * NOTE: replicates the behavior of
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice[Javascript's
+     * `Array.slice`]
      */
     function slice(bytes memory buffer, uint256 start) internal pure returns (bytes memory) {
         return slice(buffer, start, buffer.length);
@@ -81,7 +91,9 @@ library Bytes {
      * @dev Copies the content of `buffer`, from `start` (included) to `end` (excluded) into a new bytes object in
      * memory. The `end` argument is truncated to the length of the `buffer`.
      *
-     * NOTE: replicates the behavior of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice[Javascript's `Array.slice`]
+     * NOTE: replicates the behavior of
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/slice[Javascript's
+     * `Array.slice`]
      */
     function slice(bytes memory buffer, uint256 start, uint256 end) internal pure returns (bytes memory) {
         // sanitize
@@ -100,8 +112,11 @@ library Bytes {
     /**
      * @dev Moves the content of `buffer`, from `start` (included) to the end of `buffer` to the start of that buffer.
      *
-     * NOTE: This function modifies the provided buffer in place. If you need to preserve the original buffer, use {slice} instead
-     * NOTE: replicates the behavior of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/splice[Javascript's `Array.splice`]
+     * NOTE: This function modifies the provided buffer in place. If you need to preserve the original buffer, use
+     * {slice} instead
+     * NOTE: replicates the behavior of
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/splice[Javascript's
+     * `Array.splice`]
      */
     function splice(bytes memory buffer, uint256 start) internal pure returns (bytes memory) {
         return splice(buffer, start, buffer.length);
@@ -111,8 +126,11 @@ library Bytes {
      * @dev Moves the content of `buffer`, from `start` (included) to end (excluded) to the start of that buffer. The
      * `end` argument is truncated to the length of the `buffer`.
      *
-     * NOTE: This function modifies the provided buffer in place. If you need to preserve the original buffer, use {slice} instead
-     * NOTE: replicates the behavior of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/splice[Javascript's `Array.splice`]
+     * NOTE: This function modifies the provided buffer in place. If you need to preserve the original buffer, use
+     * {slice} instead
+     * NOTE: replicates the behavior of
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/splice[Javascript's
+     * `Array.splice`]
      */
     function splice(bytes memory buffer, uint256 start, uint256 end) internal pure returns (bytes memory) {
         // sanitize
@@ -171,45 +189,46 @@ library Bytes {
      * Inspired by https://graphics.stanford.edu/~seander/bithacks.html#ReverseParallel[Reverse Parallel]
      */
     function reverseBytes32(bytes32 value) internal pure returns (bytes32) {
-        value = // swap bytes
-            ((value >> 8) & 0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF) |
-            ((value & 0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF) << 8);
-        value = // swap 2-byte long pairs
-            ((value >> 16) & 0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF) |
-            ((value & 0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF) << 16);
-        value = // swap 4-byte long pairs
-            ((value >> 32) & 0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF) |
-            ((value & 0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF) << 32);
-        value = // swap 8-byte long pairs
-            ((value >> 64) & 0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF) |
-            ((value & 0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF) << 64);
+        value =  // swap bytes
+        ((value >> 8) & 0x0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF)
+            | ((value & 0x0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF) << 8);
+        value =  // swap 2-byte long pairs
+        ((value >> 16) & 0x0_000_FFF_F00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF)
+            | ((value & 0x0_000_FFF_F00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF) << 16);
+        value =  // swap 4-byte long pairs
+        ((value >> 32) & 0x0_000_000_0FF_FFF_FFF_000_000_00F_FFF_FFF_F00_000_000_FFF_FFF_FF0_000_000_0FF_FFF_FFF)
+            | ((value & 0x0_000_000_0FF_FFF_FFF_000_000_00F_FFF_FFF_F00_000_000_FFF_FFF_FF0_000_000_0FF_FFF_FFF) << 32);
+        value =  // swap 8-byte long pairs
+        ((value >> 64) & 0x0_000_000_000_000_000_FFF_FFF_FFF_FFF_FFF_F00_000_000_000_000_00F_FFF_FFF_FFF_FFF_FFF)
+            | ((value & 0x0_000_000_000_000_000_FFF_FFF_FFF_FFF_FFF_F00_000_000_000_000_00F_FFF_FFF_FFF_FFF_FFF) << 64);
         return (value >> 128) | (value << 128); // swap 16-byte long pairs
     }
 
     /// @dev Same as {reverseBytes32} but optimized for 128-bit values.
     function reverseBytes16(bytes16 value) internal pure returns (bytes16) {
-        value = // swap bytes
-            ((value & 0xFF00FF00FF00FF00FF00FF00FF00FF00) >> 8) |
-            ((value & 0x00FF00FF00FF00FF00FF00FF00FF00FF) << 8);
-        value = // swap 2-byte long pairs
-            ((value & 0xFFFF0000FFFF0000FFFF0000FFFF0000) >> 16) |
-            ((value & 0x0000FFFF0000FFFF0000FFFF0000FFFF) << 16);
-        value = // swap 4-byte long pairs
-            ((value & 0xFFFFFFFF00000000FFFFFFFF00000000) >> 32) |
-            ((value & 0x00000000FFFFFFFF00000000FFFFFFFF) << 32);
+        value =  // swap bytes
+        ((value & 0_xFF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00) >> 8)
+            | ((value & 0_x00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF) << 8);
+        value =  // swap 2-byte long pairs
+        ((value & 0_xFF_FF0_000_FFF_F00_00F_FFF_000_0FF_FF0_000) >> 16)
+            | ((value & 0_x00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF) << 16);
+        value =  // swap 4-byte long pairs
+        ((value & 0_xFF_FFF_FFF_000_000_00F_FFF_FFF_F00_000_000) >> 32)
+            | ((value & 0_x00_000_000_FFF_FFF_FF0_000_000_0FF_FFF_FFF) << 32);
         return (value >> 64) | (value << 64); // swap 8-byte long pairs
     }
 
     /// @dev Same as {reverseBytes32} but optimized for 64-bit values.
     function reverseBytes8(bytes8 value) internal pure returns (bytes8) {
-        value = ((value & 0xFF00FF00FF00FF00) >> 8) | ((value & 0x00FF00FF00FF00FF) << 8); // swap bytes
-        value = ((value & 0xFFFF0000FFFF0000) >> 16) | ((value & 0x0000FFFF0000FFFF) << 16); // swap 2-byte long pairs
+        value = ((value & 0xF_F00_FF0_0FF_00F_F00) >> 8) | ((value & 0x0_0FF_00F_F00_FF0_0FF) << 8); // swap bytes
+        value = ((value & 0xF_FFF_000_0FF_FF0_000) >> 16) | ((value & 0x0_000_FFF_F00_00F_FFF) << 16); // swap 2-byte
+            // long pairs
         return (value >> 32) | (value << 32); // swap 4-byte long pairs
     }
 
     /// @dev Same as {reverseBytes32} but optimized for 32-bit values.
     function reverseBytes4(bytes4 value) internal pure returns (bytes4) {
-        value = ((value & 0xFF00FF00) >> 8) | ((value & 0x00FF00FF) << 8); // swap bytes
+        value = ((value & 0_xFF_00F_F00) >> 8) | ((value & 0_x00_FF0_0FF) << 8); // swap bytes
         return (value >> 16) | (value << 16); // swap 2-byte long pairs
     }
 

@@ -2,10 +2,10 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {SessionKeyExecutor} from "../../src/erc7579-executors/SessionKeyExecutor.sol";
-import {RecurringPaymentExecutor} from "../../src/erc7579-executors/RecurringPaymentExecutor.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { SessionKeyExecutor } from "../../src/erc7579-executors/SessionKeyExecutor.sol";
+import { RecurringPaymentExecutor } from "../../src/erc7579-executors/RecurringPaymentExecutor.sol";
 
 /**
  * @title DeployExecutorsScript
@@ -30,7 +30,7 @@ contract DeployExecutorsScript is DeploymentHelper {
     SessionKeyExecutor public sessionKeyExecutor;
     RecurringPaymentExecutor public recurringPaymentExecutor;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();

@@ -1,7 +1,8 @@
 /**
  ** Account-Abstraction (EIP-4337) singleton EntryPoint implementation.
  ** Only one instance required on each chain.
- **/
+ *
+ */
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
@@ -40,79 +41,54 @@ interface IEntryPoint is IStakeManager, INonceManager {
     /**
      * Account "sender" was deployed.
      * @param userOpHash - The userOp that deployed this account. UserOperationEvent will follow.
-     * @param sender     - The account that is deployed
-     * @param factory    - The factory used to deploy this account (in the initCode)
-     * @param paymaster  - The paymaster used by this UserOp
+     * @param sender - The account that is deployed
+     * @param factory - The factory used to deploy this account (in the initCode)
+     * @param paymaster - The paymaster used by this UserOp
      */
-    event AccountDeployed(
-        bytes32 indexed userOpHash,
-        address indexed sender,
-        address factory,
-        address paymaster
-    );
+    event AccountDeployed(bytes32 indexed userOpHash, address indexed sender, address factory, address paymaster);
 
     /**
      * Account "sender" already exists and the 'initCode' was ignored.
-     * @param userOpHash    - The current userOp. UserOperationEvent will follow.
-     * @param sender        - The account that was supposed to be deployed.
+     * @param userOpHash - The current userOp. UserOperationEvent will follow.
+     * @param sender - The account that was supposed to be deployed.
      * @param unusedFactory - The factory contract that was not used but was specified in the 'initCode'.
      */
-    event IgnoredInitCode(
-        bytes32 indexed userOpHash,
-        address indexed sender,
-        address unusedFactory
-    );
+    event IgnoredInitCode(bytes32 indexed userOpHash, address indexed sender, address unusedFactory);
 
     /**
      * Account "sender" is an EIP-7702 account that was initialized during this UserOperation.
-     * @param userOpHash    - The current userOp. UserOperationEvent will follow.
-     * @param sender        - The account that was supposed to be deployed.
+     * @param userOpHash - The current userOp. UserOperationEvent will follow.
+     * @param sender - The account that was supposed to be deployed.
      */
-    event EIP7702AccountInitialized(
-        bytes32 indexed userOpHash,
-        address indexed sender,
-        address indexed delegate
-    );
+    event EIP7702AccountInitialized(bytes32 indexed userOpHash, address indexed sender, address indexed delegate);
 
     /**
      * An event emitted if the UserOperation "callData" reverted with non-zero length.
-     * @param userOpHash   - The request unique identifier.
-     * @param sender       - The sender of this request.
-     * @param nonce        - The nonce used in the request.
+     * @param userOpHash - The request unique identifier.
+     * @param sender - The sender of this request.
+     * @param nonce - The nonce used in the request.
      * @param revertReason - The return bytes from the reverted "callData" call.
      */
     event UserOperationRevertReason(
-        bytes32 indexed userOpHash,
-        address indexed sender,
-        uint256 nonce,
-        bytes revertReason
+        bytes32 indexed userOpHash, address indexed sender, uint256 nonce, bytes revertReason
     );
 
     /**
      * An event emitted if the UserOperation Paymaster's "postOp" call reverted with non-zero length.
-     * @param userOpHash   - The request unique identifier.
-     * @param sender       - The sender of this request.
-     * @param nonce        - The nonce used in the request.
+     * @param userOpHash - The request unique identifier.
+     * @param sender - The sender of this request.
+     * @param nonce - The nonce used in the request.
      * @param revertReason - The return bytes from the reverted call to "postOp".
      */
-    event PostOpRevertReason(
-        bytes32 indexed userOpHash,
-        address indexed sender,
-        uint256 nonce,
-        bytes revertReason
-    );
+    event PostOpRevertReason(bytes32 indexed userOpHash, address indexed sender, uint256 nonce, bytes revertReason);
 
     /**
      * UserOp consumed more than prefund. The UserOperation is reverted, and no refund is made.
-     * @param userOpHash   - The request unique identifier.
-     * @param sender       - The sender of this request.
-     * @param nonce        - The nonce used in the request.
+     * @param userOpHash - The request unique identifier.
+     * @param sender - The sender of this request.
+     * @param nonce - The nonce used in the request.
      */
-    event UserOperationPrefundTooLow(
-        bytes32 indexed userOpHash,
-        address indexed sender,
-        uint256 nonce
-    );
+    event UserOperationPrefundTooLow(bytes32 indexed userOpHash, address indexed sender, uint256 nonce);
 
     /**
      * An event emitted by handleOps() and handleAggregatedOps(), before starting the execution loop.
@@ -136,7 +112,7 @@ interface IEntryPoint is IStakeManager, INonceManager {
      * @param opIndex - Index into the array of ops to the failed one.
      *                  When using 'simulateValidation', this value is always zero.
      *
-     * @param reason  - Revert reason. The string starts with a unique code "AAmn",
+     * @param reason - Revert reason. The string starts with a unique code "AAmn",
      *                  where "m" is "1" for factory, "2" for account, "3" for paymaster, and "9" for other issues,
      *                  so a failure can be attributed to the correct entity.
      */
@@ -150,9 +126,10 @@ interface IEntryPoint is IStakeManager, INonceManager {
 
     /**
      * A custom revert error of handleOps and handleAggregatedOps, to report a revert by account or paymaster.
-     * @param opIndex - Index of the failed UserOperation in the array of ops. In simulateValidation, this value is always zero.
-     * @param reason  - Revert reason. See the 'FailedOp(uint256,string)' error above.
-     * @param inner   - Revert data caught from the inner revert reason of an entity contract.
+     * @param opIndex - Index of the failed UserOperation in the array of ops. In simulateValidation, this value is
+     * always zero.
+     * @param reason - Revert reason. See the 'FailedOp(uint256,string)' error above.
+     * @param inner - Revert data caught from the inner revert reason of an entity contract.
      * @dev note that inner is truncated to 2048 bytes
      */
     error FailedOpWithRevert(uint256 opIndex, string reason, bytes inner);
@@ -182,33 +159,27 @@ interface IEntryPoint is IStakeManager, INonceManager {
      * No signature aggregator is used.
      * If any account requires an aggregator (that is, it returned an aggregator when
      * performing simulateValidation), then handleAggregatedOps() must be used instead.
-     * @param ops         - The operations to execute.
+     * @param ops - The operations to execute.
      * @param beneficiary - The address to receive the fees.
      */
-    function handleOps(
-        PackedUserOperation[] calldata ops,
-        address payable beneficiary
-    ) external;
+    function handleOps(PackedUserOperation[] calldata ops, address payable beneficiary) external;
 
     /**
      * Execute a batch of UserOperation with Aggregators
-     * @param opsPerAggregator - The operations to execute, grouped by aggregator (or address(0) for no-aggregator accounts).
-     * @param beneficiary      - The address to receive the fees.
+     * @param opsPerAggregator - The operations to execute, grouped by aggregator (or address(0) for no-aggregator
+     * accounts).
+     * @param beneficiary - The address to receive the fees.
      */
-    function handleAggregatedOps(
-        UserOpsPerAggregator[] calldata opsPerAggregator,
-        address payable beneficiary
-    ) external;
+    function handleAggregatedOps(UserOpsPerAggregator[] calldata opsPerAggregator, address payable beneficiary) external;
 
     /**
      * Generate a request Id - unique identifier for this request.
-     * The request ID is a hash over the content of the userOp (except the signature), entrypoint address, chainId and (optionally) 7702 delegate address
+     * The request ID is a hash over the content of the userOp (except the signature), entrypoint address, chainId and
+     * (optionally) 7702 delegate address
      * @param userOp - The user operation to generate the request ID for.
      * @return hash the hash of this UserOperation
      */
-    function getUserOpHash(
-        PackedUserOperation calldata userOp
-    ) external view returns (bytes32);
+    function getUserOpHash(PackedUserOperation calldata userOp) external view returns (bytes32);
 
     /**
      * Allows the AA-aware contracts to query the hash of the currently running UserOperation.
@@ -218,9 +189,9 @@ interface IEntryPoint is IStakeManager, INonceManager {
 
     /**
      * Gas and return values during simulation.
-     * @param preOpGas         - The gas used for validation (including preValidationGas)
-     * @param prefund          - The required prefund for this operation
-     * @param accountValidationData   - returned validationData from account.
+     * @param preOpGas - The gas used for validation (including preValidationGas)
+     * @param prefund - The required prefund for this operation
+     * @param accountValidationData - returned validationData from account.
      * @param paymasterValidationData - return validationData from paymaster.
      * @param paymasterContext - Returned by validatePaymasterUserOp (to be passed into postOp)
      */
@@ -246,8 +217,10 @@ interface IEntryPoint is IStakeManager, INonceManager {
 
     /**
      * Helper method for dry-run testing.
-     * @dev calling this method, the EntryPoint will make a delegatecall to the given data, and report (via revert) the result.
-     *  The method always revert, so is only useful off-chain for dry run calls, in cases where state-override to replace
+     * @dev calling this method, the EntryPoint will make a delegatecall to the given data, and report (via revert) the
+     * result.
+     *  The method always revert, so is only useful off-chain for dry run calls, in cases where state-override to
+     * replace
      *  actual EntryPoint code is less convenient.
      * @param target a target contract to make a delegatecall from entrypoint
      * @param data data to pass to target in a delegatecall

@@ -3,7 +3,7 @@
 // Adapted for StableNet PoC - Solidity version updated to ^0.8.28
 pragma solidity ^0.8.28;
 
-import {IERC1271} from "../interfaces/IERC1271.sol";
+import { IERC1271 } from "../interfaces/IERC1271.sol";
 
 library SignatureVerification {
     /// @notice Thrown when the passed in signature is not a valid length
@@ -18,7 +18,7 @@ library SignatureVerification {
     /// @notice Thrown when the recovered contract signature is incorrect
     error InvalidContractSignature();
 
-    bytes32 constant UPPER_BIT_MASK = (0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+    bytes32 constant UPPER_BIT_MASK = (0x7_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff);
 
     function verify(bytes calldata signature, bytes32 hash, address claimedSigner) internal view {
         bytes32 r;

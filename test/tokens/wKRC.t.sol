@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {wKRC} from "../../src/tokens/wKRC.sol";
+import { Test } from "forge-std/Test.sol";
+import { wKRC } from "../../src/tokens/wKRC.sol";
 
 contract wKRCTest is Test {
     wKRC public token;
@@ -23,7 +23,7 @@ contract wKRCTest is Test {
         vm.deal(user2, 100 ether);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             METADATA TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -39,7 +39,7 @@ contract wKRCTest is Test {
         assertEq(token.decimals(), 18);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           INITIAL STATE TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -48,7 +48,7 @@ contract wKRCTest is Test {
         assertEq(token.totalDeposits(), 0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            DEPOSIT TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -58,7 +58,7 @@ contract wKRCTest is Test {
         vm.prank(user1);
         vm.expectEmit(true, false, false, true);
         emit Deposit(user1, amount);
-        token.deposit{value: amount}();
+        token.deposit{ value: amount }();
 
         assertEq(token.balanceOf(user1), amount);
         assertEq(token.totalSupply(), amount);
@@ -67,22 +67,22 @@ contract wKRCTest is Test {
 
     function test_Deposit_ZeroValue() public {
         vm.prank(user1);
-        token.deposit{value: 0}();
+        token.deposit{ value: 0 }();
 
         assertEq(token.balanceOf(user1), 0);
     }
 
     function test_Deposit_MultipleDeposits() public {
         vm.startPrank(user1);
-        token.deposit{value: 1 ether}();
-        token.deposit{value: 2 ether}();
+        token.deposit{ value: 1 ether }();
+        token.deposit{ value: 2 ether }();
         vm.stopPrank();
 
         assertEq(token.balanceOf(user1), 3 ether);
         assertEq(token.totalSupply(), 3 ether);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           DEPOSIT TO TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -92,13 +92,13 @@ contract wKRCTest is Test {
         vm.prank(user1);
         vm.expectEmit(true, false, false, true);
         emit Deposit(user2, amount);
-        token.depositTo{value: amount}(user2);
+        token.depositTo{ value: amount }(user2);
 
         assertEq(token.balanceOf(user1), 0);
         assertEq(token.balanceOf(user2), amount);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           WITHDRAW TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -107,7 +107,7 @@ contract wKRCTest is Test {
         uint256 withdrawAmount = 2 ether;
 
         vm.startPrank(user1);
-        token.deposit{value: depositAmount}();
+        token.deposit{ value: depositAmount }();
 
         uint256 balanceBefore = user1.balance;
 
@@ -124,7 +124,7 @@ contract wKRCTest is Test {
         uint256 amount = 3 ether;
 
         vm.startPrank(user1);
-        token.deposit{value: amount}();
+        token.deposit{ value: amount }();
         token.withdraw(amount);
         vm.stopPrank();
 
@@ -135,7 +135,7 @@ contract wKRCTest is Test {
 
     function test_Withdraw_RevertIfInsufficientBalance() public {
         vm.startPrank(user1);
-        token.deposit{value: 1 ether}();
+        token.deposit{ value: 1 ether }();
 
         vm.expectRevert();
         token.withdraw(2 ether);
@@ -148,7 +148,7 @@ contract wKRCTest is Test {
         token.withdraw(1 ether);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         WITHDRAW TO TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -157,7 +157,7 @@ contract wKRCTest is Test {
         uint256 withdrawAmount = 2 ether;
 
         vm.prank(user1);
-        token.deposit{value: depositAmount}();
+        token.deposit{ value: depositAmount }();
 
         uint256 user2BalanceBefore = user2.balance;
 
@@ -172,14 +172,14 @@ contract wKRCTest is Test {
 
     function test_WithdrawTo_RevertIfInsufficientBalance() public {
         vm.startPrank(user1);
-        token.deposit{value: 1 ether}();
+        token.deposit{ value: 1 ether }();
 
         vm.expectRevert();
         token.withdrawTo(user2, 2 ether);
         vm.stopPrank();
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           RECEIVE TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -187,14 +187,14 @@ contract wKRCTest is Test {
         uint256 amount = 1 ether;
 
         vm.prank(user1);
-        (bool success,) = address(token).call{value: amount}("");
+        (bool success,) = address(token).call{ value: amount }("");
         assertTrue(success);
 
         assertEq(token.balanceOf(user1), amount);
         assertEq(token.totalSupply(), amount);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         ERC20 TRANSFER TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -202,7 +202,7 @@ contract wKRCTest is Test {
         uint256 amount = 3 ether;
 
         vm.prank(user1);
-        token.deposit{value: amount}();
+        token.deposit{ value: amount }();
 
         vm.prank(user1);
         assertTrue(token.transfer(user2, 1 ether));
@@ -215,7 +215,7 @@ contract wKRCTest is Test {
         uint256 amount = 3 ether;
 
         vm.prank(user1);
-        token.deposit{value: amount}();
+        token.deposit{ value: amount }();
 
         vm.prank(user1);
         token.approve(user2, 2 ether);
@@ -227,16 +227,16 @@ contract wKRCTest is Test {
         assertEq(token.balanceOf(user2), 2 ether);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         VIEW FUNCTIONS TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_TotalDeposits() public {
         vm.prank(user1);
-        token.deposit{value: 5 ether}();
+        token.deposit{ value: 5 ether }();
 
         vm.prank(user2);
-        token.deposit{value: 3 ether}();
+        token.deposit{ value: 3 ether }();
 
         assertEq(token.totalDeposits(), 8 ether);
 
@@ -246,7 +246,7 @@ contract wKRCTest is Test {
         assertEq(token.totalDeposits(), 6 ether);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           FUZZ TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -254,7 +254,7 @@ contract wKRCTest is Test {
         amount = bound(amount, 0, 100 ether);
 
         vm.startPrank(user1);
-        token.deposit{value: amount}();
+        token.deposit{ value: amount }();
 
         assertEq(token.balanceOf(user1), amount);
         assertEq(token.totalDeposits(), amount);
@@ -274,7 +274,7 @@ contract wKRCTest is Test {
         amount = bound(amount, 0, 100 ether);
 
         vm.prank(user1);
-        token.depositTo{value: amount}(user2);
+        token.depositTo{ value: amount }(user2);
 
         assertEq(token.balanceOf(user2), amount);
         assertEq(token.balanceOf(user1), 0);
@@ -285,7 +285,7 @@ contract wKRCTest is Test {
         withdrawAmount = bound(withdrawAmount, 1, depositAmount);
 
         vm.prank(user1);
-        token.deposit{value: depositAmount}();
+        token.deposit{ value: depositAmount }();
 
         uint256 user2BalanceBefore = user2.balance;
 
@@ -301,7 +301,7 @@ contract wKRCTest is Test {
         transferAmount = bound(transferAmount, 1, depositAmount);
 
         vm.prank(user1);
-        token.deposit{value: depositAmount}();
+        token.deposit{ value: depositAmount }();
 
         vm.prank(user1);
         token.transfer(user2, transferAmount);

@@ -2,10 +2,10 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {TokenReceiverFallback} from "../../src/erc7579-fallbacks/TokenReceiverFallback.sol";
-import {FlashLoanFallback} from "../../src/erc7579-fallbacks/FlashLoanFallback.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { TokenReceiverFallback } from "../../src/erc7579-fallbacks/TokenReceiverFallback.sol";
+import { FlashLoanFallback } from "../../src/erc7579-fallbacks/FlashLoanFallback.sol";
 
 /**
  * @title DeployFallbacksScript
@@ -30,7 +30,7 @@ contract DeployFallbacksScript is DeploymentHelper {
     TokenReceiverFallback public tokenReceiverFallback;
     FlashLoanFallback public flashLoanFallback;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {TokenReceiverFallback} from "../../src/erc7579-fallbacks/TokenReceiverFallback.sol";
-import {MockFallbackAccount, MockERC721, MockERC1155} from "./mocks/MockFallbackAccount.sol";
+import { Test } from "forge-std/Test.sol";
+import { TokenReceiverFallback } from "../../src/erc7579-fallbacks/TokenReceiverFallback.sol";
+import { MockFallbackAccount, MockERC721, MockERC1155 } from "./mocks/MockFallbackAccount.sol";
 
 contract TokenReceiverFallbackTest is Test {
     TokenReceiverFallback public fallbackModule;
@@ -15,9 +15,9 @@ contract TokenReceiverFallbackTest is Test {
     address public recipient;
 
     // Selectors
-    bytes4 constant ERC721_RECEIVED = 0x150b7a02;
-    bytes4 constant ERC1155_RECEIVED = 0xf23a6e61;
-    bytes4 constant ERC1155_BATCH_RECEIVED = 0xbc197c81;
+    bytes4 constant ERC721_RECEIVED = 0_x15_0b7_a02;
+    bytes4 constant ERC1155_RECEIVED = 0_xf2_3a6_e61;
+    bytes4 constant ERC1155_BATCH_RECEIVED = 0_xbc_197_c81;
 
     function setUp() public {
         user = makeAddr("user");
@@ -30,7 +30,7 @@ contract TokenReceiverFallbackTest is Test {
         erc1155 = new MockERC1155();
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             INSTALLATION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -72,7 +72,7 @@ contract TokenReceiverFallbackTest is Test {
         assertFalse(fallbackModule.isModuleType(2), "Should not be executor");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         ERC-721 RECEIVER TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -143,7 +143,7 @@ contract TokenReceiverFallbackTest is Test {
         assertEq(erc721.ownerOf(tokenId), address(account));
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         ERC-1155 RECEIVER TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -206,7 +206,7 @@ contract TokenReceiverFallbackTest is Test {
         assertEq(fallbackModule.getTransferLogLength(address(account)), 3);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         CONFIGURATION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -279,7 +279,7 @@ contract TokenReceiverFallbackTest is Test {
         assertTrue(fallbackModule.isWhitelisted(address(account), address(erc1155)));
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             VIEW FUNCTION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -345,7 +345,7 @@ contract TokenReceiverFallbackTest is Test {
         assertEq(logs.length, 0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 

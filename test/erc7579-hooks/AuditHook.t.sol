@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {AuditHook} from "../../src/erc7579-hooks/AuditHook.sol";
-import {MockHookAccount} from "./mocks/MockHookAccount.sol";
+import { Test } from "forge-std/Test.sol";
+import { AuditHook } from "../../src/erc7579-hooks/AuditHook.sol";
+import { MockHookAccount } from "./mocks/MockHookAccount.sol";
 
 contract AuditHookTest is Test {
     AuditHook public hook;
@@ -30,7 +30,7 @@ contract AuditHookTest is Test {
         vm.deal(address(account), 100 ether);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             INSTALLATION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -72,7 +72,7 @@ contract AuditHookTest is Test {
         assertFalse(hook.isModuleType(2), "Should not be executor");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         CONFIGURATION MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
@@ -95,7 +95,7 @@ contract AuditHookTest is Test {
         hook.setConfig(0, 1 hours);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             BLOCKLIST TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -139,14 +139,14 @@ contract AuditHookTest is Test {
         hook.preCheck(user, 0.1 ether, msgData);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             AUDIT LOG TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_PreCheck_CreatesAuditEntry() public {
         _installHook();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(0.5 ether), bytes4(0x12345678), bytes28(0));
+        bytes memory msgData = abi.encodePacked(recipient, uint256(0.5 ether), bytes4(0_x12_345_678), bytes28(0));
 
         vm.prank(address(account));
         bytes memory hookData = hook.preCheck(user, 0.5 ether, msgData);
@@ -235,7 +235,7 @@ contract AuditHookTest is Test {
         assertEq(entries.length, 0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         FLAGGED DELAY TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -248,8 +248,7 @@ contract AuditHookTest is Test {
         vm.prank(address(account));
         vm.expectRevert(
             abi.encodeWithSelector(
-                AuditHook.TransactionNotQueued.selector,
-                _getTxHash(address(account), recipient, 2 ether, msgData)
+                AuditHook.TransactionNotQueued.selector, _getTxHash(address(account), recipient, 2 ether, msgData)
             )
         );
         hook.preCheck(user, 2 ether, msgData);
@@ -313,12 +312,7 @@ contract AuditHookTest is Test {
         bytes memory msgData = abi.encodePacked(recipient, uint256(2 ether), "");
 
         // Get pending time before queueing
-        uint256 pendingBefore = hook.getPendingExecutionTime(
-            address(account),
-            recipient,
-            2 ether,
-            msgData
-        );
+        uint256 pendingBefore = hook.getPendingExecutionTime(address(account), recipient, 2 ether, msgData);
         assertEq(pendingBefore, 0);
 
         // Queue the transaction
@@ -326,16 +320,11 @@ contract AuditHookTest is Test {
         hook.queueFlaggedTransaction(recipient, 2 ether, msgData);
 
         // Check pending time
-        uint256 pendingAfter = hook.getPendingExecutionTime(
-            address(account),
-            recipient,
-            2 ether,
-            msgData
-        );
+        uint256 pendingAfter = hook.getPendingExecutionTime(address(account), recipient, 2 ether, msgData);
         assertEq(pendingAfter, startTime + FLAGGED_DELAY);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         CAN EXECUTE TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -391,7 +380,7 @@ contract AuditHookTest is Test {
         assertEq(reason, "");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             STATISTICS TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -418,18 +407,15 @@ contract AuditHookTest is Test {
 
         vm.stopPrank();
 
-        (
-            uint256 totalTransactions,
-            uint256 totalValueTransferred,
-            uint256 flaggedCount,
-        ) = hook.getStatistics(address(account));
+        (uint256 totalTransactions, uint256 totalValueTransferred, uint256 flaggedCount,) =
+            hook.getStatistics(address(account));
 
         assertEq(totalTransactions, 3);
         assertEq(totalValueTransferred, 0.5 ether + 2 ether + 0.3 ether);
         assertEq(flaggedCount, 1);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         MODULE NOT ENABLED TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -441,7 +427,7 @@ contract AuditHookTest is Test {
         hook.preCheck(user, 0.1 ether, msgData);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -457,12 +443,11 @@ contract AuditHookTest is Test {
         hook.onInstall(installData);
     }
 
-    function _getTxHash(
-        address accountAddr,
-        address target,
-        uint256 value,
-        bytes memory data
-    ) internal pure returns (bytes32) {
+    function _getTxHash(address accountAddr, address target, uint256 value, bytes memory data)
+        internal
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encodePacked(accountAddr, target, value, data));
     }
 }

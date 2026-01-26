@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC5564Announcer} from "../../src/privacy/ERC5564Announcer.sol";
+import { Test } from "forge-std/Test.sol";
+import { ERC5564Announcer } from "../../src/privacy/ERC5564Announcer.sol";
 
 contract ERC5564AnnouncerTest is Test {
     ERC5564Announcer public announcer;
@@ -20,11 +20,7 @@ contract ERC5564AnnouncerTest is Test {
         bytes ephemeralPubKey,
         bytes metadata
     );
-    event BatchAnnouncement(
-        uint256 indexed schemeId,
-        address indexed caller,
-        uint256 count
-    );
+    event BatchAnnouncement(uint256 indexed schemeId, address indexed caller, uint256 count);
     event SchemeRegistered(uint256 indexed schemeId, string description);
 
     function setUp() public {
@@ -222,7 +218,7 @@ contract ERC5564AnnouncerTest is Test {
         vm.deal(sender, 10 ether);
 
         vm.prank(sender);
-        announcer.announceAndTransfer{value: 1 ether}(1, stealthAddress, ephemeralPubKey, metadata);
+        announcer.announceAndTransfer{ value: 1 ether }(1, stealthAddress, ephemeralPubKey, metadata);
 
         assertEq(stealthAddress.balance, 1 ether);
         assertEq(announcer.totalAnnouncements(), 1);
@@ -230,7 +226,7 @@ contract ERC5564AnnouncerTest is Test {
 
     function test_AnnounceAndTransfer_WithZeroValue() public {
         vm.prank(sender);
-        announcer.announceAndTransfer{value: 0}(1, stealthAddress, ephemeralPubKey, metadata);
+        announcer.announceAndTransfer{ value: 0 }(1, stealthAddress, ephemeralPubKey, metadata);
 
         assertEq(stealthAddress.balance, 0);
         assertEq(announcer.totalAnnouncements(), 1);
@@ -241,7 +237,7 @@ contract ERC5564AnnouncerTest is Test {
 
         vm.prank(sender);
         vm.expectRevert(ERC5564Announcer.InvalidStealthAddress.selector);
-        announcer.announceAndTransfer{value: 1 ether}(1, address(0), ephemeralPubKey, metadata);
+        announcer.announceAndTransfer{ value: 1 ether }(1, address(0), ephemeralPubKey, metadata);
     }
 
     function test_AnnounceAndTransfer_RevertsOnEmptyKey() public {
@@ -249,7 +245,7 @@ contract ERC5564AnnouncerTest is Test {
 
         vm.prank(sender);
         vm.expectRevert(ERC5564Announcer.InvalidEphemeralPubKey.selector);
-        announcer.announceAndTransfer{value: 1 ether}(1, stealthAddress, "", metadata);
+        announcer.announceAndTransfer{ value: 1 ether }(1, stealthAddress, "", metadata);
     }
 
     // ============ View Function Tests ============

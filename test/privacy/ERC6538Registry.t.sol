@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC6538Registry} from "../../src/privacy/ERC6538Registry.sol";
+import { Test } from "forge-std/Test.sol";
+import { ERC6538Registry } from "../../src/privacy/ERC6538Registry.sol";
 
 contract ERC6538RegistryTest is Test {
     ERC6538Registry public registry;
@@ -12,15 +12,8 @@ contract ERC6538RegistryTest is Test {
 
     bytes public stealthMetaAddress;
 
-    event StealthMetaAddressSet(
-        address indexed registrant,
-        uint256 indexed schemeId,
-        bytes stealthMetaAddress
-    );
-    event StealthMetaAddressRemoved(
-        address indexed registrant,
-        uint256 indexed schemeId
-    );
+    event StealthMetaAddressSet(address indexed registrant, uint256 indexed schemeId, bytes stealthMetaAddress);
+    event StealthMetaAddressRemoved(address indexed registrant, uint256 indexed schemeId);
     event NonceIncremented(address indexed registrant, uint256 newNonce);
 
     function setUp() public {
@@ -30,7 +23,7 @@ contract ERC6538RegistryTest is Test {
 
         // Sample stealth meta-address (66 bytes = spending key + viewing key)
         stealthMetaAddress = hex"02abc123def456789012345678901234567890123456789012345678901234567890"
-                             hex"03def456abc789012345678901234567890123456789012345678901234567890123";
+                hex"03def456abc789012345678901234567890123456789012345678901234567890123";
     }
 
     // ============ Constructor Tests ============
@@ -55,7 +48,7 @@ contract ERC6538RegistryTest is Test {
     function test_RegisterKeys_MultipleSchemes() public {
         bytes memory addr1 = stealthMetaAddress;
         bytes memory addr2 = hex"04abc123def456789012345678901234567890123456789012345678901234567890"
-                             hex"05def456abc789012345678901234567890123456789012345678901234567890123";
+            hex"05def456abc789012345678901234567890123456789012345678901234567890123";
 
         vm.startPrank(registrant);
         registry.registerKeys(1, addr1);
@@ -68,7 +61,7 @@ contract ERC6538RegistryTest is Test {
 
     function test_RegisterKeys_UpdateExisting() public {
         bytes memory newAddress = hex"05aaa123def456789012345678901234567890123456789012345678901234567890"
-                                  hex"06bbb456abc789012345678901234567890123456789012345678901234567890123";
+            hex"06bbb456abc789012345678901234567890123456789012345678901234567890123";
 
         vm.startPrank(registrant);
         registry.registerKeys(1, stealthMetaAddress);
@@ -97,9 +90,7 @@ contract ERC6538RegistryTest is Test {
             )
         );
 
-        bytes32 digest = keccak256(
-            abi.encodePacked("\x19\x01", registry.DOMAIN_SEPARATOR(), structHash)
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", registry.DOMAIN_SEPARATOR(), structHash));
 
         // Sign with registrant's key
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(registrantKey, digest);
@@ -133,9 +124,7 @@ contract ERC6538RegistryTest is Test {
             )
         );
 
-        bytes32 digest = keccak256(
-            abi.encodePacked("\x19\x01", registry.DOMAIN_SEPARATOR(), structHash)
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", registry.DOMAIN_SEPARATOR(), structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(registrantKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);

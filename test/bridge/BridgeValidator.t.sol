@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {BridgeValidator} from "../../src/bridge/BridgeValidator.sol";
+import { Test } from "forge-std/Test.sol";
+import { BridgeValidator } from "../../src/bridge/BridgeValidator.sol";
 
 contract BridgeValidatorTest is Test {
     BridgeValidator public validator;
@@ -377,9 +377,7 @@ contract BridgeValidatorTest is Test {
         uint256 currentVersion = validator.signerSetVersion();
 
         // Create rotation proof signed by current signers
-        bytes32 rotationHash = keccak256(
-            abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 3, block.chainid)
-        );
+        bytes32 rotationHash = keccak256(abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 3, block.chainid));
         bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", rotationHash));
 
         bytes[] memory rotationProof = new bytes[](THRESHOLD);
@@ -422,9 +420,7 @@ contract BridgeValidatorTest is Test {
 
         uint256 currentVersion = validator.signerSetVersion();
 
-        bytes32 rotationHash = keccak256(
-            abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 2, block.chainid)
-        );
+        bytes32 rotationHash = keccak256(abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 2, block.chainid));
         bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", rotationHash));
 
         bytes[] memory rotationProof = new bytes[](THRESHOLD);
@@ -523,10 +519,10 @@ contract BridgeValidatorTest is Test {
         });
     }
 
-    function _signMessage(
-        BridgeValidator.BridgeMessage memory message,
-        uint256 numSigners
-    ) internal returns (bytes[] memory) {
+    function _signMessage(BridgeValidator.BridgeMessage memory message, uint256 numSigners)
+        internal
+        returns (bytes[] memory)
+    {
         bytes32 messageHash = validator.hashBridgeMessage(message);
         bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
 

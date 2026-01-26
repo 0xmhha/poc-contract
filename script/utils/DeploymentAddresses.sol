@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Script, console} from "forge-std/Script.sol";
+import { Script, console } from "forge-std/Script.sol";
 
 /**
  * @title DeploymentAddresses
@@ -135,10 +135,7 @@ abstract contract DeploymentHelper is Script {
      */
     function _getDeploymentPath() internal view returns (string memory) {
         return string.concat(
-            DeploymentAddresses.DEPLOYMENTS_DIR,
-            vm.toString(chainId),
-            "/",
-            DeploymentAddresses.ADDRESSES_FILE
+            DeploymentAddresses.DEPLOYMENTS_DIR, vm.toString(chainId), "/", DeploymentAddresses.ADDRESSES_FILE
         );
     }
 
@@ -252,49 +249,83 @@ abstract contract DeploymentHelper is Script {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_KERNEL, _addresses[DeploymentAddresses.KEY_KERNEL]);
         }
         if (_addresses[DeploymentAddresses.KEY_KERNEL_FACTORY] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_KERNEL_FACTORY, _addresses[DeploymentAddresses.KEY_KERNEL_FACTORY]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_KERNEL_FACTORY, _addresses[DeploymentAddresses.KEY_KERNEL_FACTORY]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_FACTORY_STAKER] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_FACTORY_STAKER, _addresses[DeploymentAddresses.KEY_FACTORY_STAKER]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_FACTORY_STAKER, _addresses[DeploymentAddresses.KEY_FACTORY_STAKER]
+            );
         }
 
         // Validators
         if (_addresses[DeploymentAddresses.KEY_ECDSA_VALIDATOR] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_ECDSA_VALIDATOR, _addresses[DeploymentAddresses.KEY_ECDSA_VALIDATOR]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_ECDSA_VALIDATOR, _addresses[DeploymentAddresses.KEY_ECDSA_VALIDATOR]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_WEIGHTED_VALIDATOR] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_WEIGHTED_VALIDATOR, _addresses[DeploymentAddresses.KEY_WEIGHTED_VALIDATOR]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_WEIGHTED_VALIDATOR, _addresses[DeploymentAddresses.KEY_WEIGHTED_VALIDATOR]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR, _addresses[DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR]);
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR,
+                _addresses[DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_MULTISIG_VALIDATOR] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_MULTISIG_VALIDATOR, _addresses[DeploymentAddresses.KEY_MULTISIG_VALIDATOR]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_MULTISIG_VALIDATOR, _addresses[DeploymentAddresses.KEY_MULTISIG_VALIDATOR]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR, _addresses[DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR, _addresses[DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR]
+            );
         }
 
         // Paymasters
         if (_addresses[DeploymentAddresses.KEY_VERIFYING_PAYMASTER] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_VERIFYING_PAYMASTER, _addresses[DeploymentAddresses.KEY_VERIFYING_PAYMASTER]);
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_VERIFYING_PAYMASTER,
+                _addresses[DeploymentAddresses.KEY_VERIFYING_PAYMASTER]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_SPONSOR_PAYMASTER] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_SPONSOR_PAYMASTER, _addresses[DeploymentAddresses.KEY_SPONSOR_PAYMASTER]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_SPONSOR_PAYMASTER, _addresses[DeploymentAddresses.KEY_SPONSOR_PAYMASTER]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_ERC20_PAYMASTER] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_ERC20_PAYMASTER, _addresses[DeploymentAddresses.KEY_ERC20_PAYMASTER]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_ERC20_PAYMASTER, _addresses[DeploymentAddresses.KEY_ERC20_PAYMASTER]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_PERMIT2_PAYMASTER] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_PERMIT2_PAYMASTER, _addresses[DeploymentAddresses.KEY_PERMIT2_PAYMASTER]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_PERMIT2_PAYMASTER, _addresses[DeploymentAddresses.KEY_PERMIT2_PAYMASTER]
+            );
         }
 
         // Executors
         if (_addresses[DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR, _addresses[DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR]);
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR,
+                _addresses[DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR, _addresses[DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR]);
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR,
+                _addresses[DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR]
+            );
         }
 
         // Hooks
@@ -302,26 +333,44 @@ abstract contract DeploymentHelper is Script {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_AUDIT_HOOK, _addresses[DeploymentAddresses.KEY_AUDIT_HOOK]);
         }
         if (_addresses[DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK, _addresses[DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK]);
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK,
+                _addresses[DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK]
+            );
         }
 
         // Fallbacks
         if (_addresses[DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK, _addresses[DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK]);
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK,
+                _addresses[DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK, _addresses[DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK]);
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK,
+                _addresses[DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK]
+            );
         }
 
         // Plugins
         if (_addresses[DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN, _addresses[DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN, _addresses[DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN, _addresses[DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN, _addresses[DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_ONRAMP_PLUGIN] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_ONRAMP_PLUGIN, _addresses[DeploymentAddresses.KEY_ONRAMP_PLUGIN]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_ONRAMP_PLUGIN, _addresses[DeploymentAddresses.KEY_ONRAMP_PLUGIN]
+            );
         }
 
         // Tokens & DeFi
@@ -335,10 +384,14 @@ abstract contract DeploymentHelper is Script {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_USDC, _addresses[DeploymentAddresses.KEY_USDC]);
         }
         if (_addresses[DeploymentAddresses.KEY_PRICE_ORACLE] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_PRICE_ORACLE, _addresses[DeploymentAddresses.KEY_PRICE_ORACLE]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_PRICE_ORACLE, _addresses[DeploymentAddresses.KEY_PRICE_ORACLE]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_DEX_INTEGRATION] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_DEX_INTEGRATION, _addresses[DeploymentAddresses.KEY_DEX_INTEGRATION]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_DEX_INTEGRATION, _addresses[DeploymentAddresses.KEY_DEX_INTEGRATION]
+            );
         }
 
         // Privacy
@@ -349,51 +402,87 @@ abstract contract DeploymentHelper is Script {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_REGISTRY, _addresses[DeploymentAddresses.KEY_REGISTRY]);
         }
         if (_addresses[DeploymentAddresses.KEY_PRIVATE_BANK] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_PRIVATE_BANK, _addresses[DeploymentAddresses.KEY_PRIVATE_BANK]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_PRIVATE_BANK, _addresses[DeploymentAddresses.KEY_PRIVATE_BANK]
+            );
         }
 
         // Bridge
         if (_addresses[DeploymentAddresses.KEY_BRIDGE_VALIDATOR] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_BRIDGE_VALIDATOR, _addresses[DeploymentAddresses.KEY_BRIDGE_VALIDATOR]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_BRIDGE_VALIDATOR, _addresses[DeploymentAddresses.KEY_BRIDGE_VALIDATOR]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_BRIDGE_GUARDIAN] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_BRIDGE_GUARDIAN, _addresses[DeploymentAddresses.KEY_BRIDGE_GUARDIAN]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_BRIDGE_GUARDIAN, _addresses[DeploymentAddresses.KEY_BRIDGE_GUARDIAN]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER, _addresses[DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER]);
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER,
+                _addresses[DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER, _addresses[DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER]);
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER,
+                _addresses[DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER, _addresses[DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER]);
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER,
+                _addresses[DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_SECURE_BRIDGE] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_SECURE_BRIDGE, _addresses[DeploymentAddresses.KEY_SECURE_BRIDGE]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_SECURE_BRIDGE, _addresses[DeploymentAddresses.KEY_SECURE_BRIDGE]
+            );
         }
 
         // Compliance
         if (_addresses[DeploymentAddresses.KEY_KYC_REGISTRY] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_KYC_REGISTRY, _addresses[DeploymentAddresses.KEY_KYC_REGISTRY]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_KYC_REGISTRY, _addresses[DeploymentAddresses.KEY_KYC_REGISTRY]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_AUDIT_LOGGER] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_AUDIT_LOGGER, _addresses[DeploymentAddresses.KEY_AUDIT_LOGGER]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_AUDIT_LOGGER, _addresses[DeploymentAddresses.KEY_AUDIT_LOGGER]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_PROOF_OF_RESERVE] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_PROOF_OF_RESERVE, _addresses[DeploymentAddresses.KEY_PROOF_OF_RESERVE]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_PROOF_OF_RESERVE, _addresses[DeploymentAddresses.KEY_PROOF_OF_RESERVE]
+            );
         }
         if (_addresses[DeploymentAddresses.KEY_REGULATORY_REGISTRY] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_REGULATORY_REGISTRY, _addresses[DeploymentAddresses.KEY_REGULATORY_REGISTRY]);
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_REGULATORY_REGISTRY,
+                _addresses[DeploymentAddresses.KEY_REGULATORY_REGISTRY]
+            );
         }
 
         // Subscription (last to get final JSON output)
         if (_addresses[DeploymentAddresses.KEY_PERMISSION_MANAGER] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_PERMISSION_MANAGER, _addresses[DeploymentAddresses.KEY_PERMISSION_MANAGER]);
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_PERMISSION_MANAGER, _addresses[DeploymentAddresses.KEY_PERMISSION_MANAGER]
+            );
         }
 
         string memory finalJson;
         if (_addresses[DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER] != address(0)) {
-            finalJson = vm.serializeAddress(obj, DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER, _addresses[DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER]);
+            finalJson = vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER,
+                _addresses[DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER]
+            );
         } else {
             // Create a dummy entry if subscription manager not set
             finalJson = vm.serializeString(obj, "_chainId", vm.toString(chainId));
@@ -401,22 +490,20 @@ abstract contract DeploymentHelper is Script {
 
         // Ensure directory exists and write file
         string memory path = _getDeploymentPath();
-        
+
         // Extract directory path from file path (e.g., "deployments/31337/addresses.json" -> "deployments/31337")
-        string memory dirPath = string.concat(
-            DeploymentAddresses.DEPLOYMENTS_DIR,
-            vm.toString(chainId)
-        );
-        
+        string memory dirPath = string.concat(DeploymentAddresses.DEPLOYMENTS_DIR, vm.toString(chainId));
+
         // Create directory if it doesn't exist (recursive = true to create parent dirs if needed)
         // forge-lint: disable-next-line(unsafe-cheatcode)
         try vm.createDir(dirPath, true) {
-            // Directory created successfully
-        } catch {
+        // Directory created successfully
+        }
+            catch {
             // Directory creation failed, but continue - vm.writeJson might still work
             // or the directory might already exist
         }
-        
+
         // Write JSON file
         // forge-lint: disable-next-line(unsafe-cheatcode)
         try vm.writeJson(finalJson, path) {
@@ -454,7 +541,9 @@ abstract contract DeploymentHelper is Script {
     function _requireDependency(string memory key, string memory dependencyName) internal view {
         require(
             _addresses[key] != address(0),
-            string.concat("Missing dependency: ", dependencyName, ". Deploy it first or set ", key, " in the addresses file.")
+            string.concat(
+                "Missing dependency: ", dependencyName, ". Deploy it first or set ", key, " in the addresses file."
+            )
         );
     }
 

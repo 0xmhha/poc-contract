@@ -7,15 +7,14 @@ import { PackedUserOperation } from "./interfaces/PackedUserOperation.sol";
 import { UserOperationLib } from "./UserOperationLib.sol";
 
 library Eip7702Support {
-
     error Eip7702SenderWithoutCode(address sender);
     error Eip7702SenderNotDelegate(address sender);
 
     // EIP-7702 code prefix before delegate address.
-    bytes3 internal constant EIP7702_PREFIX = 0xef0100;
+    bytes3 internal constant EIP7702_PREFIX = 0x_ef0_100;
 
     // EIP-7702 initCode marker, to specify this account is EIP-7702.
-    bytes2 internal constant INITCODE_EIP7702_MARKER = 0x7702;
+    bytes2 internal constant INITCODE_EIP7702_MARKER = 0x7_702;
 
     using UserOperationLib for PackedUserOperation;
 
@@ -37,7 +36,7 @@ library Eip7702Support {
             return keccak256(abi.encodePacked(delegate));
         } else {
             // forge-lint: disable-next-line(asm-keccak256)
-            return keccak256(abi.encodePacked(delegate, initCode[20 :]));
+            return keccak256(abi.encodePacked(delegate, initCode[20:]));
         }
     }
 
@@ -49,6 +48,7 @@ library Eip7702Support {
      * @return true if the 'initCode' is EIP-7702 authorization, false otherwise.
      */
     function _isEip7702InitCode(bytes calldata initCode) internal pure returns (bool) {
+
 
         if (initCode.length < 2) {
             return false;
@@ -70,6 +70,7 @@ library Eip7702Support {
      * @return the address of the EIP-7702 authorized contract.
      */
     function _getEip7702Delegate(address sender) internal view returns (address) {
+
 
         bytes32 senderCode;
 

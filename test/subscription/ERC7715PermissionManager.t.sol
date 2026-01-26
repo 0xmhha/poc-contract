@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC7715PermissionManager, IERC7715PermissionManager} from "../../src/subscription/ERC7715PermissionManager.sol";
+import { Test } from "forge-std/Test.sol";
+import {
+    ERC7715PermissionManager,
+    IERC7715PermissionManager
+} from "../../src/subscription/ERC7715PermissionManager.sol";
 
 contract ERC7715PermissionManagerTest is Test {
     ERC7715PermissionManager public manager;
@@ -24,21 +27,9 @@ contract ERC7715PermissionManagerTest is Test {
         string permissionType,
         uint256 expiry
     );
-    event PermissionRevoked(
-        bytes32 indexed permissionId,
-        address indexed granter,
-        address indexed grantee
-    );
-    event PermissionAdjusted(
-        bytes32 indexed permissionId,
-        bytes oldData,
-        bytes newData
-    );
-    event PermissionUsed(
-        bytes32 indexed permissionId,
-        address indexed user,
-        uint256 amount
-    );
+    event PermissionRevoked(bytes32 indexed permissionId, address indexed granter, address indexed grantee);
+    event PermissionAdjusted(bytes32 indexed permissionId, bytes oldData, bytes newData);
+    event PermissionUsed(bytes32 indexed permissionId, address indexed user, uint256 amount);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -101,10 +92,7 @@ contract ERC7715PermissionManagerTest is Test {
 
     function test_GrantPermission_WithExpiryRule() public {
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](1);
-        rules[0] = IERC7715PermissionManager.Rule({
-            ruleType: "expiry",
-            data: abi.encode(block.timestamp + 7 days)
-        });
+        rules[0] = IERC7715PermissionManager.Rule({ ruleType: "expiry", data: abi.encode(block.timestamp + 7 days) });
 
         vm.prank(granter);
         bytes32 permissionId = manager.grantPermission(grantee, target, defaultPermission, rules);
@@ -114,9 +102,7 @@ contract ERC7715PermissionManagerTest is Test {
 
     function test_GrantPermission_RevertsOnInvalidPermissionType() public {
         IERC7715PermissionManager.Permission memory invalidPermission = IERC7715PermissionManager.Permission({
-            permissionType: "invalid-type",
-            isAdjustmentAllowed: false,
-            data: ""
+            permissionType: "invalid-type", isAdjustmentAllowed: false, data: ""
         });
 
         vm.prank(granter);
@@ -171,9 +157,7 @@ contract ERC7715PermissionManagerTest is Test {
             )
         );
 
-        bytes32 digest = keccak256(
-            abi.encodePacked("\x19\x01", manager.DOMAIN_SEPARATOR(), structHash)
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", manager.DOMAIN_SEPARATOR(), structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(granterKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -258,9 +242,7 @@ contract ERC7715PermissionManagerTest is Test {
 
     function test_AdjustPermission_RevertsOnNotAdjustable() public {
         IERC7715PermissionManager.Permission memory noAdjustPermission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: false,
-            data: abi.encode(uint256(100 ether))
+            permissionType: "subscription", isAdjustmentAllowed: false, data: abi.encode(uint256(100 ether))
         });
 
         vm.prank(granter);
@@ -307,10 +289,7 @@ contract ERC7715PermissionManagerTest is Test {
 
     function test_UsePermission_RevertsOnExpired() public {
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](1);
-        rules[0] = IERC7715PermissionManager.Rule({
-            ruleType: "expiry",
-            data: abi.encode(block.timestamp + 1 hours)
-        });
+        rules[0] = IERC7715PermissionManager.Rule({ ruleType: "expiry", data: abi.encode(block.timestamp + 1 hours) });
 
         vm.prank(granter);
         bytes32 permissionId = manager.grantPermission(grantee, target, defaultPermission, rules);
@@ -352,10 +331,7 @@ contract ERC7715PermissionManagerTest is Test {
 
     function test_IsPermissionValid_ReturnsFalseForExpired() public {
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](1);
-        rules[0] = IERC7715PermissionManager.Rule({
-            ruleType: "expiry",
-            data: abi.encode(block.timestamp + 1 hours)
-        });
+        rules[0] = IERC7715PermissionManager.Rule({ ruleType: "expiry", data: abi.encode(block.timestamp + 1 hours) });
 
         vm.prank(granter);
         bytes32 permissionId = manager.grantPermission(grantee, target, defaultPermission, rules);

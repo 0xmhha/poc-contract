@@ -2,15 +2,15 @@
 
 pragma solidity ^0.8.0;
 
-import {IHook} from "../interfaces/IERC7579Modules.sol";
-import {ModuleLib} from "../utils/ModuleLib.sol";
-import {IERC7579Account} from "../interfaces/IERC7579Account.sol";
-import {MODULE_TYPE_HOOK} from "../types/Constants.sol";
+import { IHook } from "../interfaces/IERC7579Modules.sol";
+import { ModuleLib } from "../utils/ModuleLib.sol";
+import { IERC7579Account } from "../interfaces/IERC7579Account.sol";
+import { MODULE_TYPE_HOOK } from "../types/Constants.sol";
 
 abstract contract HookManager {
     // NOTE: currently, all install/uninstall calls onInstall/onUninstall
-    // I assume this does not pose any security risks, but there should be a way to branch if hook needs call to onInstall/onUninstall
-    // --- Hook ---
+    // I assume this does not pose any security risks, but there should be a way to branch if hook needs call to
+    // onInstall/onUninstall --- Hook ---
     // Hook is activated on these scenarios
     // - on 4337 flow, userOp.calldata starts with executeUserOp.selector && validator requires hook
     // - executeFromExecutor() is invoked and executor requires hook
@@ -25,8 +25,9 @@ abstract contract HookManager {
         hook.postCheck(context);
     }
 
-    // @notice if hook is not initialized before, kernel will call hook.onInstall no matter what flag it shows, with hookData[1:]
-    // @param hookData is encoded into (1bytes flag + actual hookdata) flag is for identifying if the hook has to be initialized or not
+    // @notice if hook is not initialized before, kernel will call hook.onInstall no matter what flag it shows, with
+    // hookData[1:] @param hookData is encoded into (1bytes flag + actual hookdata) flag is for identifying if the hook
+    // has to be initialized or not
     function _installHook(IHook hook, bytes calldata hookData) internal {
         if (address(hook) == address(0) || address(hook) == address(1)) {
             return;
@@ -39,7 +40,8 @@ abstract contract HookManager {
         emit IERC7579Account.ModuleInstalled(MODULE_TYPE_HOOK, address(hook));
     }
 
-    // @param hookData encoded as (1bytes flag + actual hookdata) flag is for identifying if the hook has to be initialized or not
+    // @param hookData encoded as (1bytes flag + actual hookdata) flag is for identifying if the hook has to be
+    // initialized or not
     function _uninstallHook(IHook hook, bytes calldata hookData) internal {
         if (address(hook) == address(0) || address(hook) == address(1)) {
             return;

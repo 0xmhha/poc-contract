@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title IERC7715PermissionManager
@@ -11,7 +11,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  * @dev Based on ERC-7715 JSON-RPC permission methods, adapted for on-chain management
  */
 interface IERC7715PermissionManager {
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
@@ -27,7 +27,7 @@ interface IERC7715PermissionManager {
     error InvalidTarget();
     error PermissionPaused();
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
@@ -39,63 +39,48 @@ interface IERC7715PermissionManager {
         uint256 expiry
     );
 
-    event PermissionRevoked(
-        bytes32 indexed permissionId,
-        address indexed granter,
-        address indexed grantee
-    );
+    event PermissionRevoked(bytes32 indexed permissionId, address indexed granter, address indexed grantee);
 
-    event PermissionAdjusted(
-        bytes32 indexed permissionId,
-        bytes oldData,
-        bytes newData
-    );
+    event PermissionAdjusted(bytes32 indexed permissionId, bytes oldData, bytes newData);
 
-    event PermissionUsed(
-        bytes32 indexed permissionId,
-        address indexed user,
-        uint256 amount
-    );
+    event PermissionUsed(bytes32 indexed permissionId, address indexed user, uint256 amount);
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  STRUCTS
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Base permission structure (ERC-7715 compatible)
     struct Permission {
-        string permissionType;      // Type identifier (e.g., "native-token-recurring-allowance")
-        bool isAdjustmentAllowed;   // Whether permission parameters can be modified
-        bytes data;                 // Permission-specific encoded data
+        string permissionType; // Type identifier (e.g., "native-token-recurring-allowance")
+        bool isAdjustmentAllowed; // Whether permission parameters can be modified
+        bytes data; // Permission-specific encoded data
     }
 
     /// @notice Rule that can be applied to permissions
     struct Rule {
-        string ruleType;            // Type of rule (e.g., "expiry", "rate-limit")
-        bytes data;                 // Rule-specific encoded data
+        string ruleType; // Type of rule (e.g., "expiry", "rate-limit")
+        bytes data; // Rule-specific encoded data
     }
 
     /// @notice Full permission record stored on-chain
     struct PermissionRecord {
-        address granter;            // Account that granted the permission
-        address grantee;            // Account that received the permission
-        uint256 chainId;            // Chain where permission is valid
-        address target;             // Target contract for permission
-        Permission permission;      // Permission details
-        Rule[] rules;               // Applied rules
-        uint256 createdAt;          // Creation timestamp
-        bool active;                // Whether permission is active
+        address granter; // Account that granted the permission
+        address grantee; // Account that received the permission
+        uint256 chainId; // Chain where permission is valid
+        address target; // Target contract for permission
+        Permission permission; // Permission details
+        Rule[] rules; // Applied rules
+        uint256 createdAt; // Creation timestamp
+        bool active; // Whether permission is active
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function grantPermission(
-        address grantee,
-        address target,
-        Permission calldata permission,
-        Rule[] calldata rules
-    ) external returns (bytes32 permissionId);
+    function grantPermission(address grantee, address target, Permission calldata permission, Rule[] calldata rules)
+        external
+        returns (bytes32 permissionId);
 
     function grantPermissionWithSignature(
         address granter,
@@ -144,7 +129,7 @@ interface IERC7715PermissionManager {
 contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, ReentrancyGuard {
     using ECDSA for bytes32;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
@@ -177,7 +162,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         "PermissionGrant(address granter,address grantee,address target,bytes32 permissionTypeHash,bytes32 dataHash,uint256 nonce,uint256 deadline)"
     );
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
@@ -200,7 +185,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         _registerPermissionType("spending-limit");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               MODIFIERS
     //////////////////////////////////////////////////////////////*/
 
@@ -224,7 +209,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         PERMISSION MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
@@ -236,12 +221,12 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
      * @param rules Rules to apply to the permission
      * @return permissionId Unique identifier for the permission
      */
-    function grantPermission(
-        address grantee,
-        address target,
-        Permission calldata permission,
-        Rule[] calldata rules
-    ) external override whenNotPaused returns (bytes32 permissionId) {
+    function grantPermission(address grantee, address target, Permission calldata permission, Rule[] calldata rules)
+        external
+        override
+        whenNotPaused
+        returns (bytes32 permissionId)
+    {
         return _grantPermission(msg.sender, grantee, target, permission, rules);
     }
 
@@ -279,9 +264,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         );
 
         // forge-lint: disable-next-line(asm-keccak256)
-        bytes32 digest = keccak256(
-            abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash)
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
 
         address recovered = digest.recover(signature);
         if (recovered != granter || recovered == address(0)) {
@@ -362,10 +345,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
      * @param permissionId Permission to adjust
      * @param newData New permission data
      */
-    function adjustPermission(
-        bytes32 permissionId,
-        bytes calldata newData
-    ) external override {
+    function adjustPermission(bytes32 permissionId, bytes calldata newData) external override {
         PermissionRecord storage record = permissions[permissionId];
 
         if (record.createdAt == 0) revert PermissionNotFound();
@@ -385,10 +365,13 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
      * @param amount Amount to consume
      * @return success Whether the usage was successful
      */
-    function usePermission(
-        bytes32 permissionId,
-        uint256 amount
-    ) external override onlyAuthorizedExecutor nonReentrant returns (bool success) {
+    function usePermission(bytes32 permissionId, uint256 amount)
+        external
+        override
+        onlyAuthorizedExecutor
+        nonReentrant
+        returns (bool success)
+    {
         PermissionRecord storage record = permissions[permissionId];
 
         if (record.createdAt == 0) revert PermissionNotFound();
@@ -417,7 +400,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         return true;
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -426,9 +409,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
      * @param permissionId Permission ID
      * @return record The permission record
      */
-    function getPermission(
-        bytes32 permissionId
-    ) external view override returns (PermissionRecord memory record) {
+    function getPermission(bytes32 permissionId) external view override returns (PermissionRecord memory record) {
         record = permissions[permissionId];
         if (record.createdAt == 0) revert PermissionNotFound();
     }
@@ -438,9 +419,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
      * @param permissionId Permission ID
      * @return valid Whether the permission is valid
      */
-    function isPermissionValid(
-        bytes32 permissionId
-    ) external view override returns (bool valid) {
+    function isPermissionValid(bytes32 permissionId) external view override returns (bool valid) {
         PermissionRecord storage record = permissions[permissionId];
 
         if (record.createdAt == 0) return false;
@@ -472,9 +451,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         uint256 nonce
     ) public pure override returns (bytes32) {
         // forge-lint: disable-next-line(asm-keccak256)
-        return keccak256(
-            abi.encodePacked(granter, grantee, target, permissionType, nonce)
-        );
+        return keccak256(abi.encodePacked(granter, grantee, target, permissionType, nonce));
     }
 
     /**
@@ -482,9 +459,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
      * @param permissionId Permission ID
      * @return remaining Remaining allowance
      */
-    function getRemainingAllowance(
-        bytes32 permissionId
-    ) external view returns (uint256 remaining) {
+    function getRemainingAllowance(bytes32 permissionId) external view returns (uint256 remaining) {
         PermissionRecord storage record = permissions[permissionId];
         if (record.createdAt == 0) return 0;
 
@@ -511,13 +486,11 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
      * @param permissionType Type to check
      * @return Whether the type is supported
      */
-    function isPermissionTypeSupported(
-        string calldata permissionType
-    ) external view returns (bool) {
+    function isPermissionTypeSupported(string calldata permissionType) external view returns (bool) {
         return supportedPermissionTypes[keccak256(bytes(permissionType))];
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            ADMIN FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -565,7 +538,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         paused = _paused;
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                          INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -574,9 +547,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
      * @param rules Array of rules
      * @return expiry Expiry timestamp (0 if no expiry rule)
      */
-    function _validateAndExtractExpiry(
-        Rule[] calldata rules
-    ) internal view returns (uint256 expiry) {
+    function _validateAndExtractExpiry(Rule[] calldata rules) internal view returns (uint256 expiry) {
         for (uint256 i = 0; i < rules.length; i++) {
             if (keccak256(bytes(rules[i].ruleType)) == keccak256("expiry")) {
                 expiry = abi.decode(rules[i].data, (uint256));

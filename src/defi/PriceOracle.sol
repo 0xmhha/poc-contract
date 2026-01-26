@@ -2,11 +2,11 @@
 
 pragma solidity ^0.8.0;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IUniswapV3Pool} from "./interfaces/UniswapV3.sol";
-import {IPriceOracle} from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { IUniswapV3Pool } from "./interfaces/UniswapV3.sol";
+import { IPriceOracle } from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
 
 /**
  * @title Chainlink Aggregator V3 Interface
@@ -16,20 +16,14 @@ interface AggregatorV3Interface {
     function decimals() external view returns (uint8);
     function description() external view returns (string memory);
     function version() external view returns (uint256);
-    function getRoundData(uint80 _roundId) external view returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    );
-    function latestRoundData() external view returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-    );
+    function getRoundData(uint80 _roundId)
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+    function latestRoundData()
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
 }
 
 /**
@@ -41,7 +35,7 @@ contract PriceOracle is Ownable, IPriceOracle {
     using SafeCast for int256;
     using SafeCast for int56;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
@@ -54,7 +48,7 @@ contract PriceOracle is Ownable, IPriceOracle {
     error InvalidPoolConfiguration(address token);
     error InvalidTick();
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
@@ -62,7 +56,7 @@ contract PriceOracle is Ownable, IPriceOracle {
     event UniswapPoolSet(address indexed token, address indexed pool, uint32 twapPeriod);
     event StalenessThresholdUpdated(uint256 newThreshold);
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  STRUCTS
     //////////////////////////////////////////////////////////////*/
 
@@ -77,9 +71,9 @@ contract PriceOracle is Ownable, IPriceOracle {
         uint32 twapPeriod;
         bool isToken0;
         bool active;
-        uint8 tokenDecimals;      // decimals of the target token
-        uint8 quoteDecimals;      // decimals of the quote token in pool
-        address quoteToken;       // quote token address (address(0) if USD-pegged)
+        uint8 tokenDecimals; // decimals of the target token
+        uint8 quoteDecimals; // decimals of the quote token in pool
+        address quoteToken; // quote token address (address(0) if USD-pegged)
     }
 
     struct PriceData {
@@ -89,7 +83,7 @@ contract PriceOracle is Ownable, IPriceOracle {
         string source;
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
@@ -108,13 +102,13 @@ contract PriceOracle is Ownable, IPriceOracle {
     /// @notice Standard price decimals (18 for consistency)
     uint8 public constant PRICE_DECIMALS = 18;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable(msg.sender) { }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            ADMIN FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -129,11 +123,7 @@ contract PriceOracle is Ownable, IPriceOracle {
         AggregatorV3Interface aggregator = AggregatorV3Interface(feed);
         uint8 decimals = aggregator.decimals();
 
-        chainlinkFeeds[token] = ChainlinkConfig({
-            feed: aggregator,
-            decimals: decimals,
-            active: true
-        });
+        chainlinkFeeds[token] = ChainlinkConfig({ feed: aggregator, decimals: decimals, active: true });
 
         emit ChainlinkFeedSet(token, feed);
     }
@@ -145,12 +135,7 @@ contract PriceOracle is Ownable, IPriceOracle {
      * @param twapPeriod The TWAP period in seconds
      * @param quoteToken The quote token address (address(0) if quote is USD-pegged stablecoin)
      */
-    function setUniswapPool(
-        address token,
-        address pool,
-        uint32 twapPeriod,
-        address quoteToken
-    ) external onlyOwner {
+    function setUniswapPool(address token, address pool, uint32 twapPeriod, address quoteToken) external onlyOwner {
         if (pool == address(0)) revert ZeroAddress();
 
         IUniswapV3Pool uniPool = IUniswapV3Pool(pool);
@@ -227,7 +212,7 @@ contract PriceOracle is Ownable, IPriceOracle {
         emit StalenessThresholdUpdated(newThreshold);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            PRICE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -247,9 +232,7 @@ contract PriceOracle is Ownable, IPriceOracle {
      * @return price The price with 18 decimals precision
      * @return updatedAt Timestamp of last price update
      */
-    function getPriceWithTimestamp(
-        address token
-    ) external view override returns (uint256 price, uint256 updatedAt) {
+    function getPriceWithTimestamp(address token) external view override returns (uint256 price, uint256 updatedAt) {
         PriceData memory data = getPriceData(token);
         return (data.price, data.updatedAt);
     }
@@ -297,16 +280,8 @@ contract PriceOracle is Ownable, IPriceOracle {
      * @param token The token address
      * @param config The Chainlink configuration
      */
-    function _getChainlinkPrice(
-        address token,
-        ChainlinkConfig memory config
-    ) internal view returns (PriceData memory) {
-        (
-            ,
-            int256 answer,
-            ,
-            uint256 updatedAt,
-        ) = config.feed.latestRoundData();
+    function _getChainlinkPrice(address token, ChainlinkConfig memory config) internal view returns (PriceData memory) {
+        (, int256 answer,, uint256 updatedAt,) = config.feed.latestRoundData();
 
         // Validate price
         if (answer <= 0) revert InvalidPrice(token);
@@ -327,12 +302,7 @@ contract PriceOracle is Ownable, IPriceOracle {
             price = answerUint;
         }
 
-        return PriceData({
-            price: price,
-            decimals: PRICE_DECIMALS,
-            updatedAt: updatedAt,
-            source: "Chainlink"
-        });
+        return PriceData({ price: price, decimals: PRICE_DECIMALS, updatedAt: updatedAt, source: "Chainlink" });
     }
 
     /**
@@ -340,10 +310,7 @@ contract PriceOracle is Ownable, IPriceOracle {
      * @param token The token address
      * @param config The Uniswap configuration
      */
-    function _getUniswapTwap(
-        address token,
-        UniswapConfig memory config
-    ) internal view returns (PriceData memory) {
+    function _getUniswapTwap(address token, UniswapConfig memory config) internal view returns (PriceData memory) {
         uint32[] memory secondsAgos = new uint32[](2);
         secondsAgos[0] = config.twapPeriod;
         secondsAgos[1] = 0;
@@ -373,12 +340,7 @@ contract PriceOracle is Ownable, IPriceOracle {
 
         // Adjust for token decimals difference
         // Uniswap V3 price = token1/token0, need to scale based on decimals
-        uint256 price = _adjustPriceForDecimals(
-            rawPrice,
-            config.tokenDecimals,
-            config.quoteDecimals,
-            config.isToken0
-        );
+        uint256 price = _adjustPriceForDecimals(rawPrice, config.tokenDecimals, config.quoteDecimals, config.isToken0);
 
         // If quote token is not USD-pegged, convert using quote token's USD price
         if (config.quoteToken != address(0)) {
@@ -386,12 +348,8 @@ contract PriceOracle is Ownable, IPriceOracle {
             price = (price * quotePrice) / (10 ** PRICE_DECIMALS);
         }
 
-        return PriceData({
-            price: price,
-            decimals: PRICE_DECIMALS,
-            updatedAt: block.timestamp,
-            source: "UniswapV3TWAP"
-        });
+        return
+            PriceData({ price: price, decimals: PRICE_DECIMALS, updatedAt: block.timestamp, source: "UniswapV3TWAP" });
     }
 
     /**
@@ -402,19 +360,18 @@ contract PriceOracle is Ownable, IPriceOracle {
      * @param quoteDecimals Decimals of the quote token
      * @param isToken0 Whether target token is token0 in the pool
      */
-    function _adjustPriceForDecimals(
-        uint256 rawPrice,
-        uint8 tokenDecimals,
-        uint8 quoteDecimals,
-        bool isToken0
-    ) internal pure returns (uint256) {
+    function _adjustPriceForDecimals(uint256 rawPrice, uint8 tokenDecimals, uint8 quoteDecimals, bool isToken0)
+        internal
+        pure
+        returns (uint256)
+    {
         // The tick-based price already accounts for the mathematical ratio
         // We need to adjust for decimal differences between tokens
         //
         // If isToken0: price = quote/token = token1/token0
-        //   - Need to scale by 10^(tokenDecimals - quoteDecimals)
+        // - Need to scale by 10^(tokenDecimals - quoteDecimals)
         // If !isToken0: price = quote/token = token0/token1
-        //   - Need to scale by 10^(tokenDecimals - quoteDecimals)
+        // - Need to scale by 10^(tokenDecimals - quoteDecimals)
 
         if (isToken0) {
             // Target is token0, quote is token1
@@ -485,34 +442,34 @@ contract PriceOracle is Ownable, IPriceOracle {
         if (absTick > uint256(int256(type(int24).max))) revert InvalidTick();
 
         uint256 ratio = absTick & 0x1 != 0
-            ? 0xfffcb933bd6fad37aa2d162d1a594001
-            : 0x100000000000000000000000000000000;
-        if (absTick & 0x2 != 0) ratio = (ratio * 0xfff97272373d413259a46990580e213a) >> 128;
-        if (absTick & 0x4 != 0) ratio = (ratio * 0xfff2e50f5f656932ef12357cf3c7fdcc) >> 128;
-        if (absTick & 0x8 != 0) ratio = (ratio * 0xffe5caca7e10e4e61c3624eaa0941cd0) >> 128;
-        if (absTick & 0x10 != 0) ratio = (ratio * 0xffcb9843d60f6159c9db58835c926644) >> 128;
-        if (absTick & 0x20 != 0) ratio = (ratio * 0xff973b41fa98c081472e6896dfb254c0) >> 128;
-        if (absTick & 0x40 != 0) ratio = (ratio * 0xff2ea16466c96a3843ec78b326b52861) >> 128;
-        if (absTick & 0x80 != 0) ratio = (ratio * 0xfe5dee046a99a2a811c461f1969c3053) >> 128;
-        if (absTick & 0x100 != 0) ratio = (ratio * 0xfcbe86c7900a88aedcffc83b479aa3a4) >> 128;
-        if (absTick & 0x200 != 0) ratio = (ratio * 0xf987a7253ac413176f2b074cf7815e54) >> 128;
-        if (absTick & 0x400 != 0) ratio = (ratio * 0xf3392b0822b70005940c7a398e4b70f3) >> 128;
-        if (absTick & 0x800 != 0) ratio = (ratio * 0xe7159475a2c29b7443b29c7fa6e889d9) >> 128;
-        if (absTick & 0x1000 != 0) ratio = (ratio * 0xd097f3bdfd2022b8845ad8f792aa5825) >> 128;
-        if (absTick & 0x2000 != 0) ratio = (ratio * 0xa9f746462d870fdf8a65dc1f90e061e5) >> 128;
-        if (absTick & 0x4000 != 0) ratio = (ratio * 0x70d869a156d2a1b890bb3df62baf32f7) >> 128;
-        if (absTick & 0x8000 != 0) ratio = (ratio * 0x31be135f97d08fd981231505542fcfa6) >> 128;
-        if (absTick & 0x10000 != 0) ratio = (ratio * 0x9aa508b5b7a84e1c677de54f3e99bc9) >> 128;
-        if (absTick & 0x20000 != 0) ratio = (ratio * 0x5d6af8dedb81196699c329225ee604) >> 128;
-        if (absTick & 0x40000 != 0) ratio = (ratio * 0x2216e584f5fa1ea926041bedfe98) >> 128;
-        if (absTick & 0x80000 != 0) ratio = (ratio * 0x48a170391f7dc42444e8fa2) >> 128;
+            ? 0_xff_fcb_933_bd6_fad_37a_a2d_162_d1a_594_001
+            : 0x_100_000_000_000_000_000_000_000_000_000_000;
+        if (absTick & 0x2 != 0) ratio = (ratio * 0_xff_f97_272_373_d41_325_9a4_699_058_0e2_13a) >> 128;
+        if (absTick & 0x4 != 0) ratio = (ratio * 0_xff_f2e_50f_5f6_569_32e_f12_357_cf3_c7f_dcc) >> 128;
+        if (absTick & 0x8 != 0) ratio = (ratio * 0_xff_e5c_aca_7e1_0e4_e61_c36_24e_aa0_941_cd0) >> 128;
+        if (absTick & 0x10 != 0) ratio = (ratio * 0_xff_cb9_843_d60_f61_59c_9db_588_35c_926_644) >> 128;
+        if (absTick & 0x20 != 0) ratio = (ratio * 0_xff_973_b41_fa9_8c0_814_72e_689_6df_b25_4c0) >> 128;
+        if (absTick & 0x40 != 0) ratio = (ratio * 0_xff_2ea_164_66c_96a_384_3ec_78b_326_b52_861) >> 128;
+        if (absTick & 0x80 != 0) ratio = (ratio * 0_xfe_5de_e04_6a9_9a2_a81_1c4_61f_196_9c3_053) >> 128;
+        if (absTick & 0x_100 != 0) ratio = (ratio * 0_xfc_be8_6c7_900_a88_aed_cff_c83_b47_9aa_3a4) >> 128;
+        if (absTick & 0x_200 != 0) ratio = (ratio * 0_xf9_87a_725_3ac_413_176_f2b_074_cf7_815_e54) >> 128;
+        if (absTick & 0x_400 != 0) ratio = (ratio * 0_xf3_392_b08_22b_700_059_40c_7a3_98e_4b7_0f3) >> 128;
+        if (absTick & 0x_800 != 0) ratio = (ratio * 0_xe7_159_475_a2c_29b_744_3b2_9c7_fa6_e88_9d9) >> 128;
+        if (absTick & 0x1_000 != 0) ratio = (ratio * 0_xd0_97f_3bd_fd2_022_b88_45a_d8f_792_aa5_825) >> 128;
+        if (absTick & 0x2_000 != 0) ratio = (ratio * 0_xa9_f74_646_2d8_70f_df8_a65_dc1_f90_e06_1e5) >> 128;
+        if (absTick & 0x4_000 != 0) ratio = (ratio * 0_x70_d86_9a1_56d_2a1_b89_0bb_3df_62b_af3_2f7) >> 128;
+        if (absTick & 0x8_000 != 0) ratio = (ratio * 0_x31_be1_35f_97d_08f_d98_123_150_554_2fc_fa6) >> 128;
+        if (absTick & 0_x10_000 != 0) ratio = (ratio * 0x9_aa5_08b_5b7_a84_e1c_677_de5_4f3_e99_bc9) >> 128;
+        if (absTick & 0_x20_000 != 0) ratio = (ratio * 0x_5d6_af8_ded_b81_196_699_c32_922_5ee_604) >> 128;
+        if (absTick & 0_x40_000 != 0) ratio = (ratio * 0x2_216_e58_4f5_fa1_ea9_260_41b_edf_e98) >> 128;
+        if (absTick & 0_x80_000 != 0) ratio = (ratio * 0_x48_a17_039_1f7_dc4_244_4e8_fa2) >> 128;
 
         if (tick > 0) ratio = type(uint256).max / ratio;
 
         return uint160((ratio >> 32) + (ratio % (1 << 32) == 0 ? 0 : 1));
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            UTILITY FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -523,11 +480,7 @@ contract PriceOracle is Ownable, IPriceOracle {
      * @param amount The amount to convert
      * @return The converted amount
      */
-    function convertAmount(
-        address fromToken,
-        address toToken,
-        uint256 amount
-    ) external view returns (uint256) {
+    function convertAmount(address fromToken, address toToken, uint256 amount) external view returns (uint256) {
         if (amount == 0) return 0;
         if (fromToken == toToken) return amount;
 

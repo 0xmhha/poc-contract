@@ -60,7 +60,7 @@ contract KernelTest is Test {
         ecdsaValidator = new ECDSAValidator();
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             DEPLOYMENT TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -79,7 +79,7 @@ contract KernelTest is Test {
         assertEq(address(kernelImpl.ENTRYPOINT()), address(entryPoint), "Kernel should reference correct EntryPoint");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         ACCOUNT CREATION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -143,7 +143,7 @@ contract KernelTest is Test {
         assertEq(first, second, "Same salt should produce same address");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         VALIDATOR TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -165,7 +165,7 @@ contract KernelTest is Test {
         assertEq(storedOwner, owner, "Validator should store correct owner");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         MODULE SUPPORT TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -179,7 +179,7 @@ contract KernelTest is Test {
         assertTrue(Kernel(payable(account)).supportsModule(MODULE_TYPE_EXECUTOR), "Should support executor module");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         EXECUTION MODE TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -189,7 +189,7 @@ contract KernelTest is Test {
         assertTrue(Kernel(payable(account)).supportsExecutionMode(mode), "Should support default execution mode");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         USER OPERATION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -200,12 +200,13 @@ contract KernelTest is Test {
 
         // Deposit to EntryPoint - must be called by owner due to ECDSAValidator preCheck hook
         vm.prank(owner);
-        Kernel(payable(account)).execute(
-            _encodeSimpleSingle(),
-            abi.encodePacked(
-                address(entryPoint), uint256(5 ether), abi.encodeCall(IStakeManager.depositTo, (account))
-            )
-        );
+        Kernel(payable(account))
+            .execute(
+                _encodeSimpleSingle(),
+                abi.encodePacked(
+                    address(entryPoint), uint256(5 ether), abi.encodeCall(IStakeManager.depositTo, (account))
+                )
+            );
 
         // Create UserOp for simple ETH transfer
         address target = makeAddr("target");
@@ -234,10 +235,13 @@ contract KernelTest is Test {
 
         // Deposit to EntryPoint - must be called by owner due to ECDSAValidator preCheck hook
         vm.prank(owner);
-        Kernel(payable(account)).execute(
-            _encodeSimpleSingle(),
-            abi.encodePacked(address(entryPoint), uint256(5 ether), abi.encodeCall(IStakeManager.depositTo, (account)))
-        );
+        Kernel(payable(account))
+            .execute(
+                _encodeSimpleSingle(),
+                abi.encodePacked(
+                    address(entryPoint), uint256(5 ether), abi.encodeCall(IStakeManager.depositTo, (account))
+                )
+            );
 
         // Create UserOp
         address target = makeAddr("target");
@@ -258,7 +262,7 @@ contract KernelTest is Test {
         entryPoint.handleOps(ops, payable(beneficiary));
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         RECEIVE ETH TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -274,7 +278,7 @@ contract KernelTest is Test {
         assertEq(account.balance, 1 ether, "Account should have received ETH");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         ERC721/1155 RECEIVER TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -301,7 +305,7 @@ contract KernelTest is Test {
         assertEq(result, Kernel.onERC1155BatchReceived.selector, "Should return correct selector");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 

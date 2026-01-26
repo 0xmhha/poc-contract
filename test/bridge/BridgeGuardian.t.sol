@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {BridgeGuardian} from "../../src/bridge/BridgeGuardian.sol";
+import { Test } from "forge-std/Test.sol";
+import { BridgeGuardian } from "../../src/bridge/BridgeGuardian.sol";
 
 contract BridgeGuardianTest is Test {
     BridgeGuardian public guardian;
@@ -337,7 +337,8 @@ contract BridgeGuardianTest is Test {
 
     function test_ExecuteProposal_UpdateThreshold() public {
         vm.prank(guardians[0]);
-        uint256 proposalId = guardian.createProposal(BridgeGuardian.ProposalType.UpdateThreshold, address(0), abi.encode(uint256(2)));
+        uint256 proposalId =
+            guardian.createProposal(BridgeGuardian.ProposalType.UpdateThreshold, address(0), abi.encode(uint256(2)));
 
         vm.prank(guardians[1]);
         guardian.approveProposal(proposalId);

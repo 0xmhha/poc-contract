@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC20Paymaster} from "../../src/erc4337-paymaster/ERC20Paymaster.sol";
-import {IPriceOracle} from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
-import {IEntryPoint} from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
-import {PackedUserOperation} from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
-import {EntryPoint} from "../../src/erc4337-entrypoint/EntryPoint.sol";
-import {MockPriceOracle} from "./mocks/MockPriceOracle.sol";
-import {MockERC20} from "./mocks/MockERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { ERC20Paymaster } from "../../src/erc4337-paymaster/ERC20Paymaster.sol";
+import { IPriceOracle } from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { IEntryPoint } from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
+import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
+import { EntryPoint } from "../../src/erc4337-entrypoint/EntryPoint.sol";
+import { MockPriceOracle } from "./mocks/MockPriceOracle.sol";
+import { MockERC20 } from "./mocks/MockERC20.sol";
 
 contract ERC20PaymasterTest is Test {
     ERC20Paymaster public paymaster;
@@ -43,10 +43,7 @@ contract ERC20PaymasterTest is Test {
         // Deploy ERC20Paymaster
         vm.prank(owner);
         paymaster = new ERC20Paymaster(
-            IEntryPoint(address(entryPoint)),
-            owner,
-            IPriceOracle(address(oracle)),
-            INITIAL_MARKUP
+            IEntryPoint(address(entryPoint)), owner, IPriceOracle(address(oracle)), INITIAL_MARKUP
         );
 
         // Setup token
@@ -56,7 +53,7 @@ contract ERC20PaymasterTest is Test {
         // Fund paymaster with ETH
         vm.deal(owner, 100 ether);
         vm.prank(owner);
-        paymaster.deposit{value: INITIAL_DEPOSIT}();
+        paymaster.deposit{ value: INITIAL_DEPOSIT }();
 
         // Mint tokens to user
         token.mint(user, 1_000_000e6); // 1M tokens
@@ -106,7 +103,7 @@ contract ERC20PaymasterTest is Test {
     }
 
     function test_setMarkup_revertIfTooLow() public {
-        uint256 lowMarkup = 100; // 1%
+        uint256 lowMarkup = 100; //1%
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(ERC20Paymaster.InvalidMarkup.selector, lowMarkup));
@@ -143,7 +140,7 @@ contract ERC20PaymasterTest is Test {
     }
 
     function test_getQuote() public view {
-        uint256 gasLimit = 100000;
+        uint256 gasLimit = 100_000;
         uint256 maxFeePerGas = 10 gwei;
 
         uint256 quote = paymaster.getQuote(address(token), gasLimit, maxFeePerGas);
@@ -157,11 +154,8 @@ contract ERC20PaymasterTest is Test {
         PackedUserOperation memory userOp = _createSampleUserOp(user, address(token));
 
         vm.prank(address(entryPoint));
-        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(
-            userOp,
-            bytes32(0),
-            0.001 ether
-        );
+        (bytes memory context, uint256 validationData) =
+            paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
 
         assertTrue(context.length > 0);
         assertEq(validationData, 0); // Success
@@ -172,10 +166,7 @@ contract ERC20PaymasterTest is Test {
         PackedUserOperation memory userOp = _createSampleUserOp(user, address(unsupportedToken));
 
         vm.prank(address(entryPoint));
-        vm.expectRevert(abi.encodeWithSelector(
-            ERC20Paymaster.UnsupportedToken.selector,
-            address(unsupportedToken)
-        ));
+        vm.expectRevert(abi.encodeWithSelector(ERC20Paymaster.UnsupportedToken.selector, address(unsupportedToken)));
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
     }
 
@@ -220,7 +211,7 @@ contract ERC20PaymasterTest is Test {
 
     function test_stalePrice_reverts() public {
         // Warp to a reasonable timestamp to avoid underflow
-        vm.warp(1000000);
+        vm.warp(1_000_000);
 
         // Set stale price (2 hours ago)
         oracle.setPriceWithTimestamp(address(token), 5e14, block.timestamp - 2 hours);
@@ -234,10 +225,7 @@ contract ERC20PaymasterTest is Test {
 
     // ============ Helper Functions ============
 
-    function _createSampleUserOp(
-        address sender,
-        address payToken
-    ) internal view returns (PackedUserOperation memory) {
+    function _createSampleUserOp(address sender, address payToken) internal view returns (PackedUserOperation memory) {
         bytes memory paymasterData = abi.encodePacked(payToken);
 
         return PackedUserOperation({
@@ -245,13 +233,13 @@ contract ERC20PaymasterTest is Test {
             nonce: 0,
             initCode: "",
             callData: "",
-            accountGasLimits: bytes32(uint256(100000) << 128 | uint256(100000)),
-            preVerificationGas: 21000,
+            accountGasLimits: bytes32(uint256(100_000) << 128 | uint256(100_000)),
+            preVerificationGas: 21_000,
             gasFees: bytes32(uint256(1 gwei) << 128 | uint256(1 gwei)),
             paymasterAndData: abi.encodePacked(
                 address(paymaster),
-                uint128(100000), // verification gas
-                uint128(50000),  // post-op gas
+                uint128(100_000), // verification gas
+                uint128(50_000), // post-op gas
                 paymasterData
             ),
             signature: ""

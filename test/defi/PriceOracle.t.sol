@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test, console} from "forge-std/Test.sol";
-import {PriceOracle} from "../../src/defi/PriceOracle.sol";
-import {IPriceOracle} from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { PriceOracle } from "../../src/defi/PriceOracle.sol";
+import { IPriceOracle } from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
 
 /**
  * @title MockChainlinkAggregator
@@ -34,23 +34,19 @@ contract MockChainlinkAggregator {
         return 1;
     }
 
-    function getRoundData(uint80) external view returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt_,
-        uint80 answeredInRound
-    ) {
+    function getRoundData(uint80)
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt_, uint80 answeredInRound)
+    {
         return (1, price, updatedAt, updatedAt, 1);
     }
 
-    function latestRoundData() external view returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt_,
-        uint80 answeredInRound
-    ) {
+    function latestRoundData()
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt_, uint80 answeredInRound)
+    {
         return (1, price, updatedAt, updatedAt, 1);
     }
 
@@ -90,22 +86,23 @@ contract MockUniswapV3Pool {
         secondsPerLiquidityCumulativeX128s = new uint160[](2);
     }
 
-    function observe(uint32[] calldata) external view returns (
-        int56[] memory,
-        uint160[] memory
-    ) {
+    function observe(uint32[] calldata) external view returns (int56[] memory, uint160[] memory) {
         return (tickCumulatives, secondsPerLiquidityCumulativeX128s);
     }
 
-    function slot0() external pure returns (
-        uint160 sqrtPriceX96,
-        int24 tick,
-        uint16 observationIndex,
-        uint16 observationCardinality,
-        uint16 observationCardinalityNext,
-        uint8 feeProtocol,
-        bool unlocked
-    ) {
+    function slot0()
+        external
+        pure
+        returns (
+            uint160 sqrtPriceX96,
+            int24 tick,
+            uint16 observationIndex,
+            uint16 observationCardinality,
+            uint16 observationCardinalityNext,
+            uint8 feeProtocol,
+            bool unlocked
+        )
+    {
         return (0, 0, 0, 0, 0, 0, true);
     }
 
@@ -150,7 +147,7 @@ contract PriceOracleTest is Test {
 
     // Constants
     uint256 constant ETH_PRICE = 2000e8; // $2000 with 8 decimals (Chainlink standard)
-    uint256 constant USDC_PRICE = 1e8;   // $1 with 8 decimals
+    uint256 constant USDC_PRICE = 1e8; // $1 with 8 decimals
     uint256 constant TOKEN_PRICE = 100e8; // $100 with 8 decimals
 
     function setUp() public {
@@ -173,7 +170,7 @@ contract PriceOracleTest is Test {
         uniswapPool = new MockUniswapV3Pool(address(testToken), address(usdc));
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            CONSTRUCTOR TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -189,7 +186,7 @@ contract PriceOracleTest is Test {
         assertEq(oracle.PRICE_DECIMALS(), 18);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         CHAINLINK FEED TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -226,7 +223,7 @@ contract PriceOracleTest is Test {
         assertFalse(active);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         UNISWAP POOL TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -270,7 +267,7 @@ contract PriceOracleTest is Test {
         assertFalse(active);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                       STALENESS THRESHOLD TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -296,7 +293,7 @@ contract PriceOracleTest is Test {
         oracle.setStalenessThreshold(25 hours);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         CHAINLINK PRICE TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -311,7 +308,7 @@ contract PriceOracleTest is Test {
 
     function test_GetPrice_Chainlink_ScalesDecimals() public {
         // Test with different decimals
-        MockChainlinkAggregator feed6 = new MockChainlinkAggregator(1000000, 6); // $1 with 6 decimals
+        MockChainlinkAggregator feed6 = new MockChainlinkAggregator(1_000_000, 6); // $1 with 6 decimals
         oracle.setChainlinkFeed(address(usdc), address(feed6));
 
         uint256 price = oracle.getPrice(address(usdc));
@@ -322,17 +319,13 @@ contract PriceOracleTest is Test {
         oracle.setChainlinkFeed(address(testToken), address(chainlinkFeed));
 
         // Warp to a reasonable timestamp first
-        vm.warp(10000);
+        vm.warp(10_000);
 
         // Set price to be stale (2 hours ago)
         uint256 staleTime = block.timestamp - 2 hours;
         chainlinkFeed.setUpdatedAt(staleTime);
 
-        vm.expectRevert(abi.encodeWithSelector(
-            PriceOracle.StalePrice.selector,
-            address(testToken),
-            staleTime
-        ));
+        vm.expectRevert(abi.encodeWithSelector(PriceOracle.StalePrice.selector, address(testToken), staleTime));
         oracle.getPrice(address(testToken));
     }
 
@@ -352,7 +345,7 @@ contract PriceOracleTest is Test {
         oracle.getPrice(address(testToken));
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           UNISWAP TWAP TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -381,7 +374,7 @@ contract PriceOracleTest is Test {
         assertGt(price, 0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         NO PRICE FEED TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -390,7 +383,7 @@ contract PriceOracleTest is Test {
         oracle.getPrice(address(testToken));
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                       IPRICE ORACLE INTERFACE TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -419,14 +412,14 @@ contract PriceOracleTest is Test {
         oracle.setChainlinkFeed(address(testToken), address(chainlinkFeed));
 
         // Warp to a reasonable timestamp first
-        vm.warp(10000);
+        vm.warp(10_000);
         chainlinkFeed.setUpdatedAt(block.timestamp - 2 hours);
 
         bool isValid = oracle.hasValidPrice(address(testToken));
         assertFalse(isValid);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                          UTILITY FUNCTION TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -468,7 +461,7 @@ contract PriceOracleTest is Test {
     function test_ConvertAmount_Success() public {
         // Setup feeds
         MockChainlinkAggregator tokenFeed = new MockChainlinkAggregator(int256(100e8), 8); // $100
-        MockChainlinkAggregator usdcFeed = new MockChainlinkAggregator(int256(1e8), 8);    // $1
+        MockChainlinkAggregator usdcFeed = new MockChainlinkAggregator(int256(1e8), 8); //$1
 
         oracle.setChainlinkFeed(address(testToken), address(tokenFeed));
         oracle.setChainlinkFeed(address(usdc), address(usdcFeed));
@@ -491,7 +484,7 @@ contract PriceOracleTest is Test {
         assertEq(converted, amount);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           PRIORITY TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -507,7 +500,7 @@ contract PriceOracleTest is Test {
         assertEq(data.source, "Chainlink");
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           NATIVE TOKEN TESTS
     //////////////////////////////////////////////////////////////*/
 

@@ -2,17 +2,14 @@
 
 pragma solidity ^0.8.0;
 
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /**
  * @title IERC1271
  * @notice Interface for EIP-1271 signature validation
  */
 interface IERC1271 {
-    function isValidSignature(bytes32 hash, bytes memory signature)
-        external
-        view
-        returns (bytes4 magicValue);
+    function isValidSignature(bytes32 hash, bytes memory signature) external view returns (bytes4 magicValue);
 }
 
 /**
@@ -22,11 +19,7 @@ interface IERC1271 {
 interface IERC6538Registry {
     error ERC6538Registry__InvalidSignature();
 
-    event StealthMetaAddressSet(
-        address indexed registrant,
-        uint256 indexed schemeId,
-        bytes stealthMetaAddress
-    );
+    event StealthMetaAddressSet(address indexed registrant, uint256 indexed schemeId, bytes stealthMetaAddress);
 
     event NonceIncremented(address indexed registrant, uint256 newNonce);
 
@@ -43,10 +36,7 @@ interface IERC6538Registry {
 
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 
-    function stealthMetaAddressOf(address registrant, uint256 schemeId)
-        external
-        view
-        returns (bytes memory);
+    function stealthMetaAddressOf(address registrant, uint256 schemeId) external view returns (bytes memory);
 
     function ERC6538REGISTRY_ENTRY_TYPE_HASH() external view returns (bytes32);
 
@@ -71,24 +61,21 @@ interface IERC6538Registry {
 contract ERC6538Registry is IERC6538Registry {
     using ECDSA for bytes32;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
     error InvalidStealthMetaAddress();
     error KeysNotRegistered();
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Emitted when keys are removed
-    event StealthMetaAddressRemoved(
-        address indexed registrant,
-        uint256 indexed schemeId
-    );
+    event StealthMetaAddressRemoved(address indexed registrant, uint256 indexed schemeId);
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
@@ -109,9 +96,9 @@ contract ERC6538Registry is IERC6538Registry {
     bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;
 
     /// @notice EIP-1271 magic value for valid signatures
-    bytes4 internal constant EIP1271_MAGIC_VALUE = 0x1626ba7e;
+    bytes4 internal constant EIP1271_MAGIC_VALUE = 0_x16_26b_a7e;
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
@@ -120,7 +107,7 @@ contract ERC6538Registry is IERC6538Registry {
         INITIAL_DOMAIN_SEPARATOR = _computeDomainSeparator();
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         REGISTRATION FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -129,10 +116,7 @@ contract ERC6538Registry is IERC6538Registry {
      * @param schemeId Identifier for the stealth address scheme
      * @param stealthMetaAddress The stealth meta-address (spending + viewing public keys)
      */
-    function registerKeys(
-        uint256 schemeId,
-        bytes calldata stealthMetaAddress
-    ) external override {
+    function registerKeys(uint256 schemeId, bytes calldata stealthMetaAddress) external override {
         if (stealthMetaAddress.length == 0) revert InvalidStealthMetaAddress();
 
         stealthMetaAddressOf[msg.sender][schemeId] = stealthMetaAddress;
@@ -158,18 +142,11 @@ contract ERC6538Registry is IERC6538Registry {
         // Build the EIP-712 digest
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 structHash = keccak256(
-            abi.encode(
-                ERC6538REGISTRY_ENTRY_TYPE_HASH,
-                schemeId,
-                keccak256(stealthMetaAddress),
-                nonceOf[registrant]
-            )
+            abi.encode(ERC6538REGISTRY_ENTRY_TYPE_HASH, schemeId, keccak256(stealthMetaAddress), nonceOf[registrant])
         );
 
         // forge-lint: disable-next-line(asm-keccak256)
-        bytes32 digest = keccak256(
-            abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), structHash)
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), structHash));
 
         // Increment nonce before validation (prevents replay)
         unchecked {
@@ -226,7 +203,7 @@ contract ERC6538Registry is IERC6538Registry {
         emit NonceIncremented(msg.sender, nonceOf[msg.sender]);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                            VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -237,9 +214,7 @@ contract ERC6538Registry is IERC6538Registry {
     // Function name follows EIP-712 standard
     // forge-lint: disable-next-line(mixed-case-function)
     function DOMAIN_SEPARATOR() public view override returns (bytes32) {
-        return block.chainid == INITIAL_CHAIN_ID
-            ? INITIAL_DOMAIN_SEPARATOR
-            : _computeDomainSeparator();
+        return block.chainid == INITIAL_CHAIN_ID ? INITIAL_DOMAIN_SEPARATOR : _computeDomainSeparator();
     }
 
     /**
@@ -248,10 +223,7 @@ contract ERC6538Registry is IERC6538Registry {
      * @param schemeId The scheme identifier
      * @return Whether keys are registered
      */
-    function hasRegisteredKeys(
-        address registrant,
-        uint256 schemeId
-    ) external view returns (bool) {
+    function hasRegisteredKeys(address registrant, uint256 schemeId) external view returns (bool) {
         return stealthMetaAddressOf[registrant][schemeId].length > 0;
     }
 
@@ -261,10 +233,7 @@ contract ERC6538Registry is IERC6538Registry {
      * @param schemeId The scheme identifier
      * @return The stealth meta-address bytes
      */
-    function getStealthMetaAddress(
-        address registrant,
-        uint256 schemeId
-    ) external view returns (bytes memory) {
+    function getStealthMetaAddress(address registrant, uint256 schemeId) external view returns (bytes memory) {
         bytes memory metaAddress = stealthMetaAddressOf[registrant][schemeId];
         if (metaAddress.length == 0) revert KeysNotRegistered();
         return metaAddress;
@@ -277,16 +246,18 @@ contract ERC6538Registry is IERC6538Registry {
      * @return viewingPubKey The viewing public key (33 bytes compressed)
      * @dev Assumes compressed public keys (33 bytes each)
      */
-    function parseStealthMetaAddress(
-        bytes calldata stealthMetaAddress
-    ) external pure returns (bytes memory spendingPubKey, bytes memory viewingPubKey) {
+    function parseStealthMetaAddress(bytes calldata stealthMetaAddress)
+        external
+        pure
+        returns (bytes memory spendingPubKey, bytes memory viewingPubKey)
+    {
         require(stealthMetaAddress.length >= 66, "Invalid stealth meta-address length");
 
         spendingPubKey = stealthMetaAddress[:33];
         viewingPubKey = stealthMetaAddress[33:66];
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                          INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -297,9 +268,7 @@ contract ERC6538Registry is IERC6538Registry {
         // forge-lint: disable-next-line(asm-keccak256)
         return keccak256(
             abi.encode(
-                keccak256(
-                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                ),
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
                 keccak256("ERC6538Registry"),
                 keccak256("1.0"),
                 block.chainid,

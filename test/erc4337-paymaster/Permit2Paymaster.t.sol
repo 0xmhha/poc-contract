@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {Permit2Paymaster} from "../../src/erc4337-paymaster/Permit2Paymaster.sol";
-import {IPriceOracle} from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
-import {IPermit2} from "../../src/permit2/interfaces/IPermit2.sol";
-import {IEntryPoint} from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
-import {PackedUserOperation} from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
-import {EntryPoint} from "../../src/erc4337-entrypoint/EntryPoint.sol";
-import {MockPriceOracle} from "./mocks/MockPriceOracle.sol";
-import {MockERC20} from "./mocks/MockERC20.sol";
-import {MockPermit2} from "./mocks/MockPermit2.sol";
+import { Test } from "forge-std/Test.sol";
+import { Permit2Paymaster } from "../../src/erc4337-paymaster/Permit2Paymaster.sol";
+import { IPriceOracle } from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { IPermit2 } from "../../src/permit2/interfaces/IPermit2.sol";
+import { IEntryPoint } from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
+import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
+import { EntryPoint } from "../../src/erc4337-entrypoint/EntryPoint.sol";
+import { MockPriceOracle } from "./mocks/MockPriceOracle.sol";
+import { MockERC20 } from "./mocks/MockERC20.sol";
+import { MockPermit2 } from "./mocks/MockPermit2.sol";
 
 contract Permit2PaymasterTest is Test {
     Permit2Paymaster public paymaster;
@@ -28,7 +28,7 @@ contract Permit2PaymasterTest is Test {
 
     function setUp() public {
         owner = makeAddr("owner");
-        userPrivateKey = 0xBEEF;
+        userPrivateKey = 0xB_EEF;
         user = vm.addr(userPrivateKey);
 
         // Deploy EntryPoint
@@ -59,7 +59,7 @@ contract Permit2PaymasterTest is Test {
         // Fund paymaster with ETH
         vm.deal(owner, 100 ether);
         vm.prank(owner);
-        paymaster.deposit{value: INITIAL_DEPOSIT}();
+        paymaster.deposit{ value: INITIAL_DEPOSIT }();
 
         // Mint tokens to user
         token.mint(user, 1_000_000e6);
@@ -81,11 +81,7 @@ contract Permit2PaymasterTest is Test {
         vm.prank(owner);
         vm.expectRevert(Permit2Paymaster.Permit2CannotBeZero.selector);
         new Permit2Paymaster(
-            IEntryPoint(address(entryPoint)),
-            owner,
-            IPermit2(address(0)),
-            IPriceOracle(address(oracle)),
-            INITIAL_MARKUP
+            IEntryPoint(address(entryPoint)), owner, IPermit2(address(0)), IPriceOracle(address(oracle)), INITIAL_MARKUP
         );
     }
 
@@ -161,7 +157,7 @@ contract Permit2PaymasterTest is Test {
     }
 
     function test_getQuote() public view {
-        uint256 gasLimit = 100000;
+        uint256 gasLimit = 100_000;
         uint256 maxFeePerGas = 10 gwei;
 
         uint256 quote = paymaster.getQuote(address(token), gasLimit, maxFeePerGas);
@@ -175,11 +171,8 @@ contract Permit2PaymasterTest is Test {
         PackedUserOperation memory userOp = _createSampleUserOp(user, address(token));
 
         vm.prank(address(entryPoint));
-        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(
-            userOp,
-            bytes32(0),
-            0.001 ether
-        );
+        (bytes memory context, uint256 validationData) =
+            paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
 
         assertTrue(context.length > 0);
         assertEq(validationData, 0); // Success
@@ -188,12 +181,7 @@ contract Permit2PaymasterTest is Test {
     function test_validatePaymasterUserOp_withExistingAllowance() public {
         // Set existing allowance via Permit2
         permit2.setAllowance(
-            user,
-            address(token),
-            address(paymaster),
-            type(uint160).max,
-            uint48(block.timestamp + 1 hours),
-            0
+            user, address(token), address(paymaster), type(uint160).max, uint48(block.timestamp + 1 hours), 0
         );
 
         // Make permit fail to test existing allowance fallback
@@ -202,11 +190,8 @@ contract Permit2PaymasterTest is Test {
         PackedUserOperation memory userOp = _createSampleUserOp(user, address(token));
 
         vm.prank(address(entryPoint));
-        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(
-            userOp,
-            bytes32(0),
-            0.001 ether
-        );
+        (bytes memory context, uint256 validationData) =
+            paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
 
         assertTrue(context.length > 0);
         assertEq(validationData, 0);
@@ -217,10 +202,7 @@ contract Permit2PaymasterTest is Test {
         PackedUserOperation memory userOp = _createSampleUserOp(user, address(unsupportedToken));
 
         vm.prank(address(entryPoint));
-        vm.expectRevert(abi.encodeWithSelector(
-            Permit2Paymaster.UnsupportedToken.selector,
-            address(unsupportedToken)
-        ));
+        vm.expectRevert(abi.encodeWithSelector(Permit2Paymaster.UnsupportedToken.selector, address(unsupportedToken)));
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
     }
 
@@ -240,13 +222,13 @@ contract Permit2PaymasterTest is Test {
             nonce: 0,
             initCode: "",
             callData: "",
-            accountGasLimits: bytes32(uint256(100000) << 128 | uint256(100000)),
-            preVerificationGas: 21000,
+            accountGasLimits: bytes32(uint256(100_000) << 128 | uint256(100_000)),
+            preVerificationGas: 21_000,
             gasFees: bytes32(uint256(1 gwei) << 128 | uint256(1 gwei)),
             paymasterAndData: abi.encodePacked(
                 address(paymaster),
-                uint128(100000),
-                uint128(50000),
+                uint128(100_000),
+                uint128(50_000),
                 bytes20(address(token)) // Only 20 bytes, not enough
             ),
             signature: ""
@@ -272,7 +254,7 @@ contract Permit2PaymasterTest is Test {
 
     function test_stalePrice_reverts() public {
         // Warp to a reasonable timestamp
-        vm.warp(1000000);
+        vm.warp(1_000_000);
 
         // Set stale price (2 hours ago)
         oracle.setPriceWithTimestamp(address(token), 5e14, block.timestamp - 2 hours);
@@ -286,10 +268,7 @@ contract Permit2PaymasterTest is Test {
 
     // ============ Helper Functions ============
 
-    function _createSampleUserOp(
-        address sender,
-        address payToken
-    ) internal view returns (PackedUserOperation memory) {
+    function _createSampleUserOp(address sender, address payToken) internal view returns (PackedUserOperation memory) {
         // Create paymaster data
         // [0:20] token, [20:40] amount, [40:46] expiration, [46:52] nonce, [52:117] signature
         uint160 permitAmount = type(uint160).max;
@@ -298,11 +277,7 @@ contract Permit2PaymasterTest is Test {
         bytes memory signature = new bytes(65); // Dummy signature for mock
 
         bytes memory paymasterData = abi.encodePacked(
-            bytes20(payToken),
-            bytes20(uint160(permitAmount)),
-            bytes6(expiration),
-            bytes6(nonce),
-            signature
+            bytes20(payToken), bytes20(uint160(permitAmount)), bytes6(expiration), bytes6(nonce), signature
         );
 
         return PackedUserOperation({
@@ -310,13 +285,13 @@ contract Permit2PaymasterTest is Test {
             nonce: 0,
             initCode: "",
             callData: "",
-            accountGasLimits: bytes32(uint256(100000) << 128 | uint256(100000)),
-            preVerificationGas: 21000,
+            accountGasLimits: bytes32(uint256(100_000) << 128 | uint256(100_000)),
+            preVerificationGas: 21_000,
             gasFees: bytes32(uint256(1 gwei) << 128 | uint256(1 gwei)),
             paymasterAndData: abi.encodePacked(
                 address(paymaster),
-                uint128(100000), // verification gas
-                uint128(50000),  // post-op gas
+                uint128(100_000), // verification gas
+                uint128(50_000), // post-op gas
                 paymasterData
             ),
             signature: ""

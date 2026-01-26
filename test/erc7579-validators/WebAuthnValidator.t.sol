@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {WebAuthnValidator} from "../../src/erc7579-validators/WebAuthnValidator.sol";
-import {PackedUserOperation} from "../../src/erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { Test } from "forge-std/Test.sol";
+import { WebAuthnValidator } from "../../src/erc7579-validators/WebAuthnValidator.sol";
+import { PackedUserOperation } from "../../src/erc7579-smartaccount/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_FAILED_UINT,
     MODULE_TYPE_VALIDATOR,
@@ -17,15 +17,10 @@ contract WebAuthnValidatorTest is Test {
 
     // Sample P256 public key (these are test values, not cryptographically valid)
     bytes32 public credentialId = keccak256("test-credential");
-    uint256 public pubKeyX = 0x65a2fa44daad46eab0278703edb6c4dcf5e30b8a9aec09fdc71a56f52aa392e4;
-    uint256 public pubKeyY = 0x4a7a9e4604aa36898209997288e902ac544a555e4b5e0a9efef2b59233f3f437;
+    uint256 public pubKeyX = 0x6_5a2_fa4_4da_ad4_6ea_b02_787_03e_db6_c4d_cf5_e30_b8a_9ae_c09_fdc_71a_56f_52a_a39_2e4;
+    uint256 public pubKeyY = 0x4_a7a_9e4_604_aa3_689_820_999_728_8e9_02a_c54_4a5_55e_4b5_e0a_9ef_ef2_b59_233_f3f_437;
 
-    event CredentialRegistered(
-        address indexed account,
-        bytes32 indexed credentialId,
-        uint256 pubKeyX,
-        uint256 pubKeyY
-    );
+    event CredentialRegistered(address indexed account, bytes32 indexed credentialId, uint256 pubKeyX, uint256 pubKeyY);
     event CredentialRevoked(address indexed account, bytes32 indexed credentialId);
 
     function setUp() public {
@@ -99,8 +94,8 @@ contract WebAuthnValidatorTest is Test {
         _install();
 
         bytes32 newCredentialId = keccak256("new-credential");
-        uint256 newPubKeyX = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef;
-        uint256 newPubKeyY = 0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321;
+        uint256 newPubKeyX = 0x1_234_567_890_abc_def_123_456_789_0ab_cde_f12_345_678_90a_bcd_ef1_234_567_890_abc_def;
+        uint256 newPubKeyY = 0xf_edc_ba0_987_654_321_fed_cba_098_765_432_1fe_dcb_a09_876_543_21f_edc_ba0_987_654_321;
 
         vm.prank(smartAccount);
         vm.expectEmit(true, true, false, true);
@@ -199,13 +194,7 @@ contract WebAuthnValidatorTest is Test {
         bytes memory clientDataJson = '{"challenge":"test"}';
 
         // Create signature with revoked credential
-        bytes memory signature = abi.encode(
-            credentialId,
-            authenticatorData,
-            clientDataJson,
-            uint256(1),
-            uint256(2)
-        );
+        bytes memory signature = abi.encode(credentialId, authenticatorData, clientDataJson, uint256(1), uint256(2));
 
         PackedUserOperation memory userOp;
         userOp.signature = signature;
@@ -237,7 +226,7 @@ contract WebAuthnValidatorTest is Test {
         bytes memory clientDataJson = '{"challenge":"test"}';
 
         // p256NDivTwo < s means malformed
-        uint256 p256N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551;
+        uint256 p256N = 0xF_FFF_FFF_F00_000_000_FFF_FFF_FFF_FFF_FFF_FBC_E6F_AAD_A71_79E_84F_3B9_CAC_2FC_632_551;
         uint256 p256NDivTwo = p256N / 2;
 
         bytes memory signature = abi.encode(
@@ -263,13 +252,7 @@ contract WebAuthnValidatorTest is Test {
         bytes memory authenticatorData = new bytes(36); // Less than 37
         bytes memory clientDataJson = '{"challenge":"test"}';
 
-        bytes memory signature = abi.encode(
-            credentialId,
-            authenticatorData,
-            clientDataJson,
-            uint256(1),
-            uint256(2)
-        );
+        bytes memory signature = abi.encode(credentialId, authenticatorData, clientDataJson, uint256(1), uint256(2));
 
         PackedUserOperation memory userOp;
         userOp.signature = signature;
@@ -304,13 +287,7 @@ contract WebAuthnValidatorTest is Test {
         bytes memory authenticatorData = new bytes(37);
         bytes memory clientDataJson = '{"challenge":"test"}';
 
-        bytes memory signature = abi.encode(
-            credentialId,
-            authenticatorData,
-            clientDataJson,
-            uint256(1),
-            uint256(2)
-        );
+        bytes memory signature = abi.encode(credentialId, authenticatorData, clientDataJson, uint256(1), uint256(2));
 
         vm.prank(smartAccount);
         bytes4 result = validator.isValidSignatureWithSender(address(0), hash, signature);

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {KYCRegistry} from "../../src/compliance/KYCRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { KYCRegistry } from "../../src/compliance/KYCRegistry.sol";
 
 contract KYCRegistryTest is Test {
     KYCRegistry public registry;
@@ -13,12 +13,19 @@ contract KYCRegistryTest is Test {
     address public kycProvider;
     address public user;
 
-    event KYCStatusUpdated(address indexed account, KYCRegistry.KYCStatus oldStatus, KYCRegistry.KYCStatus newStatus, address indexed updatedBy);
+    event KYCStatusUpdated(
+        address indexed account,
+        KYCRegistry.KYCStatus oldStatus,
+        KYCRegistry.KYCStatus newStatus,
+        address indexed updatedBy
+    );
     event KYCVerified(address indexed account, bytes32 kycProviderHash, string jurisdiction, uint256 expiresAt);
     event KYCRejected(address indexed account, string reason, address indexed rejectedBy);
     event KYCExpired(address indexed account);
     event RiskLevelUpdated(address indexed account, KYCRegistry.RiskLevel oldLevel, KYCRegistry.RiskLevel newLevel);
-    event SanctionsAdded(address indexed account, KYCRegistry.SanctionsList listType, bytes32 sanctionId, string reason);
+    event SanctionsAdded(
+        address indexed account, KYCRegistry.SanctionsList listType, bytes32 sanctionId, string reason
+    );
     event SanctionsRemoved(address indexed account, KYCRegistry.SanctionsList listType, string reason);
     event AddedToAllowList(address indexed account);
     event RemovedFromAllowList(address indexed account);

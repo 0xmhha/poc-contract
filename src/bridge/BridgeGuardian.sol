@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title BridgeGuardian
@@ -41,10 +41,7 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
     event GuardianRemoved(address indexed guardian, uint256 totalGuardians);
     event ThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
     event ProposalCreated(
-        uint256 indexed proposalId,
-        ProposalType proposalType,
-        address indexed proposer,
-        bytes32 dataHash
+        uint256 indexed proposalId, ProposalType proposalType, address indexed proposer, bytes32 dataHash
     );
     event ProposalApproved(uint256 indexed proposalId, address indexed guardian, uint256 approvalCount);
     event ProposalExecuted(uint256 indexed proposalId, address indexed executor);
@@ -63,14 +60,14 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
      */
     enum ProposalType {
         None,
-        Unpause,           // Unpause the bridge
-        Blacklist,         // Blacklist an address
-        Whitelist,         // Remove from blacklist
-        UpdateConfig,      // Update bridge configuration
-        Recovery,          // Execute recovery action
-        AddGuardian,       // Add a new guardian
-        RemoveGuardian,    // Remove a guardian
-        UpdateThreshold    // Update approval threshold
+        Unpause, // Unpause the bridge
+        Blacklist, // Blacklist an address
+        Whitelist, // Remove from blacklist
+        UpdateConfig, // Update bridge configuration
+        Recovery, // Execute recovery action
+        AddGuardian, // Add a new guardian
+        RemoveGuardian, // Remove a guardian
+        UpdateThreshold // Update approval threshold
     }
 
     /**
@@ -171,10 +168,7 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
      * @param initialGuardians Array of initial guardian addresses (min 3, max 15)
      * @param initialThreshold Initial approval threshold (e.g., 3 for 3-of-5)
      */
-    constructor(
-        address[] memory initialGuardians,
-        uint256 initialThreshold
-    ) Ownable(msg.sender) {
+    constructor(address[] memory initialGuardians, uint256 initialThreshold) Ownable(msg.sender) {
         if (initialGuardians.length < MIN_GUARDIANS) revert InvalidGuardianCount();
         if (initialGuardians.length > MAX_GUARDIANS) revert InvalidGuardianCount();
         if (initialThreshold == 0 || initialThreshold > initialGuardians.length) {
@@ -229,11 +223,11 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
      * @param data Encoded action data
      * @return proposalId ID of the created proposal
      */
-    function createProposal(
-        ProposalType proposalType,
-        address target,
-        bytes calldata data
-    ) external onlyGuardian returns (uint256 proposalId) {
+    function createProposal(ProposalType proposalType, address target, bytes calldata data)
+        external
+        onlyGuardian
+        returns (uint256 proposalId)
+    {
         if (proposalType == ProposalType.None) revert InvalidAction();
 
         proposalCount++;
@@ -419,10 +413,7 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
      * @param guardian Guardian address
      * @return approved Whether the guardian has approved
      */
-    function hasGuardianApproved(
-        uint256 proposalId,
-        address guardian
-    ) external view returns (bool) {
+    function hasGuardianApproved(uint256 proposalId, address guardian) external view returns (bool) {
         return hasApproved[proposalId][guardian];
     }
 
@@ -441,11 +432,7 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
      * @return pauser Address that triggered pause
      * @return pausedAt Timestamp of pause
      */
-    function getPauseStatus() external view returns (
-        bool paused,
-        address pauser,
-        uint256 pausedAt
-    ) {
+    function getPauseStatus() external view returns (bool paused, address pauser, uint256 pausedAt) {
         return (guardianPaused, emergencyPauser, lastEmergencyAction);
     }
 
@@ -455,10 +442,7 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
      * @return canExecute Whether the proposal can be executed
      * @return reason Reason if cannot execute
      */
-    function canExecuteProposal(uint256 proposalId) external view returns (
-        bool canExecute,
-        string memory reason
-    ) {
+    function canExecuteProposal(uint256 proposalId) external view returns (bool canExecute, string memory reason) {
         Proposal storage proposal = proposals[proposalId];
 
         if (proposal.id == 0) return (false, "Proposal not found");

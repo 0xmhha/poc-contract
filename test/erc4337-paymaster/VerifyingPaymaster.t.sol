@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {VerifyingPaymaster} from "../../src/erc4337-paymaster/VerifyingPaymaster.sol";
-import {IEntryPoint} from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
-import {PackedUserOperation} from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
-import {EntryPoint} from "../../src/erc4337-entrypoint/EntryPoint.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { Test } from "forge-std/Test.sol";
+import { VerifyingPaymaster } from "../../src/erc4337-paymaster/VerifyingPaymaster.sol";
+import { IEntryPoint } from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
+import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
+import { EntryPoint } from "../../src/erc4337-entrypoint/EntryPoint.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract VerifyingPaymasterTest is Test {
     using MessageHashUtils for bytes32;
@@ -24,7 +24,7 @@ contract VerifyingPaymasterTest is Test {
     function setUp() public {
         // Setup accounts
         owner = makeAddr("owner");
-        signerPrivateKey = 0xA11CE;
+        signerPrivateKey = 0_xA1_1CE;
         verifyingSigner = vm.addr(signerPrivateKey);
         user = makeAddr("user");
 
@@ -33,16 +33,12 @@ contract VerifyingPaymasterTest is Test {
 
         // Deploy VerifyingPaymaster
         vm.prank(owner);
-        paymaster = new VerifyingPaymaster(
-            IEntryPoint(address(entryPoint)),
-            owner,
-            verifyingSigner
-        );
+        paymaster = new VerifyingPaymaster(IEntryPoint(address(entryPoint)), owner, verifyingSigner);
 
         // Fund paymaster
         vm.deal(owner, 100 ether);
         vm.prank(owner);
-        paymaster.deposit{value: INITIAL_DEPOSIT}();
+        paymaster.deposit{ value: INITIAL_DEPOSIT }();
     }
 
     function test_constructor() public view {
@@ -102,26 +98,18 @@ contract VerifyingPaymasterTest is Test {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // Create paymasterAndData
-        bytes memory paymasterData = abi.encodePacked(
-            bytes6(validUntil),
-            bytes6(validAfter),
-            signature
-        );
+        bytes memory paymasterData = abi.encodePacked(bytes6(validUntil), bytes6(validAfter), signature);
 
         userOp.paymasterAndData = abi.encodePacked(
             address(paymaster),
-            uint128(100000), // verification gas
-            uint128(50000),  // post-op gas
+            uint128(100_000), // verification gas
+            uint128(50_000), // post-op gas
             paymasterData
         );
 
         // Validate
         vm.prank(address(entryPoint));
-        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(
-            userOp,
-            bytes32(0),
-            1 ether
-        );
+        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(userOp, bytes32(0), 1 ether);
 
         // Check result
         assertTrue(context.length > 0);
@@ -145,31 +133,18 @@ contract VerifyingPaymasterTest is Test {
         uint48 validAfter = uint48(block.timestamp);
 
         // Create invalid signature (wrong private key)
-        uint256 wrongPrivateKey = 0xBAD;
+        uint256 wrongPrivateKey = 0x_BAD;
         bytes32 hash = paymaster.getHash(userOp, validUntil, validAfter);
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPrivateKey, ethSignedHash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        bytes memory paymasterData = abi.encodePacked(
-            bytes6(validUntil),
-            bytes6(validAfter),
-            signature
-        );
+        bytes memory paymasterData = abi.encodePacked(bytes6(validUntil), bytes6(validAfter), signature);
 
-        userOp.paymasterAndData = abi.encodePacked(
-            address(paymaster),
-            uint128(100000),
-            uint128(50000),
-            paymasterData
-        );
+        userOp.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), paymasterData);
 
         vm.prank(address(entryPoint));
-        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(
-            userOp,
-            bytes32(0),
-            1 ether
-        );
+        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(userOp, bytes32(0), 1 ether);
 
         // Context should be empty for failure
         assertEq(context.length, 0);
@@ -209,18 +184,9 @@ contract VerifyingPaymasterTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, ethSignedHash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        bytes memory paymasterData = abi.encodePacked(
-            bytes6(validUntil),
-            bytes6(validAfter),
-            signature
-        );
+        bytes memory paymasterData = abi.encodePacked(bytes6(validUntil), bytes6(validAfter), signature);
 
-        userOp.paymasterAndData = abi.encodePacked(
-            address(paymaster),
-            uint128(100000),
-            uint128(50000),
-            paymasterData
-        );
+        userOp.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), paymasterData);
 
         uint256 nonceBefore = paymaster.getNonce(user);
 
@@ -239,8 +205,8 @@ contract VerifyingPaymasterTest is Test {
             nonce: 0,
             initCode: "",
             callData: "",
-            accountGasLimits: bytes32(uint256(100000) << 128 | uint256(100000)),
-            preVerificationGas: 21000,
+            accountGasLimits: bytes32(uint256(100_000) << 128 | uint256(100_000)),
+            preVerificationGas: 21_000,
             gasFees: bytes32(uint256(1 gwei) << 128 | uint256(1 gwei)),
             paymasterAndData: "",
             signature: ""

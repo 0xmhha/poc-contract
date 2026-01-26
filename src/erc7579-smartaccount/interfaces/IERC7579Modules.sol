@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-import {PackedUserOperation} from "./PackedUserOperation.sol";
+import { PackedUserOperation } from "./PackedUserOperation.sol";
 
 interface IModule {
     error AlreadyInitialized(address smartAccount);
@@ -52,10 +52,7 @@ interface IValidator is IModule {
      * @param userOpHash The hash of the user operation to be validated
      * @return return value according to ERC-4337
      */
-    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash)
-        external
-        payable
-        returns (uint256);
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash) external payable returns (uint256);
 
     /**
      * Validator can be used for ERC-1271 validation
@@ -66,7 +63,7 @@ interface IValidator is IModule {
         returns (bytes4);
 }
 
-interface IExecutor is IModule {}
+interface IExecutor is IModule { }
 
 interface IHook is IModule {
     function preCheck(address msgSender, uint256 msgValue, bytes calldata msgData)
@@ -77,7 +74,7 @@ interface IHook is IModule {
     function postCheck(bytes calldata hookData) external payable;
 }
 
-interface IFallback is IModule {}
+interface IFallback is IModule { }
 
 interface IPolicy is IModule {
     function checkUserOpPolicy(bytes32 id, PackedUserOperation calldata userOp) external payable returns (uint256);
@@ -92,8 +89,5 @@ interface ISigner is IModule {
         external
         payable
         returns (uint256);
-    function checkSignature(bytes32 id, address sender, bytes32 hash, bytes calldata sig)
-        external
-        view
-        returns (bytes4);
+    function checkSignature(bytes32 id, address sender, bytes32 hash, bytes calldata sig) external view returns (bytes4);
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {USDC} from "../../src/tokens/USDC.sol";
+import { Test } from "forge-std/Test.sol";
+import { USDC } from "../../src/tokens/USDC.sol";
 
 contract USDCTest is Test {
     USDC public usdc;
@@ -31,7 +31,7 @@ contract USDCTest is Test {
         usdc = new USDC(owner);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             METADATA TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -47,7 +47,7 @@ contract USDCTest is Test {
         assertEq(usdc.decimals(), 6);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           CONSTRUCTOR TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -65,7 +65,7 @@ contract USDCTest is Test {
         assertEq(usdc.totalBurned(), 0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         MINTER MANAGEMENT TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -108,7 +108,7 @@ contract USDCTest is Test {
         usdc.removeMinter(minter);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         BLACKLIST MANAGEMENT TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -145,7 +145,7 @@ contract USDCTest is Test {
         usdc.unBlacklist(user2);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         PAUSE MANAGEMENT TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -182,7 +182,7 @@ contract USDCTest is Test {
         usdc.unpause();
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             MINT TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -246,12 +246,12 @@ contract USDCTest is Test {
         usdc.mint(user1, 0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                             BURN TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_Burn() public {
-        uint256 mintAmount = 1_000e6;
+        uint256 mintAmount = 1000e6;
         uint256 burnAmount = 400e6;
 
         vm.prank(owner);
@@ -268,7 +268,7 @@ contract USDCTest is Test {
 
     function test_Burn_RevertIfPaused() public {
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(owner);
         usdc.pause();
@@ -280,7 +280,7 @@ contract USDCTest is Test {
 
     function test_Burn_RevertIfBlacklisted() public {
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(owner);
         usdc.blacklist(user1);
@@ -296,12 +296,12 @@ contract USDCTest is Test {
         usdc.burn(0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           BURN FROM TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_BurnFrom() public {
-        uint256 mintAmount = 1_000e6;
+        uint256 mintAmount = 1000e6;
         uint256 burnAmount = 300e6;
 
         vm.prank(owner);
@@ -319,7 +319,7 @@ contract USDCTest is Test {
 
     function test_BurnFrom_RevertIfPaused() public {
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(user1);
         usdc.approve(user2, 500e6);
@@ -334,7 +334,7 @@ contract USDCTest is Test {
 
     function test_BurnFrom_RevertIfFromBlacklisted() public {
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(user1);
         usdc.approve(user2, 500e6);
@@ -349,7 +349,7 @@ contract USDCTest is Test {
 
     function test_BurnFrom_RevertIfCallerBlacklisted() public {
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(user1);
         usdc.approve(user2, 500e6);
@@ -368,7 +368,7 @@ contract USDCTest is Test {
         usdc.burnFrom(user1, 0);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           TRANSFER TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -376,7 +376,7 @@ contract USDCTest is Test {
         uint256 amount = 500e6;
 
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(user1);
         assertTrue(usdc.transfer(user2, amount));
@@ -387,7 +387,7 @@ contract USDCTest is Test {
 
     function test_Transfer_RevertIfPaused() public {
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(owner);
         usdc.pause();
@@ -399,7 +399,7 @@ contract USDCTest is Test {
 
     function test_Transfer_RevertIfSenderBlacklisted() public {
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(owner);
         usdc.blacklist(user1);
@@ -411,7 +411,7 @@ contract USDCTest is Test {
 
     function test_Transfer_RevertIfRecipientBlacklisted() public {
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(owner);
         usdc.blacklist(user2);
@@ -421,7 +421,7 @@ contract USDCTest is Test {
         usdc.transfer(user2, 100e6);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         TRANSFER FROM TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -429,7 +429,7 @@ contract USDCTest is Test {
         uint256 amount = 300e6;
 
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(user1);
         usdc.approve(user2, amount);
@@ -443,7 +443,7 @@ contract USDCTest is Test {
 
     function test_TransferFrom_RevertIfPaused() public {
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(user1);
         usdc.approve(user2, 500e6);
@@ -458,7 +458,7 @@ contract USDCTest is Test {
 
     function test_TransferFrom_RevertIfFromBlacklisted() public {
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(user1);
         usdc.approve(user2, 500e6);
@@ -475,7 +475,7 @@ contract USDCTest is Test {
         address user3 = makeAddr("user3");
 
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(user1);
         usdc.approve(user2, 500e6);
@@ -490,7 +490,7 @@ contract USDCTest is Test {
 
     function test_TransferFrom_RevertIfCallerBlacklisted() public {
         vm.prank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
 
         vm.prank(user1);
         usdc.approve(user2, 500e6);
@@ -503,15 +503,15 @@ contract USDCTest is Test {
         usdc.transferFrom(user1, user2, 100e6);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           APPROVE TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_Approve() public {
         vm.prank(user1);
-        assertTrue(usdc.approve(user2, 1_000e6));
+        assertTrue(usdc.approve(user2, 1000e6));
 
-        assertEq(usdc.allowance(user1, user2), 1_000e6);
+        assertEq(usdc.allowance(user1, user2), 1000e6);
     }
 
     function test_Approve_RevertIfPaused() public {
@@ -541,25 +541,25 @@ contract USDCTest is Test {
         usdc.approve(user2, 100e6);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                         VIEW FUNCTIONS TESTS
     //////////////////////////////////////////////////////////////*/
 
     function test_CirculatingSupply() public {
         vm.startPrank(owner);
-        usdc.mint(user1, 1_000e6);
+        usdc.mint(user1, 1000e6);
         usdc.mint(user2, 500e6);
         vm.stopPrank();
 
         vm.prank(user1);
         usdc.burn(200e6);
 
-        assertEq(usdc.circulatingSupply(), 1_300e6);
-        assertEq(usdc.totalMinted(), 1_500e6);
+        assertEq(usdc.circulatingSupply(), 1300e6);
+        assertEq(usdc.totalMinted(), 1500e6);
         assertEq(usdc.totalBurned(), 200e6);
     }
 
-    /*//////////////////////////////////////////////////////////////
+    /* //////////////////////////////////////////////////////////////
                           FUZZ TESTS
     //////////////////////////////////////////////////////////////*/
 

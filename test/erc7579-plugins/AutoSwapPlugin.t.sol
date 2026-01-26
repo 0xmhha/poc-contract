@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {AutoSwapPlugin} from "../../src/erc7579-plugins/AutoSwapPlugin.sol";
-import {IPriceOracle} from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
-import {MODULE_TYPE_EXECUTOR} from "../../src/erc7579-smartaccount/types/Constants.sol";
+import { Test } from "forge-std/Test.sol";
+import { AutoSwapPlugin } from "../../src/erc7579-plugins/AutoSwapPlugin.sol";
+import { IPriceOracle } from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { MODULE_TYPE_EXECUTOR } from "../../src/erc7579-smartaccount/types/Constants.sol";
 
 contract MockPriceOracle is IPriceOracle {
     mapping(address => uint256) public prices;
@@ -65,7 +65,7 @@ contract AutoSwapPluginTest is Test {
     function test_Constructor_InitializesCorrectly() public view {
         assertEq(address(plugin.ORACLE()), address(oracle));
         assertEq(plugin.DEX_ROUTER(), dexRouter);
-        assertEq(plugin.BASIS_POINTS(), 10000);
+        assertEq(plugin.BASIS_POINTS(), 10_000);
         assertEq(plugin.PRICE_PRECISION(), 1e18);
     }
 
@@ -113,10 +113,10 @@ contract AutoSwapPluginTest is Test {
         uint256 orderId = plugin.createDcaOrder(
             tokenIn,
             tokenOut,
-            1 ether,      // amountPerExecution
-            1 hours,      // interval
-            10,           // executionCount
-            0             // no expiry
+            1 ether, // amountPerExecution
+            1 hours, // interval
+            10, // executionCount
+            0 // no expiry
         );
 
         assertEq(orderId, 0);
@@ -157,9 +157,9 @@ contract AutoSwapPluginTest is Test {
         uint256 orderId = plugin.createLimitBuyOrder(
             tokenIn,
             tokenOut,
-            100 ether,    // amountIn
-            1.5e18,       // targetPrice
-            90 ether,     // amountOutMin
+            100 ether, // amountIn
+            1.5e18, // targetPrice
+            90 ether, // amountOutMin
             block.timestamp + 1 days
         );
 
@@ -189,8 +189,8 @@ contract AutoSwapPluginTest is Test {
             tokenIn,
             tokenOut,
             50 ether,
-            3e18,         // targetPrice (sell when price >= 3)
-            140 ether,    // amountOutMin
+            3e18, // targetPrice (sell when price >= 3)
+            140 ether, // amountOutMin
             0
         );
 
@@ -219,8 +219,8 @@ contract AutoSwapPluginTest is Test {
             tokenIn,
             tokenOut,
             100 ether,
-            1.5e18,       // triggerPrice (sell if price <= 1.5)
-            140 ether,    // amountOutMin
+            1.5e18, // triggerPrice (sell if price <= 1.5)
+            140 ether, // amountOutMin
             0
         );
 
@@ -249,7 +249,7 @@ contract AutoSwapPluginTest is Test {
             tokenIn,
             tokenOut,
             100 ether,
-            4e18,         // targetPrice (sell when price >= 4)
+            4e18, // targetPrice (sell when price >= 4)
             380 ether,
             0
         );
@@ -279,7 +279,7 @@ contract AutoSwapPluginTest is Test {
             tokenIn,
             tokenOut,
             100 ether,
-            500,          // 5% trailing
+            500, // 5% trailing
             0,
             0
         );
@@ -305,7 +305,7 @@ contract AutoSwapPluginTest is Test {
     function test_CreateTrailingStopOrder_RevertsOnPercentTooHigh() public {
         vm.prank(smartAccount);
         vm.expectRevert(AutoSwapPlugin.InvalidPrice.selector);
-        plugin.createTrailingStopOrder(tokenIn, tokenOut, 100 ether, 10000, 0, 0); // 100%
+        plugin.createTrailingStopOrder(tokenIn, tokenOut, 100 ether, 10_000, 0, 0); // 100%
     }
 
     // ============ Cancel Order Tests ============

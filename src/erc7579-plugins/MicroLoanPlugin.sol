@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IExecutor} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {MODULE_TYPE_EXECUTOR} from "../erc7579-smartaccount/types/Constants.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IPriceOracle} from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { IExecutor } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { MODULE_TYPE_EXECUTOR } from "../erc7579-smartaccount/types/Constants.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IPriceOracle } from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
 
 /**
  * @title MicroLoanPlugin
@@ -36,13 +36,13 @@ contract MicroLoanPlugin is IExecutor {
 
     /// @notice Loan configuration
     struct LoanConfig {
-        address borrowToken;        // Token to borrow
-        address collateralToken;    // Accepted collateral token
-        uint256 collateralRatio;    // Required collateral ratio (e.g., 15000 = 150%)
-        uint256 interestRateBps;    // Annual interest rate in basis points
-        uint256 maxLoanAmount;      // Maximum loan amount
-        uint256 minLoanAmount;      // Minimum loan amount
-        uint256 maxDuration;        // Maximum loan duration in seconds
+        address borrowToken; // Token to borrow
+        address collateralToken; // Accepted collateral token
+        uint256 collateralRatio; // Required collateral ratio (e.g., 15000 = 150%)
+        uint256 interestRateBps; // Annual interest rate in basis points
+        uint256 maxLoanAmount; // Maximum loan amount
+        uint256 minLoanAmount; // Minimum loan amount
+        uint256 maxDuration; // Maximum loan duration in seconds
         bool isActive;
     }
 
@@ -97,7 +97,7 @@ contract MicroLoanPlugin is IExecutor {
     mapping(address => uint256) public liquidityPool;
 
     /// @notice Basis points denominator
-    uint256 public constant BASIS_POINTS = 10000;
+    uint256 public constant BASIS_POINTS = 10_000;
 
     /// @notice Seconds per year for interest calculation
     uint256 public constant SECONDS_PER_YEAR = 365 days;
@@ -138,12 +138,7 @@ contract MicroLoanPlugin is IExecutor {
      * @param _protocolFeeBps Protocol fee in basis points
      * @param _liquidationBonusBps Liquidation bonus in basis points
      */
-    constructor(
-        IPriceOracle _oracle,
-        address _feeRecipient,
-        uint256 _protocolFeeBps,
-        uint256 _liquidationBonusBps
-    ) {
+    constructor(IPriceOracle _oracle, address _feeRecipient, uint256 _protocolFeeBps, uint256 _liquidationBonusBps) {
         if (address(_oracle) == address(0)) revert InvalidOracle();
         if (_feeRecipient == address(0)) revert ZeroAddress();
 
@@ -260,12 +255,10 @@ contract MicroLoanPlugin is IExecutor {
      * @param collateralAmount Collateral amount to provide
      * @return loanId The created loan ID
      */
-    function borrow(
-        uint256 configId,
-        uint256 borrowAmount,
-        uint256 duration,
-        uint256 collateralAmount
-    ) external returns (uint256 loanId) {
+    function borrow(uint256 configId, uint256 borrowAmount, uint256 duration, uint256 collateralAmount)
+        external
+        returns (uint256 loanId)
+    {
         LoanConfig storage config = loanConfigs[configId];
 
         // Validations
@@ -276,11 +269,7 @@ contract MicroLoanPlugin is IExecutor {
         if (borrowAmount > liquidityPool[config.borrowToken]) revert InsufficientLiquidity();
 
         // Check collateral is sufficient
-        uint256 requiredCollateral = _calculateRequiredCollateral(
-            config,
-            borrowAmount,
-            collateralAmount
-        );
+        uint256 requiredCollateral = _calculateRequiredCollateral(config, borrowAmount, collateralAmount);
         if (collateralAmount < requiredCollateral) revert InsufficientCollateral();
 
         // Transfer collateral from user
@@ -371,9 +360,7 @@ contract MicroLoanPlugin is IExecutor {
 
         // Calculate liquidation bonus for liquidator
         uint256 bonus = (loan.collateralAmount * liquidationBonusBps) / BASIS_POINTS;
-        uint256 liquidatorReward = loan.collateralAmount >= totalOwed + bonus
-            ? bonus
-            : 0;
+        uint256 liquidatorReward = loan.collateralAmount >= totalOwed + bonus ? bonus : 0;
 
         // Transfer collateral
         // Liquidator gets their bonus
@@ -452,10 +439,7 @@ contract MicroLoanPlugin is IExecutor {
      * @param configId The config ID
      * @param borrowAmount The borrow amount
      */
-    function getRequiredCollateral(
-        uint256 configId,
-        uint256 borrowAmount
-    ) external view returns (uint256) {
+    function getRequiredCollateral(uint256 configId, uint256 borrowAmount) external view returns (uint256) {
         LoanConfig storage config = loanConfigs[configId];
         return _calculateRequiredCollateral(config, borrowAmount, 0);
     }
@@ -466,7 +450,11 @@ contract MicroLoanPlugin is IExecutor {
         LoanConfig storage config,
         uint256 borrowAmount,
         uint256 /* providedCollateral */
-    ) internal view returns (uint256) {
+    )
+        internal
+        view
+        returns (uint256)
+    {
         // Get prices from oracle
         (uint256 borrowTokenPrice,) = oracle.getPriceWithTimestamp(config.borrowToken);
         (uint256 collateralTokenPrice,) = oracle.getPriceWithTimestamp(config.collateralToken);
@@ -479,17 +467,11 @@ contract MicroLoanPlugin is IExecutor {
         return requiredCollateral;
     }
 
-    function _calculateInterest(
-        Loan storage loan,
-        LoanConfig storage config
-    ) internal view returns (uint256) {
-        uint256 duration = block.timestamp > loan.startTime
-            ? block.timestamp - loan.startTime
-            : 0;
+    function _calculateInterest(Loan storage loan, LoanConfig storage config) internal view returns (uint256) {
+        uint256 duration = block.timestamp > loan.startTime ? block.timestamp - loan.startTime : 0;
 
         // Simple interest: principal * rate * time / (seconds_per_year * 10000)
-        uint256 interest = (loan.borrowAmount * config.interestRateBps * duration) /
-                          (SECONDS_PER_YEAR * BASIS_POINTS);
+        uint256 interest = (loan.borrowAmount * config.interestRateBps * duration) / (SECONDS_PER_YEAR * BASIS_POINTS);
 
         return interest;
     }

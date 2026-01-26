@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IExecutor, IModule} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {IERC7579Account} from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
-import {MODULE_TYPE_EXECUTOR} from "../erc7579-smartaccount/types/Constants.sol";
-import {ExecMode} from "../erc7579-smartaccount/types/Types.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IExecutor, IModule } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { IERC7579Account } from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
+import { MODULE_TYPE_EXECUTOR } from "../erc7579-smartaccount/types/Constants.sol";
+import { ExecMode } from "../erc7579-smartaccount/types/Types.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title RecurringPaymentExecutor
@@ -29,12 +29,12 @@ contract RecurringPaymentExecutor is IExecutor {
     /// @notice Payment schedule configuration
     struct PaymentSchedule {
         address recipient;
-        address token;           // address(0) for ETH
+        address token; // address(0) for ETH
         uint256 amount;
-        uint256 interval;        // Seconds between payments
+        uint256 interval; // Seconds between payments
         uint256 startTime;
         uint256 lastPaymentTime;
-        uint256 maxPayments;     // 0 = unlimited
+        uint256 maxPayments; // 0 = unlimited
         uint256 paymentsMade;
         bool isActive;
     }
@@ -92,24 +92,10 @@ contract RecurringPaymentExecutor is IExecutor {
         if (data.length == 0) return;
 
         // Decode initial payment schedule
-        (
-            address recipient,
-            address token,
-            uint256 amount,
-            uint256 interval,
-            uint256 startTime,
-            uint256 maxPayments
-        ) = abi.decode(data, (address, address, uint256, uint256, uint256, uint256));
+        (address recipient, address token, uint256 amount, uint256 interval, uint256 startTime, uint256 maxPayments) =
+            abi.decode(data, (address, address, uint256, uint256, uint256, uint256));
 
-        _createSchedule(
-            msg.sender,
-            recipient,
-            token,
-            amount,
-            interval,
-            startTime,
-            maxPayments
-        );
+        _createSchedule(msg.sender, recipient, token, amount, interval, startTime, maxPayments);
     }
 
     /// @inheritdoc IModule
@@ -154,15 +140,7 @@ contract RecurringPaymentExecutor is IExecutor {
         uint256 startTime,
         uint256 maxPayments
     ) external returns (uint256 scheduleId) {
-        return _createSchedule(
-            msg.sender,
-            recipient,
-            token,
-            amount,
-            interval,
-            startTime,
-            maxPayments
-        );
+        return _createSchedule(msg.sender, recipient, token, amount, interval, startTime, maxPayments);
     }
 
     /**
@@ -231,9 +209,8 @@ contract RecurringPaymentExecutor is IExecutor {
         }
 
         // Check if payment is due
-        uint256 nextPaymentTime = schedule.lastPaymentTime == 0
-            ? schedule.startTime
-            : schedule.lastPaymentTime + schedule.interval;
+        uint256 nextPaymentTime =
+            schedule.lastPaymentTime == 0 ? schedule.startTime : schedule.lastPaymentTime + schedule.interval;
 
         if (block.timestamp < nextPaymentTime) revert PaymentNotDue();
 
@@ -252,12 +229,7 @@ contract RecurringPaymentExecutor is IExecutor {
         }
 
         emit PaymentExecuted(
-            account,
-            scheduleId,
-            schedule.recipient,
-            schedule.token,
-            schedule.amount,
-            schedule.paymentsMade
+            account, scheduleId, schedule.recipient, schedule.token, schedule.amount, schedule.paymentsMade
         );
 
         // Check if schedule is complete
@@ -275,10 +247,10 @@ contract RecurringPaymentExecutor is IExecutor {
      * @param account The smart account
      * @param scheduleIds Array of schedule IDs to execute
      */
-    function executePaymentBatch(
-        address account,
-        uint256[] calldata scheduleIds
-    ) external returns (uint256 successCount) {
+    function executePaymentBatch(address account, uint256[] calldata scheduleIds)
+        external
+        returns (uint256 successCount)
+    {
         for (uint256 i = 0; i < scheduleIds.length; i++) {
             try this.executePayment(account, scheduleIds[i]) {
                 successCount++;
@@ -295,10 +267,7 @@ contract RecurringPaymentExecutor is IExecutor {
      * @param account The smart account
      * @param scheduleId The schedule ID
      */
-    function getSchedule(
-        address account,
-        uint256 scheduleId
-    ) external view returns (PaymentSchedule memory) {
+    function getSchedule(address account, uint256 scheduleId) external view returns (PaymentSchedule memory) {
         return accountStorage[account].schedules[scheduleId];
     }
 
@@ -321,9 +290,8 @@ contract RecurringPaymentExecutor is IExecutor {
         if (!schedule.isActive) return false;
         if (schedule.maxPayments > 0 && schedule.paymentsMade >= schedule.maxPayments) return false;
 
-        uint256 nextPaymentTime = schedule.lastPaymentTime == 0
-            ? schedule.startTime
-            : schedule.lastPaymentTime + schedule.interval;
+        uint256 nextPaymentTime =
+            schedule.lastPaymentTime == 0 ? schedule.startTime : schedule.lastPaymentTime + schedule.interval;
 
         return block.timestamp >= nextPaymentTime;
     }
@@ -333,17 +301,12 @@ contract RecurringPaymentExecutor is IExecutor {
      * @param account The smart account
      * @param scheduleId The schedule ID
      */
-    function getNextPaymentTime(
-        address account,
-        uint256 scheduleId
-    ) external view returns (uint256) {
+    function getNextPaymentTime(address account, uint256 scheduleId) external view returns (uint256) {
         PaymentSchedule storage schedule = accountStorage[account].schedules[scheduleId];
 
         if (!schedule.isActive) return 0;
 
-        return schedule.lastPaymentTime == 0
-            ? schedule.startTime
-            : schedule.lastPaymentTime + schedule.interval;
+        return schedule.lastPaymentTime == 0 ? schedule.startTime : schedule.lastPaymentTime + schedule.interval;
     }
 
     /**
@@ -351,18 +314,13 @@ contract RecurringPaymentExecutor is IExecutor {
      * @param account The smart account
      * @param scheduleId The schedule ID
      */
-    function getRemainingPayments(
-        address account,
-        uint256 scheduleId
-    ) external view returns (uint256) {
+    function getRemainingPayments(address account, uint256 scheduleId) external view returns (uint256) {
         PaymentSchedule storage schedule = accountStorage[account].schedules[scheduleId];
 
         if (!schedule.isActive) return 0;
         if (schedule.maxPayments == 0) return type(uint256).max; // Unlimited
 
-        return schedule.maxPayments > schedule.paymentsMade
-            ? schedule.maxPayments - schedule.paymentsMade
-            : 0;
+        return schedule.maxPayments > schedule.paymentsMade ? schedule.maxPayments - schedule.paymentsMade : 0;
     }
 
     /**
@@ -370,18 +328,14 @@ contract RecurringPaymentExecutor is IExecutor {
      * @param account The smart account
      * @param scheduleId The schedule ID
      */
-    function getTotalRemainingValue(
-        address account,
-        uint256 scheduleId
-    ) external view returns (uint256) {
+    function getTotalRemainingValue(address account, uint256 scheduleId) external view returns (uint256) {
         PaymentSchedule storage schedule = accountStorage[account].schedules[scheduleId];
 
         if (!schedule.isActive) return 0;
         if (schedule.maxPayments == 0) return type(uint256).max; // Unlimited
 
-        uint256 remaining = schedule.maxPayments > schedule.paymentsMade
-            ? schedule.maxPayments - schedule.paymentsMade
-            : 0;
+        uint256 remaining =
+            schedule.maxPayments > schedule.paymentsMade ? schedule.maxPayments - schedule.paymentsMade : 0;
 
         return remaining * schedule.amount;
     }
@@ -422,48 +376,23 @@ contract RecurringPaymentExecutor is IExecutor {
 
         store.activeScheduleIds.push(scheduleId);
 
-        emit PaymentScheduleCreated(
-            account,
-            scheduleId,
-            recipient,
-            token,
-            amount,
-            interval
-        );
+        emit PaymentScheduleCreated(account, scheduleId, recipient, token, amount, interval);
     }
 
-    function _executeEthPayment(
-        address account,
-        address recipient,
-        uint256 amount
-    ) internal returns (bytes[] memory) {
-        bytes memory execData = abi.encodePacked(
-            recipient,
-            amount,
-            bytes("")
-        );
+    function _executeEthPayment(address account, address recipient, uint256 amount) internal returns (bytes[] memory) {
+        bytes memory execData = abi.encodePacked(recipient, amount, bytes(""));
 
         ExecMode execMode = _encodeExecMode();
         return IERC7579Account(account).executeFromExecutor(execMode, execData);
     }
 
-    function _executeTokenPayment(
-        address account,
-        address token,
-        address recipient,
-        uint256 amount
-    ) internal returns (bytes[] memory) {
-        bytes memory transferCall = abi.encodeWithSelector(
-            IERC20.transfer.selector,
-            recipient,
-            amount
-        );
+    function _executeTokenPayment(address account, address token, address recipient, uint256 amount)
+        internal
+        returns (bytes[] memory)
+    {
+        bytes memory transferCall = abi.encodeWithSelector(IERC20.transfer.selector, recipient, amount);
 
-        bytes memory execData = abi.encodePacked(
-            token,
-            uint256(0),
-            transferCall
-        );
+        bytes memory execData = abi.encodePacked(token, uint256(0), transferCall);
 
         ExecMode execMode = _encodeExecMode();
         return IERC7579Account(account).executeFromExecutor(execMode, execData);

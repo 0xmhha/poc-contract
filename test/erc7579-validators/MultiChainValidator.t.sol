@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {MultiChainValidator, DUMMY_ECDSA_SIG} from "../../src/erc7579-validators/MultiChainValidator.sol";
-import {PackedUserOperation} from "../../src/erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { Test } from "forge-std/Test.sol";
+import { MultiChainValidator, DUMMY_ECDSA_SIG } from "../../src/erc7579-validators/MultiChainValidator.sol";
+import { PackedUserOperation } from "../../src/erc7579-smartaccount/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_SUCCESS_UINT,
     SIG_VALIDATION_FAILED_UINT,
@@ -12,7 +12,7 @@ import {
     ERC1271_MAGICVALUE,
     ERC1271_INVALID
 } from "../../src/erc7579-smartaccount/types/Constants.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract MultiChainValidatorTest is Test {
     using MessageHashUtils for bytes32;
@@ -27,7 +27,7 @@ contract MultiChainValidatorTest is Test {
         validator = new MultiChainValidator();
 
         smartAccount = makeAddr("smartAccount");
-        ownerPrivateKey = 0xA11CE;
+        ownerPrivateKey = 0_xA1_1CE;
         owner = vm.addr(ownerPrivateKey);
     }
 
@@ -125,7 +125,7 @@ contract MultiChainValidatorTest is Test {
         vm.prank(smartAccount);
         validator.onInstall(abi.encodePacked(owner));
 
-        uint256 wrongKey = 0xBAD;
+        uint256 wrongKey = 0x_BAD;
         bytes32 userOpHash = keccak256("userOp");
         bytes32 ethSignedHash = userOpHash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, ethSignedHash);
@@ -162,11 +162,7 @@ contract MultiChainValidatorTest is Test {
         proof[0] = userOpHash2;
 
         // Construct signature: ecdsaSig (65) + merkleRoot (32) + proof
-        bytes memory signature = abi.encodePacked(
-            ecdsaSig,
-            merkleRoot,
-            abi.encode(proof)
-        );
+        bytes memory signature = abi.encodePacked(ecdsaSig, merkleRoot, abi.encode(proof));
 
         PackedUserOperation memory userOp = _createUserOp(smartAccount, signature);
 
@@ -198,11 +194,7 @@ contract MultiChainValidatorTest is Test {
         proof[0] = otherHash;
 
         // Construct signature with DUMMY_ECDSA_SIG to indicate dummyUserOpHash should be used
-        bytes memory signature = abi.encodePacked(
-            DUMMY_ECDSA_SIG,
-            merkleRoot,
-            abi.encode(dummyUserOpHash, proof)
-        );
+        bytes memory signature = abi.encodePacked(DUMMY_ECDSA_SIG, merkleRoot, abi.encode(dummyUserOpHash, proof));
 
         PackedUserOperation memory userOp = _createUserOp(smartAccount, signature);
 
@@ -235,11 +227,7 @@ contract MultiChainValidatorTest is Test {
         bytes32[] memory proof = new bytes32[](1);
         proof[0] = keccak256("other");
 
-        bytes memory signature = abi.encodePacked(
-            ecdsaSig,
-            merkleRoot,
-            abi.encode(proof)
-        );
+        bytes memory signature = abi.encodePacked(ecdsaSig, merkleRoot, abi.encode(proof));
 
         PackedUserOperation memory userOp = _createUserOp(smartAccount, signature);
 
@@ -280,11 +268,7 @@ contract MultiChainValidatorTest is Test {
         bytes32[] memory proof = new bytes32[](1);
         proof[0] = otherHash;
 
-        bytes memory signature = abi.encodePacked(
-            ecdsaSig,
-            merkleRoot,
-            abi.encode(proof)
-        );
+        bytes memory signature = abi.encodePacked(ecdsaSig, merkleRoot, abi.encode(proof));
 
         vm.prank(smartAccount);
         bytes4 result = validator.isValidSignatureWithSender(address(0), hash, signature);
@@ -296,7 +280,7 @@ contract MultiChainValidatorTest is Test {
         vm.prank(smartAccount);
         validator.onInstall(abi.encodePacked(owner));
 
-        uint256 wrongKey = 0xBAD;
+        uint256 wrongKey = 0x_BAD;
         bytes32 hash = keccak256("message");
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, ethSignedHash);
@@ -339,8 +323,8 @@ contract MultiChainValidatorTest is Test {
             nonce: 0,
             initCode: "",
             callData: "",
-            accountGasLimits: bytes32(uint256(100000) << 128 | uint256(100000)),
-            preVerificationGas: 21000,
+            accountGasLimits: bytes32(uint256(100_000) << 128 | uint256(100_000)),
+            preVerificationGas: 21_000,
             gasFees: bytes32(uint256(1 gwei) << 128 | uint256(1 gwei)),
             paymasterAndData: "",
             signature: signature

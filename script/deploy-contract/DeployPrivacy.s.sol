@@ -2,11 +2,11 @@
 pragma solidity ^0.8.28;
 
 // forge-lint: disable-next-line(unused-import)
-import {Script, console} from "forge-std/Script.sol";
-import {DeploymentHelper, DeploymentAddresses} from "../utils/DeploymentAddresses.sol";
-import {ERC5564Announcer} from "../../src/privacy/ERC5564Announcer.sol";
-import {ERC6538Registry} from "../../src/privacy/ERC6538Registry.sol";
-import {PrivateBank} from "../../src/privacy/PrivateBank.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
+import { ERC5564Announcer } from "../../src/privacy/ERC5564Announcer.sol";
+import { ERC6538Registry } from "../../src/privacy/ERC6538Registry.sol";
+import { PrivateBank } from "../../src/privacy/PrivateBank.sol";
 
 /**
  * @title DeployPrivacyScript
@@ -32,7 +32,7 @@ contract DeployPrivacyScript is DeploymentHelper {
     ERC6538Registry public registry;
     PrivateBank public privateBank;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         _initDeployment();

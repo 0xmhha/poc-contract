@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BasePaymaster} from "./BasePaymaster.sol";
-import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
-import {IPermit2} from "../permit2/interfaces/IPermit2.sol";
-import {IAllowanceTransfer} from "../permit2/interfaces/IAllowanceTransfer.sol";
-import {IEntryPoint} from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
-import {PackedUserOperation} from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
-import {UserOperationLib} from "../erc4337-entrypoint/UserOperationLib.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { BasePaymaster } from "./BasePaymaster.sol";
+import { IPriceOracle } from "./interfaces/IPriceOracle.sol";
+import { IPermit2 } from "../permit2/interfaces/IPermit2.sol";
+import { IAllowanceTransfer } from "../permit2/interfaces/IAllowanceTransfer.sol";
+import { IEntryPoint } from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
+import { PackedUserOperation } from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
+import { UserOperationLib } from "../erc4337-entrypoint/UserOperationLib.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /**
  * @title Permit2Paymaster
@@ -19,10 +19,10 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
  *      Users don't need to pre-approve tokens - they sign a Permit2 permit instead.
  *
  * PaymasterData format:
- *   [0:20]   - token address
- *   [20:36]  - amount (uint128) - maximum amount to permit
- *   [36:42]  - expiration (uint48) - permit expiration timestamp
- *   [42:48]  - nonce (uint48) - permit2 nonce
+ *   [0:20] - token address
+ *   [20:36] - amount (uint128) - maximum amount to permit
+ *   [36:42] - expiration (uint48) - permit expiration timestamp
+ *   [42:48] - nonce (uint48) - permit2 nonce
  *   [48:113] - signature (65 bytes) - Permit2 signature
  *
  * Flow:
@@ -50,7 +50,7 @@ contract Permit2Paymaster is BasePaymaster {
     uint256 public constant MAX_MARKUP = 5000;
 
     /// @notice Basis points denominator
-    uint256 public constant BASIS_POINTS = 10000;
+    uint256 public constant BASIS_POINTS = 10_000;
 
     /// @notice Maximum staleness for price data (1 hour)
     uint256 public constant MAX_PRICE_STALENESS = 1 hours;
@@ -77,12 +77,7 @@ contract Permit2Paymaster is BasePaymaster {
     event MarkupUpdated(uint256 oldMarkup, uint256 newMarkup);
     event TokenSupported(address indexed token, bool supported);
     event TokensWithdrawn(address indexed token, address indexed to, uint256 amount);
-    event GasPaidWithPermit2(
-        address indexed sender,
-        address indexed token,
-        uint256 tokenAmount,
-        uint256 gasCost
-    );
+    event GasPaidWithPermit2(address indexed sender, address indexed token, uint256 tokenAmount, uint256 gasCost);
 
     error UnsupportedToken(address token);
     error InvalidMarkup(uint256 markup);
@@ -101,13 +96,9 @@ contract Permit2Paymaster is BasePaymaster {
      * @param _oracle Price oracle address
      * @param _markup Initial markup in basis points
      */
-    constructor(
-        IEntryPoint _entryPoint,
-        address _owner,
-        IPermit2 _permit2,
-        IPriceOracle _oracle,
-        uint256 _markup
-    ) BasePaymaster(_entryPoint, _owner) {
+    constructor(IEntryPoint _entryPoint, address _owner, IPermit2 _permit2, IPriceOracle _oracle, uint256 _markup)
+        BasePaymaster(_entryPoint, _owner)
+    {
         if (address(_permit2) == address(0)) revert Permit2CannotBeZero();
         if (address(_oracle) == address(0)) revert OracleCannotBeZero();
         if (_markup < MIN_MARKUP || _markup > MAX_MARKUP) revert InvalidMarkup(_markup);
@@ -158,11 +149,7 @@ contract Permit2Paymaster is BasePaymaster {
      * @param to Recipient address
      * @param amount Amount to withdraw
      */
-    function withdrawTokens(
-        address token,
-        address to,
-        uint256 amount
-    ) external onlyOwner {
+    function withdrawTokens(address token, address to, uint256 amount) external onlyOwner {
         IERC20(token).safeTransfer(to, amount);
         emit TokensWithdrawn(token, to, amount);
     }
@@ -173,10 +160,7 @@ contract Permit2Paymaster is BasePaymaster {
      * @param ethCost The cost in ETH (wei)
      * @return tokenAmount The required token amount
      */
-    function getTokenAmount(
-        address token,
-        uint256 ethCost
-    ) public view returns (uint256 tokenAmount) {
+    function getTokenAmount(address token, uint256 ethCost) public view returns (uint256 tokenAmount) {
         (uint256 tokenPrice, uint256 updatedAt) = oracle.getPriceWithTimestamp(token);
 
         if (block.timestamp - updatedAt > MAX_PRICE_STALENESS) {
@@ -200,11 +184,11 @@ contract Permit2Paymaster is BasePaymaster {
      * @return context Encoded PostOpContext
      * @return validationData Validation result
      */
-    function _validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 maxCost
-    ) internal override returns (bytes memory context, uint256 validationData) {
+    function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+        internal
+        override
+        returns (bytes memory context, uint256 validationData)
+    {
         (userOpHash); // silence unused warning
 
         bytes calldata paymasterData = _parsePaymasterData(userOp.paymasterAndData);
@@ -231,10 +215,7 @@ contract Permit2Paymaster is BasePaymaster {
         // Execute Permit2 permit to approve this paymaster
         IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
             details: IAllowanceTransfer.PermitDetails({
-                token: token,
-                amount: permitAmount,
-                expiration: expiration,
-                nonce: nonce
+                token: token, amount: permitAmount, expiration: expiration, nonce: nonce
             }),
             spender: address(this),
             sigDeadline: expiration
@@ -242,14 +223,12 @@ contract Permit2Paymaster is BasePaymaster {
 
         // Try to execute permit (may fail if already permitted or signature invalid)
         try PERMIT2.permit(userOp.sender, permitSingle, signature) {
-            // Permit successful
-        } catch {
+        // Permit successful
+        }
+        catch {
             // Check if there's existing allowance via Permit2
-            (uint160 existingAmount, uint48 existingExpiration,) = PERMIT2.allowance(
-                userOp.sender,
-                token,
-                address(this)
-            );
+            (uint160 existingAmount, uint48 existingExpiration,) =
+                PERMIT2.allowance(userOp.sender, token, address(this));
 
             // Verify existing allowance is sufficient
             if (existingAmount < maxTokenCost || existingExpiration < block.timestamp) {
@@ -259,12 +238,7 @@ contract Permit2Paymaster is BasePaymaster {
 
         // Encode context for postOp
         context = abi.encode(
-            PostOpContext({
-                sender: userOp.sender,
-                token: token,
-                maxTokenCost: maxTokenCost,
-                maxCost: maxCost
-            })
+            PostOpContext({ sender: userOp.sender, token: token, maxTokenCost: maxTokenCost, maxCost: maxCost })
         );
 
         return (context, 0);
@@ -277,12 +251,10 @@ contract Permit2Paymaster is BasePaymaster {
      * @param actualGasCost Actual gas cost in native currency
      * @param actualUserOpFeePerGas Actual fee per gas (unused)
      */
-    function _postOp(
-        PostOpMode mode,
-        bytes calldata context,
-        uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
-    ) internal override {
+    function _postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+        internal
+        override
+    {
         (actualUserOpFeePerGas); // silence unused warning
 
         PostOpContext memory ctx = abi.decode(context, (PostOpContext));
@@ -304,12 +276,7 @@ contract Permit2Paymaster is BasePaymaster {
             // forge-lint: disable-next-line(unsafe-typecast)
             uint160 transferAmount = uint160(actualTokenCost);
 
-            PERMIT2.transferFrom(
-                ctx.sender,
-                address(this),
-                transferAmount,
-                ctx.token
-            );
+            PERMIT2.transferFrom(ctx.sender, address(this), transferAmount, ctx.token);
 
             emit GasPaidWithPermit2(ctx.sender, ctx.token, actualTokenCost, actualGasCost);
         }
@@ -331,11 +298,11 @@ contract Permit2Paymaster is BasePaymaster {
      * @param maxFeePerGas Maximum fee per gas
      * @return tokenAmount Estimated token cost with markup
      */
-    function getQuote(
-        address token,
-        uint256 gasLimit,
-        uint256 maxFeePerGas
-    ) external view returns (uint256 tokenAmount) {
+    function getQuote(address token, uint256 gasLimit, uint256 maxFeePerGas)
+        external
+        view
+        returns (uint256 tokenAmount)
+    {
         uint256 maxCost = gasLimit * maxFeePerGas;
         return getTokenAmount(token, maxCost);
     }

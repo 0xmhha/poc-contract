@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 /**
  * @title BridgeValidator
@@ -88,9 +88,8 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
     uint256 public constant MAX_SIGNERS = 15;
     uint256 public constant MIN_SIGNERS = 3;
     uint256 public constant ROTATION_COOLDOWN = 1 days;
-    bytes32 public constant DOMAIN_SEPARATOR_TYPEHASH = keccak256(
-        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-    );
+    bytes32 public constant DOMAIN_SEPARATOR_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 public constant BRIDGE_MESSAGE_TYPEHASH = keccak256(
         "BridgeMessage(bytes32 requestId,address sender,address recipient,address token,uint256 amount,uint256 sourceChain,uint256 targetChain,uint256 nonce,uint256 deadline)"
     );
@@ -122,10 +121,7 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
      * @param initialSigners Array of initial signer addresses
      * @param initialThreshold Minimum signatures required (e.g., 5 for 5-of-7)
      */
-    constructor(
-        address[] memory initialSigners,
-        uint256 initialThreshold
-    ) Ownable(msg.sender) {
+    constructor(address[] memory initialSigners, uint256 initialThreshold) Ownable(msg.sender) {
         if (initialSigners.length < MIN_SIGNERS) revert InvalidSignerCount();
         if (initialSigners.length > MAX_SIGNERS) revert InvalidSignerCount();
         if (initialThreshold == 0 || initialThreshold > initialSigners.length) revert InvalidThreshold();
@@ -167,10 +163,11 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
      * @param signatures Array of signatures from MPC signers
      * @return valid True if sufficient valid signatures provided
      */
-    function verifyMpcSignatures(
-        BridgeMessage calldata message,
-        bytes[] calldata signatures
-    ) external whenNotPaused returns (bool valid) {
+    function verifyMpcSignatures(BridgeMessage calldata message, bytes[] calldata signatures)
+        external
+        whenNotPaused
+        returns (bool valid)
+    {
         // Check deadline
         if (block.timestamp > message.deadline) revert ExpiredMessage();
 
@@ -224,10 +221,11 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
      * @return valid True if sufficient valid signatures provided
      * @return validCount Number of valid signatures
      */
-    function verifySignaturesView(
-        BridgeMessage calldata message,
-        bytes[] calldata signatures
-    ) external view returns (bool valid, uint256 validCount) {
+    function verifySignaturesView(BridgeMessage calldata message, bytes[] calldata signatures)
+        external
+        view
+        returns (bool valid, uint256 validCount)
+    {
         // Check deadline
         if (block.timestamp > message.deadline) return (false, 0);
 
@@ -353,11 +351,10 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
      * @param newThreshold New minimum signatures required
      * @param rotationProof Proof authorizing the rotation (signed by current threshold)
      */
-    function rotateSignerSet(
-        address[] calldata newSigners,
-        uint256 newThreshold,
-        bytes[] calldata rotationProof
-    ) external onlyOwner {
+    function rotateSignerSet(address[] calldata newSigners, uint256 newThreshold, bytes[] calldata rotationProof)
+        external
+        onlyOwner
+    {
         // Check cooldown
         if (block.timestamp < lastRotationTime + ROTATION_COOLDOWN) revert RotationCooldownActive();
 
@@ -368,15 +365,8 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
 
         // Verify rotation proof (current signers must approve)
         // forge-lint: disable-next-line(asm-keccak256)
-        bytes32 rotationHash = keccak256(
-            abi.encode(
-                "ROTATE_SIGNER_SET",
-                signerSetVersion,
-                newSigners,
-                newThreshold,
-                block.chainid
-            )
-        );
+        bytes32 rotationHash =
+            keccak256(abi.encode("ROTATE_SIGNER_SET", signerSetVersion, newSigners, newThreshold, block.chainid));
 
         SignerSet storage currentSet = signerSets[signerSetVersion];
         if (!_verifyRotationProof(rotationHash, rotationProof, currentSet)) {
@@ -433,11 +423,11 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
      * @return threshold Current signature threshold
      * @return activatedAt Timestamp when current set was activated
      */
-    function getCurrentSignerSet() external view returns (
-        address[] memory signers,
-        uint256 threshold,
-        uint256 activatedAt
-    ) {
+    function getCurrentSignerSet()
+        external
+        view
+        returns (address[] memory signers, uint256 threshold, uint256 activatedAt)
+    {
         SignerSet storage currentSet = signerSets[signerSetVersion];
         return (currentSet.signers, currentSet.threshold, currentSet.activatedAt);
     }
@@ -498,11 +488,11 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
      * @param currentSet Current signer set
      * @return valid True if sufficient valid signatures provided
      */
-    function _verifyRotationProof(
-        bytes32 rotationHash,
-        bytes[] calldata signatures,
-        SignerSet storage currentSet
-    ) internal view returns (bool valid) {
+    function _verifyRotationProof(bytes32 rotationHash, bytes[] calldata signatures, SignerSet storage currentSet)
+        internal
+        view
+        returns (bool valid)
+    {
         if (signatures.length < currentSet.threshold) return false;
 
         bytes32 ethSignedHash = rotationHash.toEthSignedMessageHash();

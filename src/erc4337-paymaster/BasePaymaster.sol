@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IPaymaster} from "../erc4337-entrypoint/interfaces/IPaymaster.sol";
-import {IEntryPoint} from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
-import {PackedUserOperation} from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
-import {UserOperationLib} from "../erc4337-entrypoint/UserOperationLib.sol";
-import {_packValidationData} from "../erc4337-entrypoint/Helpers.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import { IPaymaster } from "../erc4337-entrypoint/interfaces/IPaymaster.sol";
+import { IEntryPoint } from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
+import { PackedUserOperation } from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
+import { UserOperationLib } from "../erc4337-entrypoint/UserOperationLib.sol";
+import { _packValidationData } from "../erc4337-entrypoint/Helpers.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title BasePaymaster
@@ -58,11 +58,12 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
      * @return context Context to be passed to postOp
      * @return validationData Validation result and time range
      */
-    function validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 maxCost
-    ) external override onlyEntryPoint returns (bytes memory context, uint256 validationData) {
+    function validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+        external
+        override
+        onlyEntryPoint
+        returns (bytes memory context, uint256 validationData)
+    {
         return _validatePaymasterUserOp(userOp, userOpHash, maxCost);
     }
 
@@ -74,12 +75,11 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
      * @param actualGasCost Actual gas cost of the operation
      * @param actualUserOpFeePerGas Actual fee per gas paid
      */
-    function postOp(
-        PostOpMode mode,
-        bytes calldata context,
-        uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
-    ) external override onlyEntryPoint {
+    function postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+        external
+        override
+        onlyEntryPoint
+    {
         _postOp(mode, context, actualGasCost, actualUserOpFeePerGas);
     }
 
@@ -91,11 +91,10 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
      * @return context Context to be passed to postOp
      * @return validationData Validation result and time range
      */
-    function _validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash,
-        uint256 maxCost
-    ) internal virtual returns (bytes memory context, uint256 validationData);
+    function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+        internal
+        virtual
+        returns (bytes memory context, uint256 validationData);
 
     /**
      * @notice Internal post-operation handler - override in derived contracts if needed
@@ -104,12 +103,10 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
      * @param actualGasCost Actual gas cost
      * @param actualUserOpFeePerGas Actual fee per gas
      */
-    function _postOp(
-        PostOpMode mode,
-        bytes calldata context,
-        uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
-    ) internal virtual {
+    function _postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+        internal
+        virtual
+    {
         // Default implementation does nothing
         // Override in derived contracts for custom post-op logic
         (mode, context, actualGasCost, actualUserOpFeePerGas);
@@ -121,7 +118,7 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
      * @notice Add deposit to EntryPoint for this paymaster
      */
     function deposit() public payable {
-        ENTRYPOINT.depositTo{value: msg.value}(address(this));
+        ENTRYPOINT.depositTo{ value: msg.value }(address(this));
     }
 
     /**
@@ -148,7 +145,7 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
      * @param unstakeDelaySec Minimum delay before stake can be withdrawn
      */
     function addStake(uint32 unstakeDelaySec) external payable onlyOwner {
-        ENTRYPOINT.addStake{value: msg.value}(unstakeDelaySec);
+        ENTRYPOINT.addStake{ value: msg.value }(unstakeDelaySec);
     }
 
     /**
@@ -174,10 +171,7 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
      * @param validAfter Timestamp after which the validation is valid
      * @return Packed validation data
      */
-    function _packValidationDataSuccess(
-        uint48 validUntil,
-        uint48 validAfter
-    ) internal pure returns (uint256) {
+    function _packValidationDataSuccess(uint48 validUntil, uint48 validAfter) internal pure returns (uint256) {
         return _packValidationData(false, validUntil, validAfter);
     }
 
@@ -187,10 +181,7 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
      * @param validAfter Timestamp after which the validation is valid
      * @return Packed validation data
      */
-    function _packValidationDataFailure(
-        uint48 validUntil,
-        uint48 validAfter
-    ) internal pure returns (uint256) {
+    function _packValidationDataFailure(uint48 validUntil, uint48 validAfter) internal pure returns (uint256) {
         return _packValidationData(true, validUntil, validAfter);
     }
 
@@ -199,9 +190,7 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
      * @param paymasterAndData Full paymasterAndData field
      * @return paymasterData The paymaster-specific data (after address and gas limits)
      */
-    function _parsePaymasterData(
-        bytes calldata paymasterAndData
-    ) internal pure returns (bytes calldata paymasterData) {
+    function _parsePaymasterData(bytes calldata paymasterAndData) internal pure returns (bytes calldata paymasterData) {
         // paymasterAndData layout:
         // [0:20] - paymaster address
         // [20:36] - paymaster validation gas limit (16 bytes)

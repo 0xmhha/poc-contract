@@ -2,11 +2,11 @@
 
 pragma solidity ^0.8.0;
 
-import {ValidAfter, ValidUntil, packValidationData} from "../erc7579-smartaccount/types/Types.sol";
-import {ECDSA} from "solady/utils/ECDSA.sol";
-import {EIP712} from "solady/utils/EIP712.sol";
-import {PackedUserOperation} from "../erc7579-smartaccount/interfaces/PackedUserOperation.sol";
-import {IValidator} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { ValidAfter, ValidUntil, packValidationData } from "../erc7579-smartaccount/types/Types.sol";
+import { ECDSA } from "solady/utils/ECDSA.sol";
+import { EIP712 } from "solady/utils/EIP712.sol";
+import { PackedUserOperation } from "../erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { IValidator } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import {
     ERC1271_MAGICVALUE,
     ERC1271_INVALID,
@@ -72,7 +72,7 @@ contract WeightedECDSAValidator is EIP712, IValidator {
             require(guardian[_guardians[i]][_kernel].weight == 0, "Guardian already enabled");
             require(uint160(_guardians[i]) < prevGuardian, "Guardians not sorted");
             guardian[_guardians[i]][_kernel] =
-                GuardianStorage({weight: _weights[i], nextGuardian: weightedStorage[_kernel].firstGuardian});
+                GuardianStorage({ weight: _weights[i], nextGuardian: weightedStorage[_kernel].firstGuardian });
             weightedStorage[_kernel].firstGuardian = _guardians[i];
             totalWeight += _weights[i];
             prevGuardian = uint160(_guardians[i]);

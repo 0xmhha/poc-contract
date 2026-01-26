@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title BridgeRateLimiter
@@ -34,24 +34,11 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
 
     // ============ Events ============
     event TransactionRecorded(
-        address indexed token,
-        uint256 amount,
-        uint256 usdValue,
-        uint256 hourlyUsage,
-        uint256 dailyUsage
+        address indexed token, uint256 amount, uint256 usdValue, uint256 hourlyUsage, uint256 dailyUsage
     );
-    event AlertTriggered(
-        string limitType,
-        uint256 currentUsage,
-        uint256 limit,
-        uint256 percentage
-    );
+    event AlertTriggered(string limitType, uint256 currentUsage, uint256 limit, uint256 percentage);
     event AutoPauseActivated(string reason, uint256 currentUsage, uint256 limit);
-    event LimitsUpdated(
-        uint256 maxPerTx,
-        uint256 hourlyLimit,
-        uint256 dailyLimit
-    );
+    event LimitsUpdated(uint256 maxPerTx, uint256 hourlyLimit, uint256 dailyLimit);
     event ThresholdsUpdated(uint256 alertThreshold, uint256 autoPauseThreshold);
     event TokenPriceUpdated(address indexed token, uint256 price);
     event AuthorizedCallerUpdated(address indexed caller, bool authorized);
@@ -104,9 +91,9 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
     uint256 public constant MAX_PERCENTAGE = 100;
 
     // Default limits for PoC (in USD scaled by 1e18)
-    uint256 public constant DEFAULT_MAX_PER_TX = 100_000 * PRECISION;     // $100K
-    uint256 public constant DEFAULT_HOURLY_LIMIT = 500_000 * PRECISION;   // $500K
-    uint256 public constant DEFAULT_DAILY_LIMIT = 5_000_000 * PRECISION;  // $5M
+    uint256 public constant DEFAULT_MAX_PER_TX = 100_000 * PRECISION; // $100K
+    uint256 public constant DEFAULT_HOURLY_LIMIT = 500_000 * PRECISION; // $500K
+    uint256 public constant DEFAULT_DAILY_LIMIT = 5_000_000 * PRECISION; // $5M
 
     // ============ State Variables ============
 
@@ -163,9 +150,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      */
     constructor() Ownable(msg.sender) {
         globalLimits = RateLimitConfig({
-            maxPerTransaction: DEFAULT_MAX_PER_TX,
-            hourlyLimit: DEFAULT_HOURLY_LIMIT,
-            dailyLimit: DEFAULT_DAILY_LIMIT
+            maxPerTransaction: DEFAULT_MAX_PER_TX, hourlyLimit: DEFAULT_HOURLY_LIMIT, dailyLimit: DEFAULT_DAILY_LIMIT
         });
 
         // Initialize windows
@@ -182,10 +167,13 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @return allowed Whether the transaction is allowed
      * @return usdValue USD value of the transaction
      */
-    function checkAndRecordTransaction(
-        address token,
-        uint256 amount
-    ) external onlyAuthorized whenNotPaused nonReentrant returns (bool allowed, uint256 usdValue) {
+    function checkAndRecordTransaction(address token, uint256 amount)
+        external
+        onlyAuthorized
+        whenNotPaused
+        nonReentrant
+        returns (bool allowed, uint256 usdValue)
+    {
         if (amount == 0) revert ZeroAmount();
 
         TokenConfig storage config = tokenConfigs[token];
@@ -195,8 +183,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
         usdValue = _calculateUsdValue(token, amount);
 
         // Get applicable limits
-        RateLimitConfig memory limits = config.customLimits ?
-            tokenLimits[token] : globalLimits;
+        RateLimitConfig memory limits = config.customLimits ? tokenLimits[token] : globalLimits;
 
         // Check per-transaction limit
         if (usdValue > limits.maxPerTransaction) {
@@ -230,13 +217,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
         totalTransactions++;
         totalVolumeProcessed += usdValue;
 
-        emit TransactionRecorded(
-            token,
-            amount,
-            usdValue,
-            newHourlyVolume,
-            newDailyVolume
-        );
+        emit TransactionRecorded(token, amount, usdValue, newHourlyVolume, newDailyVolume);
 
         return (true, usdValue);
     }
@@ -248,10 +229,11 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @return allowed Whether the transaction would be allowed
      * @return reason Reason if not allowed
      */
-    function checkTransaction(
-        address token,
-        uint256 amount
-    ) external view returns (bool allowed, string memory reason) {
+    function checkTransaction(address token, uint256 amount)
+        external
+        view
+        returns (bool allowed, string memory reason)
+    {
         if (amount == 0) return (false, "Zero amount");
 
         TokenConfig storage config = tokenConfigs[token];
@@ -259,8 +241,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
 
         uint256 usdValue = _calculateUsdValue(token, amount);
 
-        RateLimitConfig memory limits = config.customLimits ?
-            tokenLimits[token] : globalLimits;
+        RateLimitConfig memory limits = config.customLimits ? tokenLimits[token] : globalLimits;
 
         if (usdValue > limits.maxPerTransaction) {
             return (false, "Exceeds per-transaction limit");
@@ -286,11 +267,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @return hourly Remaining hourly capacity
      * @return daily Remaining daily capacity
      */
-    function getRemainingCapacity() external view returns (
-        uint256 perTx,
-        uint256 hourly,
-        uint256 daily
-    ) {
+    function getRemainingCapacity() external view returns (uint256 perTx, uint256 hourly, uint256 daily) {
         (uint256 currentHourly, uint256 currentDaily) = _getCurrentVolumes();
 
         perTx = globalLimits.maxPerTransaction;
@@ -333,19 +310,12 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @param hourlyLimit Hourly limit (in USD scaled by 1e18)
      * @param dailyLimit Daily limit (in USD scaled by 1e18)
      */
-    function setGlobalLimits(
-        uint256 maxPerTx,
-        uint256 hourlyLimit,
-        uint256 dailyLimit
-    ) external onlyOwner {
+    function setGlobalLimits(uint256 maxPerTx, uint256 hourlyLimit, uint256 dailyLimit) external onlyOwner {
         if (maxPerTx == 0 || hourlyLimit == 0 || dailyLimit == 0) revert InvalidLimit();
         if (maxPerTx > hourlyLimit || hourlyLimit > dailyLimit) revert InvalidLimit();
 
-        globalLimits = RateLimitConfig({
-            maxPerTransaction: maxPerTx,
-            hourlyLimit: hourlyLimit,
-            dailyLimit: dailyLimit
-        });
+        globalLimits =
+            RateLimitConfig({ maxPerTransaction: maxPerTx, hourlyLimit: hourlyLimit, dailyLimit: dailyLimit });
 
         emit LimitsUpdated(maxPerTx, hourlyLimit, dailyLimit);
     }
@@ -355,10 +325,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @param _alertThreshold Alert threshold percentage (0-100)
      * @param _autoPauseThreshold Auto-pause threshold percentage (0-100)
      */
-    function setThresholds(
-        uint256 _alertThreshold,
-        uint256 _autoPauseThreshold
-    ) external onlyOwner {
+    function setThresholds(uint256 _alertThreshold, uint256 _autoPauseThreshold) external onlyOwner {
         if (_alertThreshold > MAX_PERCENTAGE || _autoPauseThreshold > MAX_PERCENTAGE) {
             revert InvalidThreshold();
         }
@@ -377,19 +344,10 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @param price Price in USD (scaled by 1e18)
      * @param decimals Token decimals
      */
-    function configureToken(
-        address token,
-        uint256 price,
-        uint8 decimals
-    ) external onlyOwner {
+    function configureToken(address token, uint256 price, uint8 decimals) external onlyOwner {
         // Note: address(0) is allowed to represent native ETH
 
-        tokenConfigs[token] = TokenConfig({
-            supported: true,
-            price: price,
-            decimals: decimals,
-            customLimits: false
-        });
+        tokenConfigs[token] = TokenConfig({ supported: true, price: price, decimals: decimals, customLimits: false });
 
         emit TokenPriceUpdated(token, price);
     }
@@ -401,21 +359,16 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @param hourlyLimit Hourly limit
      * @param dailyLimit Daily limit
      */
-    function setTokenLimits(
-        address token,
-        uint256 maxPerTx,
-        uint256 hourlyLimit,
-        uint256 dailyLimit
-    ) external onlyOwner {
+    function setTokenLimits(address token, uint256 maxPerTx, uint256 hourlyLimit, uint256 dailyLimit)
+        external
+        onlyOwner
+    {
         if (!tokenConfigs[token].supported) revert TokenNotSupported();
         if (maxPerTx == 0 || hourlyLimit == 0 || dailyLimit == 0) revert InvalidLimit();
 
         tokenConfigs[token].customLimits = true;
-        tokenLimits[token] = RateLimitConfig({
-            maxPerTransaction: maxPerTx,
-            hourlyLimit: hourlyLimit,
-            dailyLimit: dailyLimit
-        });
+        tokenLimits[token] =
+            RateLimitConfig({ maxPerTransaction: maxPerTx, hourlyLimit: hourlyLimit, dailyLimit: dailyLimit });
     }
 
     /**
@@ -504,10 +457,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @return hourlyVolume Current hourly volume
      * @return dailyVolume Current daily volume
      */
-    function getCurrentWindowVolumes() external view returns (
-        uint256 hourlyVolume,
-        uint256 dailyVolume
-    ) {
+    function getCurrentWindowVolumes() external view returns (uint256 hourlyVolume, uint256 dailyVolume) {
         return _getCurrentVolumes();
     }
 
@@ -518,12 +468,11 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @return hourlyStart Start of hourly window
      * @return dailyStart Start of daily window
      */
-    function getWindowStats() external view returns (
-        uint256 hourlyTxCount,
-        uint256 dailyTxCount,
-        uint256 hourlyStart,
-        uint256 dailyStart
-    ) {
+    function getWindowStats()
+        external
+        view
+        returns (uint256 hourlyTxCount, uint256 dailyTxCount, uint256 hourlyStart, uint256 dailyStart)
+    {
         // Check if windows should be reset
         if (block.timestamp >= hourlyWindow.windowStart + HOUR) {
             hourlyTxCount = 0;
@@ -548,10 +497,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @param amount Token amount
      * @return usdValue USD value (scaled by 1e18)
      */
-    function calculateUsdValue(
-        address token,
-        uint256 amount
-    ) external view returns (uint256) {
+    function calculateUsdValue(address token, uint256 amount) external view returns (uint256) {
         return _calculateUsdValue(token, amount);
     }
 
@@ -572,10 +518,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @param amount Token amount
      * @return usdValue USD value (scaled by 1e18)
      */
-    function _calculateUsdValue(
-        address token,
-        uint256 amount
-    ) internal view returns (uint256) {
+    function _calculateUsdValue(address token, uint256 amount) internal view returns (uint256) {
         TokenConfig storage config = tokenConfigs[token];
 
         // Normalize amount to 18 decimals then multiply by price
@@ -619,10 +562,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @return hourlyVolume Current hourly volume
      * @return dailyVolume Current daily volume
      */
-    function _getCurrentVolumes() internal view returns (
-        uint256 hourlyVolume,
-        uint256 dailyVolume
-    ) {
+    function _getCurrentVolumes() internal view returns (uint256 hourlyVolume, uint256 dailyVolume) {
         // Check hourly window
         if (block.timestamp >= hourlyWindow.windowStart + HOUR) {
             hourlyVolume = 0;
@@ -644,11 +584,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @param newDailyVolume New daily volume after transaction
      * @param limits Applicable limits
      */
-    function _checkThresholds(
-        uint256 newHourlyVolume,
-        uint256 newDailyVolume,
-        RateLimitConfig memory limits
-    ) internal {
+    function _checkThresholds(uint256 newHourlyVolume, uint256 newDailyVolume, RateLimitConfig memory limits) internal {
         // Check hourly thresholds
         uint256 hourlyPct = (newHourlyVolume * 100) / limits.hourlyLimit;
 

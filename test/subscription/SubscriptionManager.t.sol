@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {SubscriptionManager, ISubscriptionManager} from "../../src/subscription/SubscriptionManager.sol";
-import {ERC7715PermissionManager, IERC7715PermissionManager} from "../../src/subscription/ERC7715PermissionManager.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { SubscriptionManager, ISubscriptionManager } from "../../src/subscription/SubscriptionManager.sol";
+import {
+    ERC7715PermissionManager,
+    IERC7715PermissionManager
+} from "../../src/subscription/ERC7715PermissionManager.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
     constructor() ERC20("Mock Token", "MTK") {
@@ -29,24 +32,11 @@ contract SubscriptionManagerTest is Test {
     bytes32 public permissionId;
     uint256 public planId;
 
-    event PlanCreated(
-        uint256 indexed planId,
-        address indexed merchant,
-        uint256 amount,
-        uint256 period,
-        address token
-    );
+    event PlanCreated(uint256 indexed planId, address indexed merchant, uint256 amount, uint256 period, address token);
     event SubscriptionCreated(
-        bytes32 indexed subscriptionId,
-        uint256 indexed planId,
-        address indexed subscriber,
-        uint256 startTime
+        bytes32 indexed subscriptionId, uint256 indexed planId, address indexed subscriber, uint256 startTime
     );
-    event SubscriptionCancelled(
-        bytes32 indexed subscriptionId,
-        address indexed subscriber,
-        uint256 cancelTime
-    );
+    event SubscriptionCancelled(bytes32 indexed subscriptionId, address indexed subscriber, uint256 cancelTime);
     event PaymentProcessed(
         bytes32 indexed subscriptionId,
         address indexed subscriber,
@@ -70,7 +60,7 @@ contract SubscriptionManagerTest is Test {
         subManager.addProcessor(processor);
 
         token = new MockERC20();
-        token.mint(subscriber, 10000 ether);
+        token.mint(subscriber, 10_000 ether);
         vm.stopPrank();
 
         vm.deal(subscriber, 100 ether);
@@ -78,12 +68,12 @@ contract SubscriptionManagerTest is Test {
         // Create a default plan
         vm.prank(merchant);
         planId = subManager.createPlan(
-            10 ether,           // amount
-            30 days,            // period
-            address(token),     // token
-            7 days,             // trial period
-            3 days,             // grace period
-            0,                  // min subscription time
+            10 ether, // amount
+            30 days, // period
+            address(token), // token
+            7 days, // trial period
+            3 days, // grace period
+            0, // min subscription time
             "Premium Plan",
             "Access to all features"
         );
@@ -97,12 +87,7 @@ contract SubscriptionManagerTest is Test {
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
 
         vm.prank(subscriber);
-        permissionId = permManager.grantPermission(
-            address(subManager),
-            address(subManager),
-            permission,
-            rules
-        );
+        permissionId = permManager.grantPermission(address(subManager), address(subManager), permission, rules);
     }
 
     // ============ Constructor Tests ============
@@ -120,16 +105,8 @@ contract SubscriptionManagerTest is Test {
         vm.prank(merchant);
         vm.expectEmit(true, true, false, true);
         emit PlanCreated(2, merchant, 5 ether, 7 days, address(0));
-        uint256 newPlanId = subManager.createPlan(
-            5 ether,
-            7 days,
-            address(0),
-            0,
-            1 days,
-            0,
-            "Basic Plan",
-            "Basic features"
-        );
+        uint256 newPlanId =
+            subManager.createPlan(5 ether, 7 days, address(0), 0, 1 days, 0, "Basic Plan", "Basic features");
 
         assertEq(newPlanId, 2);
 
@@ -206,9 +183,8 @@ contract SubscriptionManagerTest is Test {
     function test_Subscribe_WithoutTrialPeriod() public {
         // Create plan without trial
         vm.prank(merchant);
-        uint256 noTrialPlanId = subManager.createPlan(
-            10 ether, 30 days, address(token), 0, 3 days, 0, "No Trial", "Desc"
-        );
+        uint256 noTrialPlanId =
+            subManager.createPlan(10 ether, 30 days, address(token), 0, 3 days, 0, "No Trial", "Desc");
 
         // Approve token transfer
         vm.prank(subscriber);
@@ -317,9 +293,8 @@ contract SubscriptionManagerTest is Test {
     function test_ProcessPayment_Success() public {
         // Create plan without trial
         vm.prank(merchant);
-        uint256 noTrialPlanId = subManager.createPlan(
-            10 ether, 30 days, address(token), 0, 3 days, 0, "No Trial", "Desc"
-        );
+        uint256 noTrialPlanId =
+            subManager.createPlan(10 ether, 30 days, address(token), 0, 3 days, 0, "No Trial", "Desc");
 
         vm.prank(subscriber);
         token.approve(address(subManager), 1000 ether);
@@ -437,7 +412,7 @@ contract SubscriptionManagerTest is Test {
 
     function test_SetProtocolFee() public {
         vm.prank(owner);
-        subManager.setProtocolFee(100); // 1%
+        subManager.setProtocolFee(100); //1%
 
         assertEq(subManager.protocolFeeBps(), 100);
     }

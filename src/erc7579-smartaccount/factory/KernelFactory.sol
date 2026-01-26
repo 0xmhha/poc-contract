@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {LibClone} from "solady/utils/LibClone.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 
 contract KernelFactory {
     error InitializeError();

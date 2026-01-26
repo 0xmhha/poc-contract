@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {FraudProofVerifier} from "../../src/bridge/FraudProofVerifier.sol";
-import {BridgeValidator} from "../../src/bridge/BridgeValidator.sol";
+import { Test } from "forge-std/Test.sol";
+import { FraudProofVerifier } from "../../src/bridge/FraudProofVerifier.sol";
+import { BridgeValidator } from "../../src/bridge/BridgeValidator.sol";
 
 contract FraudProofVerifierTest is Test {
     FraudProofVerifier public verifier;
@@ -22,7 +22,10 @@ contract FraudProofVerifierTest is Test {
     address public signer3;
 
     event FraudProofSubmitted(
-        bytes32 indexed requestId, FraudProofVerifier.FraudProofType proofType, address indexed submitter, bytes32 proofHash
+        bytes32 indexed requestId,
+        FraudProofVerifier.FraudProofType proofType,
+        address indexed submitter,
+        bytes32 proofHash
     );
     event FraudProofVerified(
         bytes32 indexed requestId, FraudProofVerifier.FraudProofType proofType, bool isValid, address indexed verifier
@@ -464,7 +467,7 @@ contract FraudProofVerifierTest is Test {
     function test_UpdateStateRoot() public {
         uint256 chainId = 1;
         bytes32 newRoot = keccak256("newRoot");
-        uint256 blockNumber = 12345;
+        uint256 blockNumber = 12_345;
 
         vm.prank(owner);
         vm.expectEmit(true, false, false, true);
