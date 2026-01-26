@@ -4,42 +4,269 @@ Detailed guide for deploying StableNet PoC contracts.
 
 > **[한국어](./ko/DEPLOYMENT.md)**
 
+## Contract Architecture Overview
+
+The project consists of **96 Solidity files** across **13 domains**:
+
+| Domain | Contracts | Description |
+|--------|-----------|-------------|
+| Tokens | USDC, wKRC | Stablecoin (6 decimals) + Wrapped native token (18 decimals) |
+| ERC-4337 EntryPoint | 10 | UserOperation singleton, nonce/stake management |
+| ERC-7579 Smart Account | 32 | Modular Kernel account with proxy pattern |
+| Validators | 5 | ECDSA, Weighted, MultiChain, WebAuthn, MultiSig |
+| Paymasters | 5 | Verifying, ERC20, Sponsor, Permit2 |
+| Executors | 2 | SessionKey, RecurringPayment |
+| Hooks & Fallbacks | 4 | Audit, SpendingLimit, TokenReceiver, FlashLoan |
+| Bridge | 6 | SecureBridge with MPC + Optimistic + Guardian layers |
+| Privacy | 3 | Stealth addresses (ERC-5564/6538) + PrivateBank |
+| DeFi | 2 | PriceOracle (Chainlink/TWAP) + DEXIntegration |
+| Compliance | 4 | KYC, AuditLogger, ProofOfReserve, RegulatoryRegistry |
+| Subscription | 2 | ERC-7715 PermissionManager + SubscriptionManager |
+| Permit2 | 8 | Signature-based token transfers |
+
 ## Deployment Script Structure
 
 ```
 script/
-├── deploy/
-│   ├── DeployDevnet.s.sol      # One-click development deployment
-│   ├── DeployERC4337.s.sol     # ERC-4337 Account Abstraction
-│   ├── DeployERC7579.s.sol     # ERC-7579 Modular Smart Account
-│   ├── DeployPrivacy.s.sol     # Privacy (ERC-5564/6538)
-│   └── DeployCompliance.s.sol  # Compliance
-├── utils/
-│   └── DeploymentAddresses.sol # Address management utility
-└── DeployOrchestrator.s.sol    # Full orchestrator
+├── DeployAll.s.sol               # Unified deployment (all 44 contracts)
+├── deploy-contract/
+│   ├── DeployTokens.s.sol        # USDC, wKRC
+│   ├── DeployEntryPoint.s.sol    # EntryPoint
+│   ├── DeployKernel.s.sol        # Kernel + KernelFactory + FactoryStaker
+│   ├── DeployPaymasters.s.sol    # All paymasters
+│   ├── DeployValidators.s.sol    # All validators (5)
+│   ├── DeployExecutors.s.sol     # SessionKey, RecurringPayment
+│   ├── DeployHooks.s.sol         # AuditHook, SpendingLimitHook
+│   ├── DeployFallbacks.s.sol     # TokenReceiver, FlashLoan
+│   ├── DeployPlugins.s.sol       # AutoSwap, MicroLoan, OnRamp
+│   ├── DeployBridge.s.sol        # All 6 bridge components
+│   ├── DeployPrivacy.s.sol       # Stealth + PrivateBank
+│   ├── DeployDeFi.s.sol          # PriceOracle, DEXIntegration
+│   ├── DeployCompliance.s.sol    # KYC, Audit, PoR, Regulatory
+│   ├── DeployPermit2.s.sol       # Permit2
+│   └── DeploySubscription.s.sol  # ERC7715 + SubscriptionManager
+└── utils/
+    ├── DeploymentAddresses.sol   # Address caching & JSON management
+    ├── DeployConstants.sol       # Shared constants
+    └── StringUtils.sol           # String utilities
 ```
 
 ## Deployment Order (Dependencies)
 
+### Layer 0 (No Dependencies)
+
+These contracts have no on-chain dependencies and can be deployed in any order.
+
 ```
-Layer 0 (No dependencies)
-├── EntryPoint
-├── Validators (ECDSA, Weighted, MultiChain)
-├── Executors (SessionKey, RecurringPayment)
-├── Hooks (Audit, SpendingLimit)
-├── Fallbacks (TokenReceiver, FlashLoan)
-├── ERC5564Announcer, ERC6538Registry
-└── KYCRegistry, AuditLogger, ProofOfReserve
+Layer 0 ── No Dependencies
+│
+├── Tokens
+│   ├── wKRC                          # No constructor args
+│   └── USDC                          # constructor(owner_)
+│
+├── ERC-4337
+│   └── EntryPoint                    # No constructor args (singleton)
+│
+├── Permit2
+│   └── Permit2                       # No constructor args
+│
+├── Validators
+│   ├── ECDSAValidator                # No constructor args
+│   ├── WeightedECDSAValidator        # No constructor args
+│   ├── MultiChainValidator           # No constructor args
+│   ├── MultiSigValidator             # No constructor args
+│   └── WebAuthnValidator             # No constructor args
+│
+├── Executors
+│   ├── SessionKeyExecutor
+│   └── RecurringPaymentExecutor
+│
+├── Hooks
+│   ├── AuditHook
+│   └── SpendingLimitHook
+│
+├── Fallbacks
+│   ├── TokenReceiverFallback
+│   └── FlashLoanFallback
+│
+├── Privacy
+│   ├── ERC5564Announcer              # No constructor args
+│   └── ERC6538Registry               # constructor(owner_)
+│
+├── Bridge (partial)
+│   ├── BridgeRateLimiter             # Ownable
+│   └── FraudProofVerifier            # No constructor args
+│
+├── DeFi
+│   └── PriceOracle                   # Feeds registered post-deploy
+│
+├── Compliance
+│   ├── KYCRegistry                   # constructor(owner_)
+│   ├── AuditLogger                   # constructor(owner_)
+│   ├── ProofOfReserve                # constructor(owner_)
+│   └── RegulatoryRegistry            # constructor(owner_)
+│
+└── Subscription
+    └── ERC7715PermissionManager      # constructor(owner_)
+```
 
-Layer 1 (Depends on Layer 0)
-├── Kernel → EntryPoint
-├── VerifyingPaymaster → EntryPoint
-├── ERC20Paymaster → EntryPoint, PriceOracle
-└── PrivateBank → ERC5564Announcer, ERC6538Registry
+### Layer 1 (Depends on Layer 0)
 
-Layer 2 (Depends on Layer 1)
-├── KernelFactory → Kernel
-└── SubscriptionManager → ERC7715PermissionManager
+These contracts require Layer 0 addresses as constructor parameters.
+
+```
+Layer 1 ── Depends on Layer 0
+│
+├── ERC-7579
+│   └── Kernel (implementation)       # constructor(entryPoint)
+│
+├── Validators
+│   └── MultiChainValidator           # constructor(owner_, kernel_)
+│
+├── Paymasters
+│   ├── VerifyingPaymaster            # constructor(entryPoint, owner_, verifyingSigner)
+│   ├── SponsorPaymaster              # constructor(entryPoint, owner_)
+│   └── ERC20Paymaster                # constructor(entryPoint, owner_, priceOracle, markup)
+│
+├── Privacy
+│   └── PrivateBank                   # constructor(announcer, registry, owner_)
+│
+├── Bridge
+│   ├── BridgeValidator               # constructor(signers_[], threshold_)
+│   ├── BridgeGuardian                # constructor(guardians_[], threshold_)
+│   └── OptimisticVerifier            # constructor(challengePeriod, challengeBond, reward)
+│
+├── DeFi
+│   └── DEXIntegration                # constructor(wKRC)
+│
+└── Subscription
+    └── SubscriptionManager           # constructor(permissionManager, owner_)
+```
+
+### Layer 2 (Depends on Layer 1)
+
+These contracts require Layer 1 addresses.
+
+```
+Layer 2 ── Depends on Layer 1
+│
+├── ERC-7579
+│   └── KernelFactory                 # constructor(kernelImpl) — CREATE2 proxy
+│
+├── Paymasters
+│   └── Permit2Paymaster              # constructor(entryPoint, owner_, priceOracle, permit2, markup)
+│
+└── Bridge
+    └── SecureBridge                   # constructor(bridgeValidator, optimisticVerifier,
+                                      #             rateLimiter, guardian, feeRecipient)
+```
+
+### Post-Deployment: Cross-Contract Wiring
+
+Bi-directional references and configuration that cannot be set at construction time.
+
+```
+Post-Deploy ── Cross-Contract Wiring
+│
+├── Bridge Wiring
+│   ├── OptimisticVerifier.setFraudProofVerifier(FraudProofVerifier)
+│   ├── OptimisticVerifier.setAuthorizedCaller(SecureBridge)
+│   ├── FraudProofVerifier.setOptimisticVerifier(OptimisticVerifier)
+│   └── FraudProofVerifier.setBridgeValidator(BridgeValidator)
+│
+├── Token Configuration
+│   ├── USDC.addMinter(paymasterAddr)        # Grant minter roles
+│   ├── USDC.addMinter(bridgeAddr)
+│   └── SecureBridge: map supported tokens per chain
+│
+├── Oracle Configuration
+│   ├── PriceOracle.setChainlinkFeed(token, feedAddr)
+│   └── PriceOracle.setUniswapPool(token, pool, twapPeriod, quoteToken)
+│
+├── Paymaster Configuration
+│   ├── Paymaster.deposit() via EntryPoint    # Fund gas sponsorship
+│   └── ERC20Paymaster: whitelist supported tokens
+│
+├── Bridge Configuration
+│   ├── BridgeRateLimiter: set per-token volume caps
+│   ├── BridgeGuardian: register guardian addresses
+│   └── SecureBridge: enable supported chains
+│
+└── Privacy Configuration
+    └── ERC6538Registry: register stealth meta-addresses
+```
+
+### Post-Deployment: Account-Level Setup
+
+Per-user account creation and module installation.
+
+```
+Account Setup ── Per-Account
+│
+├── KernelFactory.createAccount()             # CREATE2 deterministic
+├── Kernel.installValidator(ECDSAValidator)    # Authorization module
+├── Kernel.installExecutor(SessionKeyExecutor) # Automation module
+├── Kernel.installHook(SpendingLimitHook)      # Guard module
+└── Kernel.installFallback(TokenReceiverFallback) # ERC721/1155 receipt
+```
+
+## Visual Dependency Flow
+
+```
+                    ┌─────────────┐
+                    │  EntryPoint  │
+                    └──────┬──────┘
+              ┌────────────┼────────────────┐
+              v            v                v
+         ┌────────┐  ┌──────────────┐  ┌────────────────┐
+         │ Kernel │  │ Verifying    │  │ Sponsor        │
+         │        │  │ Paymaster    │  │ Paymaster      │
+         └───┬────┘  └──────────────┘  └────────────────┘
+             v
+      ┌──────────────┐     ┌─────────────┐
+      │ KernelFactory│     │ PriceOracle │
+      └──────────────┘     └──────┬──────┘
+                                  │
+                      ┌───────────┼───────────┐
+                      v           v           v
+               ┌────────────┐ ┌──────────┐ ┌────────────────┐
+               │ ERC20      │ │ Permit2  │ │ DEXIntegration │
+               │ Paymaster  │ │ Paymaster│ │ (+ wKRC)       │
+               └────────────┘ └──────────┘ └────────────────┘
+
+  ┌──────────────────┐  ┌───────────────┐
+  │ ERC5564Announcer │  │ ERC6538       │
+  │                  │  │ Registry      │
+  └────────┬─────────┘  └───────┬───────┘
+           └────────┬───────────┘
+                    v
+             ┌─────────────┐
+             │ PrivateBank  │
+             └─────────────┘
+
+  ┌───────────────┐ ┌──────────────────┐ ┌──────────────┐ ┌──────────────┐
+  │ BridgeRate    │ │ FraudProof       │ │ Bridge       │ │ Bridge       │
+  │ Limiter       │ │ Verifier         │ │ Validator    │ │ Guardian     │
+  └───────┬───────┘ └────────┬─────────┘ └──────┬───────┘ └──────┬───────┘
+          │                  │                   │                │
+          │    ┌─────────────────────┐           │                │
+          │    │ OptimisticVerifier  │───────────│────────────────│
+          │    └──────────┬──────────┘           │                │
+          │               │                      │                │
+          └───────┬───────┴──────────────────────┴────────────────┘
+                  v
+           ┌──────────────┐
+           │ SecureBridge  │ ── Post-Deploy: wire FraudProof <-> Optimistic
+           └──────────────┘
+
+  ┌──────────────────────┐
+  │ ERC7715Permission    │
+  │ Manager              │
+  └──────────┬───────────┘
+             v
+  ┌──────────────────────┐
+  │ SubscriptionManager  │
+  └──────────────────────┘
 ```
 
 ## Local Deployment (Anvil)
@@ -49,122 +276,90 @@ Layer 2 (Depends on Layer 1)
 ```bash
 # Enable Prague hardfork (EIP-7702 support)
 anvil --chain-id 31337 --block-time 1 --hardfork prague
-
-# Options explained:
-# --chain-id: Chain ID (31337 = local)
-# --block-time: Block creation interval (seconds)
-# --hardfork: Hardfork version
 ```
 
-### 2. One-Click Deployment (Essential contracts only)
+### 2. Full Deployment (All Contracts)
 
-Quick deployment of essential contracts for development and testing.
+Deploy all 44 contracts in dependency order using the unified deployment script.
 
 ```bash
-forge script script/deploy/DeployDevnet.s.sol:DeployDevnetScript \
+forge script script/DeployAll.s.sol:DeployAllScript \
   --rpc-url http://127.0.0.1:8545 \
   --broadcast
 ```
 
-Deployed contracts:
-- EntryPoint
-- Kernel + KernelFactory
-- ECDSAValidator
-- VerifyingPaymaster
-- ERC5564Announcer + ERC6538Registry
+This deploys all contracts across 6 phases:
+- **Phase 0**: Base Infrastructure (wKRC, USDC, EntryPoint)
+- **Phase 1**: Core Smart Account (Kernel, KernelFactory, FactoryStaker)
+- **Phase 2**: ERC-7579 Modules (Validators, Hooks, Fallbacks, Executors)
+- **Phase 3**: Feature Modules (Compliance, Privacy, Permit2)
+- **Phase 4**: DeFi & Paymasters (PriceOracle, DEXIntegration, 4 Paymasters)
+- **Phase 5**: Plugins (AutoSwap, MicroLoan, OnRamp)
+- **Phase 6**: Subscription & Bridge
 
-### 3. Category-Based Deployment
+### 3. Domain-Specific Deployment
 
-#### ERC-4337 Account Abstraction
-
-```bash
-forge script script/deploy/DeployERC4337.s.sol:DeployERC4337Script \
-  --rpc-url http://127.0.0.1:8545 \
-  --broadcast
-```
-
-Individual deployment:
-```bash
-# EntryPoint only
-forge script script/deploy/DeployERC4337.s.sol:DeployEntryPointOnlyScript \
-  --rpc-url http://127.0.0.1:8545 --broadcast
-```
-
-#### ERC-7579 Modular Smart Account
+All domain scripts are located in `script/deploy-contract/`.
 
 ```bash
-forge script script/deploy/DeployERC7579.s.sol:DeployERC7579Script \
-  --rpc-url http://127.0.0.1:8545 \
-  --broadcast
-```
-
-Individual deployment:
-```bash
-# Kernel + Factory only
-forge script script/deploy/DeployERC7579.s.sol:DeployKernelOnlyScript \
+# Tokens (wKRC, USDC)
+FOUNDRY_PROFILE=tokens forge script script/deploy-contract/DeployTokens.s.sol:DeployTokensScript \
   --rpc-url http://127.0.0.1:8545 --broadcast
 
-# Validators only
-forge script script/deploy/DeployERC7579.s.sol:DeployValidatorsOnlyScript \
-  --rpc-url http://127.0.0.1:8545 --broadcast
-```
-
-#### Privacy (ERC-5564/6538)
-
-```bash
-forge script script/deploy/DeployPrivacy.s.sol:DeployPrivacyScript \
-  --rpc-url http://127.0.0.1:8545 \
-  --broadcast
-```
-
-Individual deployment:
-```bash
-# Stealth contracts only
-forge script script/deploy/DeployPrivacy.s.sol:DeployStealthOnlyScript \
+# ERC-4337 EntryPoint
+FOUNDRY_PROFILE=entrypoint forge script script/deploy-contract/DeployEntryPoint.s.sol:DeployEntryPointScript \
   --rpc-url http://127.0.0.1:8545 --broadcast
 
-# PrivateBank only (requires Announcer, Registry)
-forge script script/deploy/DeployPrivacy.s.sol:DeployPrivateBankOnlyScript \
-  --rpc-url http://127.0.0.1:8545 --broadcast
-```
-
-#### Compliance
-
-```bash
-forge script script/deploy/DeployCompliance.s.sol:DeployComplianceScript \
-  --rpc-url http://127.0.0.1:8545 \
-  --broadcast
-```
-
-Individual deployment:
-```bash
-# KYCRegistry only
-forge script script/deploy/DeployCompliance.s.sol:DeployKYCRegistryOnlyScript \
-  --rpc-url http://127.0.0.1:8545 --broadcast
-```
-
-### 4. Full Deployment (Orchestrator)
-
-Deploy all contracts in dependency order.
-
-```bash
-forge script script/DeployOrchestrator.s.sol:DeployOrchestratorScript \
-  --rpc-url http://127.0.0.1:8545 \
-  --broadcast
-```
-
-Layer-by-layer deployment:
-```bash
-# Layer 0 only
-DEPLOY_LAYER=0 forge script script/DeployOrchestrator.s.sol:DeployOrchestratorScript \
+# ERC-7579 Kernel + Factory
+FOUNDRY_PROFILE=smartaccount forge script script/deploy-contract/DeployKernel.s.sol:DeployKernelScript \
   --rpc-url http://127.0.0.1:8545 --broadcast
 
-# Layer 1 only
-DEPLOY_LAYER=1 forge script script/DeployOrchestrator.s.sol:DeployOrchestratorScript \
+# Validators (5 validators)
+FOUNDRY_PROFILE=validators forge script script/deploy-contract/DeployValidators.s.sol:DeployValidatorsScript \
   --rpc-url http://127.0.0.1:8545 --broadcast
 
-# Layer 2 only
-DEPLOY_LAYER=2 forge script script/DeployOrchestrator.s.sol:DeployOrchestratorScript \
+# Paymasters (requires EntryPoint, PriceOracle)
+FOUNDRY_PROFILE=paymaster forge script script/deploy-contract/DeployPaymasters.s.sol:DeployPaymastersScript \
+  --rpc-url http://127.0.0.1:8545 --broadcast
+
+# Executors
+FOUNDRY_PROFILE=executors forge script script/deploy-contract/DeployExecutors.s.sol:DeployExecutorsScript \
+  --rpc-url http://127.0.0.1:8545 --broadcast
+
+# Hooks
+FOUNDRY_PROFILE=hooks forge script script/deploy-contract/DeployHooks.s.sol:DeployHooksScript \
+  --rpc-url http://127.0.0.1:8545 --broadcast
+
+# Fallbacks
+FOUNDRY_PROFILE=fallbacks forge script script/deploy-contract/DeployFallbacks.s.sol:DeployFallbacksScript \
+  --rpc-url http://127.0.0.1:8545 --broadcast
+
+# Plugins (AutoSwap, MicroLoan, OnRamp)
+FOUNDRY_PROFILE=plugins forge script script/deploy-contract/DeployPlugins.s.sol:DeployPluginsScript \
+  --rpc-url http://127.0.0.1:8545 --broadcast
+
+# Bridge (all 6 components)
+FOUNDRY_PROFILE=bridge forge script script/deploy-contract/DeployBridge.s.sol:DeployBridgeScript \
+  --rpc-url http://127.0.0.1:8545 --broadcast
+
+# Privacy (ERC-5564/6538 + PrivateBank)
+FOUNDRY_PROFILE=privacy forge script script/deploy-contract/DeployPrivacy.s.sol:DeployPrivacyScript \
+  --rpc-url http://127.0.0.1:8545 --broadcast
+
+# DeFi (PriceOracle + DEXIntegration)
+FOUNDRY_PROFILE=defi forge script script/deploy-contract/DeployDeFi.s.sol:DeployDeFiScript \
+  --rpc-url http://127.0.0.1:8545 --broadcast
+
+# Compliance (KYC, AuditLogger, ProofOfReserve, RegulatoryRegistry)
+FOUNDRY_PROFILE=compliance forge script script/deploy-contract/DeployCompliance.s.sol:DeployComplianceScript \
+  --rpc-url http://127.0.0.1:8545 --broadcast
+
+# Permit2
+FOUNDRY_PROFILE=permit2 forge script script/deploy-contract/DeployPermit2.s.sol:DeployPermit2Script \
+  --rpc-url http://127.0.0.1:8545 --broadcast
+
+# Subscription (ERC-7715 + SubscriptionManager)
+FOUNDRY_PROFILE=subscription forge script script/deploy-contract/DeploySubscription.s.sol:DeploySubscriptionScript \
   --rpc-url http://127.0.0.1:8545 --broadcast
 ```
 
@@ -181,7 +376,7 @@ ETHERSCAN_API_KEY=YOUR_ETHERSCAN_KEY
 ### 2. Deploy
 
 ```bash
-forge script script/deploy/DeployERC4337.s.sol:DeployERC4337Script \
+forge script script/DeployAll.s.sol:DeployAllScript \
   --rpc-url $RPC_URL_SEPOLIA \
   --broadcast \
   --verify
@@ -216,30 +411,45 @@ deployments/
 
 ```json
 {
+  "wKRC": "0x...",
+  "usdc": "0x...",
   "entryPoint": "0x...",
+  "permit2": "0x...",
   "kernel": "0x...",
   "kernelFactory": "0x...",
   "ecdsaValidator": "0x...",
+  "weightedEcdsaValidator": "0x...",
+  "multiSigValidator": "0x...",
+  "webAuthnValidator": "0x...",
+  "multiChainValidator": "0x...",
   "verifyingPaymaster": "0x...",
+  "sponsorPaymaster": "0x...",
+  "erc20Paymaster": "0x...",
+  "permit2Paymaster": "0x...",
+  "sessionKeyExecutor": "0x...",
+  "recurringPaymentExecutor": "0x...",
+  "auditHook": "0x...",
+  "spendingLimitHook": "0x...",
+  "tokenReceiverFallback": "0x...",
+  "flashLoanFallback": "0x...",
+  "bridgeValidator": "0x...",
+  "optimisticVerifier": "0x...",
+  "bridgeRateLimiter": "0x...",
+  "bridgeGuardian": "0x...",
+  "fraudProofVerifier": "0x...",
+  "secureBridge": "0x...",
   "erc5564Announcer": "0x...",
-  "erc6538Registry": "0x..."
+  "erc6538Registry": "0x...",
+  "privateBank": "0x...",
+  "priceOracle": "0x...",
+  "dexIntegration": "0x...",
+  "kycRegistry": "0x...",
+  "auditLogger": "0x...",
+  "proofOfReserve": "0x...",
+  "regulatoryRegistry": "0x...",
+  "erc7715PermissionManager": "0x...",
+  "subscriptionManager": "0x..."
 }
-```
-
-## Paymaster Funding
-
-After deployment, Paymaster needs ETH deposited to sponsor gas.
-
-```bash
-# Use FundPaymasterScript
-forge script script/deploy/DeployDevnet.s.sol:FundPaymasterScript \
-  --rpc-url http://127.0.0.1:8545 \
-  --broadcast
-
-# Or deposit directly with cast
-cast send <ENTRYPOINT_ADDRESS> "depositTo(address)" <PAYMASTER_ADDRESS> \
-  --value 10ether \
-  --rpc-url http://127.0.0.1:8545
 ```
 
 ## Post-Deployment Configuration
@@ -251,39 +461,29 @@ cast send <ENTRYPOINT_ADDRESS> "depositTo(address)" <PAYMASTER_ADDRESS> \
 #### Chainlink Feed Registration
 
 ```solidity
-// Register Chainlink price feeds (Owner only)
 IPriceOracle oracle = IPriceOracle(PRICE_ORACLE_ADDRESS);
 
 // ETH/USD feed
 oracle.setChainlinkFeed(
-    address(0),                           // Native token (ETH)
-    0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419  // Chainlink ETH/USD (Mainnet)
+    address(0),                                           // Native token
+    0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419            // Chainlink ETH/USD
 );
 
 // USDC/USD feed
 oracle.setChainlinkFeed(
     USDC_ADDRESS,
-    0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6  // Chainlink USDC/USD (Mainnet)
+    0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6            // Chainlink USDC/USD
 );
 ```
 
 #### Uniswap V3 TWAP Registration
 
 ```solidity
-// Register Uniswap V3 pool for TWAP (Owner only)
-oracle.setUniswapPool(
-    TOKEN_ADDRESS,           // Token to price
-    UNISWAP_POOL_ADDRESS,    // Uniswap V3 pool
-    1800,                    // TWAP period (30 minutes)
-    address(0)               // Quote token (address(0) if USD-pegged)
-);
-
-// For non-USD pairs (e.g., TOKEN/WETH)
 oracle.setUniswapPool(
     TOKEN_ADDRESS,
-    TOKEN_WETH_POOL,
-    1800,
-    WETH_ADDRESS             // Quote token (needs Chainlink feed)
+    UNISWAP_POOL_ADDRESS,
+    1800,                   // TWAP period (30 minutes)
+    address(0)              // Quote token (address(0) = USD-pegged)
 );
 ```
 
@@ -299,19 +499,53 @@ oracle.setUniswapPool(
 
 > **Note**: Always verify feed addresses from [Chainlink Data Feeds](https://docs.chain.link/data-feeds/price-feeds/addresses)
 
-#### Verification
+### Paymaster Funding
+
+```bash
+# Deposit ETH to fund paymaster via EntryPoint
+cast send <ENTRYPOINT_ADDRESS> "depositTo(address)" <PAYMASTER_ADDRESS> \
+  --value 10ether \
+  --rpc-url http://127.0.0.1:8545 \
+  --private-key <PRIVATE_KEY>
+```
+
+### Bridge Configuration
 
 ```solidity
-// Check if feed is registered
-bool hasFeed = oracle.hasPriceFeed(TOKEN_ADDRESS);
+// 1. Wire fraud proof system
+optimisticVerifier.setFraudProofVerifier(address(fraudProofVerifier));
+optimisticVerifier.setAuthorizedCaller(address(secureBridge));
+fraudProofVerifier.setOptimisticVerifier(address(optimisticVerifier));
+fraudProofVerifier.setBridgeValidator(address(bridgeValidator));
 
-// Check if price is valid (not stale)
-bool isValid = oracle.hasValidPrice(TOKEN_ADDRESS);
+// 2. Configure rate limits per token
+bridgeRateLimiter.setTokenLimit(USDC_ADDRESS, 1_000_000e6, 24 hours);
 
-// Get price source
-string memory source = oracle.getPriceSource(TOKEN_ADDRESS);
-// Returns: "Chainlink", "UniswapV3TWAP", or "None"
+// 3. Enable supported chains
+secureBridge.enableChain(TARGET_CHAIN_ID);
+
+// 4. Map tokens across chains
+secureBridge.mapToken(USDC_ADDRESS, TARGET_CHAIN_ID, REMOTE_USDC_ADDRESS);
 ```
+
+### USDC Minter Roles
+
+```solidity
+usdc.addMinter(address(secureBridge));
+usdc.addMinter(address(erc20Paymaster));
+```
+
+## Key Deployment Parameters
+
+| Parameter | PoC Value | Mainnet Value |
+|-----------|-----------|---------------|
+| Bridge Challenge Period | 6 hours | 24 hours |
+| MPC Threshold | 5-of-7 | 5-of-7 |
+| Guardian Threshold | 3-of-N | 3-of-N |
+| ERC20Paymaster Markup | 10% (1000 bps) | 5-50% |
+| Price Staleness | 1 hour | 1 hour |
+| USDC Decimals | 6 | 6 |
+| wKRC Decimals | 18 | 18 |
 
 ## Troubleshooting
 
@@ -321,7 +555,6 @@ A contract is already deployed at the same address.
 
 ```bash
 # Solution: Restart Anvil
-# Stop Anvil in terminal and restart
 anvil --chain-id 31337 --hardfork prague
 ```
 
@@ -342,8 +575,17 @@ Required contracts are not deployed first.
 
 ```bash
 # Solution: Deploy in dependency order
-# 1. DeployERC4337 (EntryPoint)
-# 2. DeployERC7579 (Kernel - requires EntryPoint)
-# 3. DeployPrivacy
-# 4. DeployCompliance
+# Layer 0: EntryPoint, Tokens, Validators, Compliance, Privacy (partial), Permit2
+# Layer 1: Kernel, Paymasters, Bridge (partial), PrivateBank, DEXIntegration
+# Layer 2: KernelFactory, Permit2Paymaster, SecureBridge
+# Post-Deploy: Cross-contract wiring (setFraudProofVerifier, etc.)
+```
+
+### 4. PriceOracle NoPriceFeed Error
+
+Oracle has no registered price feeds.
+
+```bash
+# Solution: Register feeds after deployment
+# See "Post-Deployment Configuration > PriceOracle Feed Registration"
 ```

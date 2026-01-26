@@ -16,7 +16,7 @@ import {Script, console} from "forge-std/Script.sol";
  *   - Executors (SessionKey, RecurringPayment)
  *   - Hooks (Audit, SpendingLimit)
  *   - Fallbacks (TokenReceiver, FlashLoan)
- *   - WKRW
+ *   - wKRC
  *   - PriceOracle
  *   - ERC5564Announcer, ERC6538Registry
  *   - BridgeRateLimiter, FraudProofVerifier
@@ -34,7 +34,7 @@ import {Script, console} from "forge-std/Script.sol";
  *   - KernelFactory -> Kernel
  *   - Permit2Paymaster -> EntryPoint, PriceOracle, Permit2
  *   - SubscriptionManager -> ERC7715PermissionManager
- *   - DEXIntegration -> WKRW, external DEX addresses
+ *   - DEXIntegration -> wKRC, external DEX addresses
  *   - SecureBridge -> BridgeValidator, OptimisticVerifier, BridgeRateLimiter, BridgeGuardian
  */
 library DeploymentAddresses {
@@ -46,11 +46,14 @@ library DeploymentAddresses {
     string constant KEY_ENTRYPOINT = "entryPoint";
     string constant KEY_KERNEL = "kernel";
     string constant KEY_KERNEL_FACTORY = "kernelFactory";
+    string constant KEY_FACTORY_STAKER = "factoryStaker";
 
     // Validators
     string constant KEY_ECDSA_VALIDATOR = "ecdsaValidator";
     string constant KEY_WEIGHTED_VALIDATOR = "weightedEcdsaValidator";
     string constant KEY_MULTICHAIN_VALIDATOR = "multiChainValidator";
+    string constant KEY_MULTISIG_VALIDATOR = "multiSigValidator";
+    string constant KEY_WEBAUTHN_VALIDATOR = "webAuthnValidator";
 
     // Paymasters
     string constant KEY_VERIFYING_PAYMASTER = "verifyingPaymaster";
@@ -70,10 +73,15 @@ library DeploymentAddresses {
     string constant KEY_TOKEN_RECEIVER_FALLBACK = "tokenReceiverFallback";
     string constant KEY_FLASH_LOAN_FALLBACK = "flashLoanFallback";
 
+    // Plugins
+    string constant KEY_AUTO_SWAP_PLUGIN = "autoSwapPlugin";
+    string constant KEY_MICRO_LOAN_PLUGIN = "microLoanPlugin";
+    string constant KEY_ONRAMP_PLUGIN = "onRampPlugin";
+
     // Tokens & DeFi
     string constant KEY_PERMIT2 = "permit2";
-    string constant KEY_WKRW = "wkrw";
-    string constant KEY_STABLE_TOKEN = "stableToken";
+    string constant KEY_WKRC = "wkrc";
+    string constant KEY_USDC = "usdc";
     string constant KEY_PRICE_ORACLE = "priceOracle";
     string constant KEY_DEX_INTEGRATION = "dexIntegration";
 
@@ -148,11 +156,14 @@ abstract contract DeploymentHelper is Script {
                 _tryParseAddress(json, DeploymentAddresses.KEY_ENTRYPOINT);
                 _tryParseAddress(json, DeploymentAddresses.KEY_KERNEL);
                 _tryParseAddress(json, DeploymentAddresses.KEY_KERNEL_FACTORY);
+                _tryParseAddress(json, DeploymentAddresses.KEY_FACTORY_STAKER);
 
                 // Validators
                 _tryParseAddress(json, DeploymentAddresses.KEY_ECDSA_VALIDATOR);
                 _tryParseAddress(json, DeploymentAddresses.KEY_WEIGHTED_VALIDATOR);
                 _tryParseAddress(json, DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR);
+                _tryParseAddress(json, DeploymentAddresses.KEY_MULTISIG_VALIDATOR);
+                _tryParseAddress(json, DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR);
 
                 // Paymasters
                 _tryParseAddress(json, DeploymentAddresses.KEY_VERIFYING_PAYMASTER);
@@ -172,10 +183,15 @@ abstract contract DeploymentHelper is Script {
                 _tryParseAddress(json, DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK);
                 _tryParseAddress(json, DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK);
 
+                // Plugins
+                _tryParseAddress(json, DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN);
+                _tryParseAddress(json, DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN);
+                _tryParseAddress(json, DeploymentAddresses.KEY_ONRAMP_PLUGIN);
+
                 // Tokens & DeFi
                 _tryParseAddress(json, DeploymentAddresses.KEY_PERMIT2);
-                _tryParseAddress(json, DeploymentAddresses.KEY_WKRW);
-                _tryParseAddress(json, DeploymentAddresses.KEY_STABLE_TOKEN);
+                _tryParseAddress(json, DeploymentAddresses.KEY_WKRC);
+                _tryParseAddress(json, DeploymentAddresses.KEY_USDC);
                 _tryParseAddress(json, DeploymentAddresses.KEY_PRICE_ORACLE);
                 _tryParseAddress(json, DeploymentAddresses.KEY_DEX_INTEGRATION);
 
@@ -238,6 +254,9 @@ abstract contract DeploymentHelper is Script {
         if (_addresses[DeploymentAddresses.KEY_KERNEL_FACTORY] != address(0)) {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_KERNEL_FACTORY, _addresses[DeploymentAddresses.KEY_KERNEL_FACTORY]);
         }
+        if (_addresses[DeploymentAddresses.KEY_FACTORY_STAKER] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_FACTORY_STAKER, _addresses[DeploymentAddresses.KEY_FACTORY_STAKER]);
+        }
 
         // Validators
         if (_addresses[DeploymentAddresses.KEY_ECDSA_VALIDATOR] != address(0)) {
@@ -248,6 +267,12 @@ abstract contract DeploymentHelper is Script {
         }
         if (_addresses[DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR] != address(0)) {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR, _addresses[DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_MULTISIG_VALIDATOR] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_MULTISIG_VALIDATOR, _addresses[DeploymentAddresses.KEY_MULTISIG_VALIDATOR]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR, _addresses[DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR]);
         }
 
         // Paymasters
@@ -288,15 +313,26 @@ abstract contract DeploymentHelper is Script {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK, _addresses[DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK]);
         }
 
+        // Plugins
+        if (_addresses[DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN, _addresses[DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN, _addresses[DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN]);
+        }
+        if (_addresses[DeploymentAddresses.KEY_ONRAMP_PLUGIN] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_ONRAMP_PLUGIN, _addresses[DeploymentAddresses.KEY_ONRAMP_PLUGIN]);
+        }
+
         // Tokens & DeFi
         if (_addresses[DeploymentAddresses.KEY_PERMIT2] != address(0)) {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_PERMIT2, _addresses[DeploymentAddresses.KEY_PERMIT2]);
         }
-        if (_addresses[DeploymentAddresses.KEY_WKRW] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_WKRW, _addresses[DeploymentAddresses.KEY_WKRW]);
+        if (_addresses[DeploymentAddresses.KEY_WKRC] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_WKRC, _addresses[DeploymentAddresses.KEY_WKRC]);
         }
-        if (_addresses[DeploymentAddresses.KEY_STABLE_TOKEN] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_STABLE_TOKEN, _addresses[DeploymentAddresses.KEY_STABLE_TOKEN]);
+        if (_addresses[DeploymentAddresses.KEY_USDC] != address(0)) {
+            vm.serializeAddress(obj, DeploymentAddresses.KEY_USDC, _addresses[DeploymentAddresses.KEY_USDC]);
         }
         if (_addresses[DeploymentAddresses.KEY_PRICE_ORACLE] != address(0)) {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_PRICE_ORACLE, _addresses[DeploymentAddresses.KEY_PRICE_ORACLE]);

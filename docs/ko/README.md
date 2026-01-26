@@ -50,9 +50,6 @@ cp .env.example .env
 ```bash
 # 전체 빌드
 forge build
-
-# 빠른 빌드 (개발용, IR 비활성화)
-forge build --profile fast
 ```
 
 ### 4. 테스트
@@ -74,15 +71,8 @@ forge test --match-test testKernelDeployment
 # 터미널 1: Anvil 시작 (Prague 하드포크)
 anvil --chain-id 31337 --block-time 1 --hardfork prague
 
-# 터미널 2: 컨트랙트 배포 (필수 컨트랙트만)
-# Anvil 출력에 표시된 기본 계정 중 하나 사용
-forge script script/deploy/DeployDevnet.s.sol:DeployDevnetScript \
-  --rpc-url http://127.0.0.1:8545 \
-  --private-key <ANVIL_PRIVATE_KEY> \
-  --broadcast
-
-# 전체 컨트랙트 배포
-forge script script/DeployOrchestrator.s.sol:DeployOrchestratorScript \
+# 터미널 2: 전체 컨트랙트 배포 (6단계, 44개 컨트랙트)
+forge script script/DeployAll.s.sol:DeployAllScript \
   --rpc-url http://127.0.0.1:8545 \
   --private-key <ANVIL_PRIVATE_KEY> \
   --broadcast
@@ -101,11 +91,28 @@ src/
 ├── erc7579-executors/      # 실행 모듈
 ├── erc7579-hooks/          # 훅 모듈
 ├── erc7579-fallbacks/      # Fallback 모듈
+├── erc7579-plugins/        # 플러그인 모듈 (AutoSwap, MicroLoan, OnRamp)
 ├── privacy/                # 스텔스 주소 (ERC-5564/6538)
 ├── compliance/             # 규제 준수
-├── tokens/                 # 토큰 컨트랙트
-└── defi/                   # DeFi 컴포넌트
+├── tokens/                 # 토큰 컨트랙트 (wKRC, USDC)
+├── defi/                   # DeFi 컴포넌트 (PriceOracle, DEXIntegration)
+├── permit2/                # Permit2 토큰 승인
+├── subscription/           # 구독 관리 (ERC-7715)
+└── bridge/                 # 크로스체인 브릿지
 ```
+
+## 전체 배포 (전체 컨트랙트)
+
+통합 배포 스크립트로 모든 컨트랙트를 한 번에 배포합니다:
+
+```bash
+forge script script/DeployAll.s.sol:DeployAllScript \
+  --rpc-url <RPC_URL> \
+  --private-key <PRIVATE_KEY> \
+  --broadcast
+```
+
+6단계로 44개 컨트랙트를 의존성 순서대로 배포합니다.
 
 ## 카테고리별 배포
 
@@ -114,7 +121,12 @@ src/
 EntryPoint, Paymaster 등 Account Abstraction 핵심 컨트랙트
 
 ```bash
-forge script script/deploy/DeployERC4337.s.sol:DeployERC4337Script \
+# EntryPoint
+FOUNDRY_PROFILE=entrypoint forge script script/deploy-contract/DeployEntryPoint.s.sol:DeployEntryPointScript \
+  --rpc-url <RPC_URL> --broadcast
+
+# Paymasters (EntryPoint 필요)
+FOUNDRY_PROFILE=paymaster forge script script/deploy-contract/DeployPaymasters.s.sol:DeployPaymastersScript \
   --rpc-url <RPC_URL> --broadcast
 ```
 
@@ -122,14 +134,21 @@ forge script script/deploy/DeployERC4337.s.sol:DeployERC4337Script \
 |---------|------|
 | EntryPoint | UserOperation 처리의 핵심 진입점 |
 | VerifyingPaymaster | 서명 기반 가스 후원 |
+| SponsorPaymaster | 후원 트랜잭션 Paymaster |
 | ERC20Paymaster | ERC20 토큰으로 가스비 지불 |
+| Permit2Paymaster | Permit2 기반 토큰 승인 Paymaster |
 
 ### ERC-7579 Modular Smart Account
 
 모듈러 스마트 계정 및 플러그인 모듈
 
 ```bash
-forge script script/deploy/DeployERC7579.s.sol:DeployERC7579Script \
+# Kernel + Factory
+FOUNDRY_PROFILE=smartaccount forge script script/deploy-contract/DeployKernel.s.sol:DeployKernelScript \
+  --rpc-url <RPC_URL> --broadcast
+
+# Validators
+FOUNDRY_PROFILE=validators forge script script/deploy-contract/DeployValidators.s.sol:DeployValidatorsScript \
   --rpc-url <RPC_URL> --broadcast
 ```
 
@@ -139,6 +158,9 @@ forge script script/deploy/DeployERC7579.s.sol:DeployERC7579Script \
 | KernelFactory | Kernel 계정 생성 팩토리 |
 | ECDSAValidator | ECDSA 서명 검증 |
 | WeightedECDSAValidator | 가중치 기반 다중 서명 |
+| MultiChainValidator | 멀티체인 서명 검증 |
+| MultiSigValidator | 다중 서명 검증 |
+| WebAuthnValidator | WebAuthn/Passkey 검증 |
 | SessionKeyExecutor | 세션 키 실행 모듈 |
 | SpendingLimitHook | 지출 한도 훅 |
 
@@ -147,7 +169,7 @@ forge script script/deploy/DeployERC7579.s.sol:DeployERC7579Script \
 스텔스 주소 기반 프라이버시 컨트랙트
 
 ```bash
-forge script script/deploy/DeployPrivacy.s.sol:DeployPrivacyScript \
+FOUNDRY_PROFILE=privacy forge script script/deploy-contract/DeployPrivacy.s.sol:DeployPrivacyScript \
   --rpc-url <RPC_URL> --broadcast
 ```
 
@@ -162,7 +184,7 @@ forge script script/deploy/DeployPrivacy.s.sol:DeployPrivacyScript \
 규제 준수 및 감사 컨트랙트
 
 ```bash
-forge script script/deploy/DeployCompliance.s.sol:DeployComplianceScript \
+FOUNDRY_PROFILE=compliance forge script script/deploy-contract/DeployCompliance.s.sol:DeployComplianceScript \
   --rpc-url <RPC_URL> --broadcast
 ```
 
@@ -171,6 +193,25 @@ forge script script/deploy/DeployCompliance.s.sol:DeployComplianceScript \
 | KYCRegistry | KYC 상태 관리 |
 | AuditLogger | 감사 로그 기록 |
 | ProofOfReserve | 준비금 증명 |
+| RegulatoryRegistry | 규제 기관 등록 및 추적 승인 |
+
+### Bridge
+
+크로스체인 브릿지 (Defense-in-Depth 보안)
+
+```bash
+FOUNDRY_PROFILE=bridge forge script script/deploy-contract/DeployBridge.s.sol:DeployBridgeScript \
+  --rpc-url <RPC_URL> --broadcast
+```
+
+| 컨트랙트 | 설명 |
+|---------|------|
+| SecureBridge | 메인 브릿지 컨트랙트 |
+| BridgeValidator | MPC 서명 검증 |
+| OptimisticVerifier | 챌린지 기간 검증 |
+| FraudProofVerifier | 사기 증명 해결 |
+| BridgeRateLimiter | 볼륨 및 속도 제어 |
+| BridgeGuardian | 비상 대응 시스템 |
 
 ## 환경 변수
 

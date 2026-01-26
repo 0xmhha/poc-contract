@@ -9,10 +9,10 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IUniswapV3SwapRouter, IUniswapV3Quoter} from "./interfaces/UniswapV3.sol";
 
 /**
- * @title IWKRW
+ * @title IwKRC
  * @notice Interface for wrapped native token
  */
-interface IWKRW {
+interface IwKRC {
     function deposit() external payable;
     function withdraw(uint256 amount) external;
     function approve(address spender, uint256 amount) external returns (bool);
@@ -53,7 +53,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
     );
     event RouterUpdated(address indexed newRouter);
     event QuoterUpdated(address indexed newQuoter);
-    event WkrwUpdated(address indexed newWkrw);
+    event WkrcUpdated(address indexed newWkrc);
 
     /*//////////////////////////////////////////////////////////////
                               STATE VARIABLES
@@ -65,8 +65,8 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
     /// @notice Uniswap V3 Quoter
     IUniswapV3Quoter public quoter;
 
-    /// @notice Wrapped native token (WKRW)
-    IWKRW public wkrw;
+    /// @notice Wrapped native token (wKRC)
+    IwKRC public wkrc;
 
     /// @notice Native token placeholder
     address public constant NATIVE_TOKEN = address(0);
@@ -90,14 +90,14 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
     constructor(
         address _swapRouter,
         address _quoter,
-        address _wkrw
+        address _wkrc
     ) Ownable(msg.sender) {
         if (_swapRouter == address(0)) revert ZeroAddress();
-        if (_wkrw == address(0)) revert ZeroAddress();
+        if (_wkrc == address(0)) revert ZeroAddress();
 
         swapRouter = IUniswapV3SwapRouter(_swapRouter);
         quoter = IUniswapV3Quoter(_quoter);
-        wkrw = IWKRW(_wkrw);
+        wkrc = IwKRC(_wkrc);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -124,13 +124,13 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Update the WKRW address
-     * @param _wkrw New WKRW address
+     * @notice Update the wKRC address
+     * @param _wkrc New wKRC address
      */
-    function setWkrw(address _wkrw) external onlyOwner {
-        if (_wkrw == address(0)) revert ZeroAddress();
-        wkrw = IWKRW(_wkrw);
-        emit WkrwUpdated(_wkrw);
+    function setWkrc(address _wkrc) external onlyOwner {
+        if (_wkrc == address(0)) revert ZeroAddress();
+        wkrc = IwKRC(_wkrc);
+        emit WkrcUpdated(_wkrc);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -165,8 +165,8 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         // Handle native token input
         if (tokenIn == NATIVE_TOKEN) {
             require(msg.value == amountIn, "Invalid native amount");
-            wkrw.deposit{value: amountIn}();
-            actualTokenIn = address(wkrw);
+            wkrc.deposit{value: amountIn}();
+            actualTokenIn = address(wkrc);
             IERC20(actualTokenIn).approve(address(swapRouter), amountIn);
         } else {
             IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
@@ -176,7 +176,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         // Handle native token output
         bool unwrapOutput = tokenOut == NATIVE_TOKEN;
         if (unwrapOutput) {
-            actualTokenOut = address(wkrw);
+            actualTokenOut = address(wkrc);
         }
 
         // Execute swap
@@ -197,7 +197,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
 
         // Unwrap if output is native token
         if (unwrapOutput) {
-            wkrw.withdraw(amountOut);
+            wkrc.withdraw(amountOut);
             (bool success,) = msg.sender.call{value: amountOut}("");
             require(success, "Native transfer failed");
         }
@@ -233,8 +233,8 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         // Handle native token input
         if (tokenIn == NATIVE_TOKEN) {
             require(msg.value >= amountInMaximum, "Insufficient native");
-            wkrw.deposit{value: amountInMaximum}();
-            actualTokenIn = address(wkrw);
+            wkrc.deposit{value: amountInMaximum}();
+            actualTokenIn = address(wkrc);
             IERC20(actualTokenIn).approve(address(swapRouter), amountInMaximum);
         } else {
             IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountInMaximum);
@@ -244,7 +244,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         // Handle native token output
         bool unwrapOutput = tokenOut == NATIVE_TOKEN;
         if (unwrapOutput) {
-            actualTokenOut = address(wkrw);
+            actualTokenOut = address(wkrc);
         }
 
         // Execute swap
@@ -265,7 +265,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         if (tokenIn == NATIVE_TOKEN) {
             uint256 excess = amountInMaximum - amountIn;
             if (excess > 0) {
-                wkrw.withdraw(excess);
+                wkrc.withdraw(excess);
                 (bool success,) = msg.sender.call{value: excess}("");
                 require(success, "Refund failed");
             }
@@ -278,7 +278,7 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
 
         // Unwrap if output is native token
         if (unwrapOutput) {
-            wkrw.withdraw(amountOut);
+            wkrc.withdraw(amountOut);
             (bool success,) = msg.sender.call{value: amountOut}("");
             require(success, "Native transfer failed");
         }
@@ -313,8 +313,8 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
         // Handle native token input
         if (msg.value > 0) {
             require(msg.value == amountIn, "Invalid native amount");
-            wkrw.deposit{value: amountIn}();
-            IERC20(address(wkrw)).approve(address(swapRouter), amountIn);
+            wkrc.deposit{value: amountIn}();
+            IERC20(address(wkrc)).approve(address(swapRouter), amountIn);
         } else {
             IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
             IERC20(tokenIn).approve(address(swapRouter), amountIn);
@@ -353,8 +353,8 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
     ) external returns (uint256 amountOut) {
         if (address(quoter) == address(0)) revert ZeroAddress();
 
-        address actualTokenIn = tokenIn == NATIVE_TOKEN ? address(wkrw) : tokenIn;
-        address actualTokenOut = tokenOut == NATIVE_TOKEN ? address(wkrw) : tokenOut;
+        address actualTokenIn = tokenIn == NATIVE_TOKEN ? address(wkrc) : tokenIn;
+        address actualTokenOut = tokenOut == NATIVE_TOKEN ? address(wkrc) : tokenOut;
 
         return quoter.quoteExactInputSingle(
             actualTokenIn,
@@ -381,8 +381,8 @@ contract DEXIntegration is Ownable, ReentrancyGuard {
     ) external returns (uint256 amountIn) {
         if (address(quoter) == address(0)) revert ZeroAddress();
 
-        address actualTokenIn = tokenIn == NATIVE_TOKEN ? address(wkrw) : tokenIn;
-        address actualTokenOut = tokenOut == NATIVE_TOKEN ? address(wkrw) : tokenOut;
+        address actualTokenIn = tokenIn == NATIVE_TOKEN ? address(wkrc) : tokenIn;
+        address actualTokenOut = tokenOut == NATIVE_TOKEN ? address(wkrc) : tokenOut;
 
         return quoter.quoteExactOutputSingle(
             actualTokenIn,

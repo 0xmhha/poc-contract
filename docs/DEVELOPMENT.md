@@ -47,7 +47,8 @@ poc-contract/
 │   └── defi/               # DeFi
 ├── test/                   # Tests
 ├── script/                 # Deployment scripts
-│   ├── deploy/             # Category-based deployment
+│   ├── DeployAll.s.sol     # Unified deployment (all contracts)
+│   ├── deploy-contract/    # Domain-specific deployment scripts
 │   └── utils/              # Utilities
 ├── lib/                    # External dependencies
 ├── docs/                   # Documentation
@@ -324,15 +325,6 @@ forge test --gas-report
    ```
 
 ## Foundry Profiles
-
-### fast Profile (Development)
-
-```bash
-forge build --profile fast
-forge test --profile fast
-```
-
-Fast builds with IR disabled and reduced optimizer runs.
 
 ### default Profile (Production)
 

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {BridgeDeploymentHelper} from "../../script/DeployBridge.s.sol";
+import {BridgeDeploymentHelper} from "../../script/deploy-contract/DeployBridge.s.sol";
 
 contract BridgeDeploymentSimulationTest is Test, BridgeDeploymentHelper {
     function testBridgeDeploymentWiring() public {

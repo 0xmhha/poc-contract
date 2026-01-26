@@ -117,7 +117,9 @@ src/erc7579-smartaccount/
 src/erc7579-validators/
 ├── ECDSAValidator.sol           # 단일 ECDSA 서명
 ├── WeightedECDSAValidator.sol   # 가중치 다중 서명
-└── MultiChainValidator.sol      # 멀티체인 서명
+├── MultiChainValidator.sol      # 멀티체인 서명
+├── MultiSigValidator.sol        # 다중 서명 검증
+└── WebAuthnValidator.sol        # WebAuthn/Passkey 검증
 ```
 
 **ECDSAValidator:**
@@ -127,6 +129,14 @@ src/erc7579-validators/
 **WeightedECDSAValidator:**
 - 여러 서명자에 가중치 부여
 - 임계값 이상 가중치 필요
+
+**MultiSigValidator:**
+- 다중 서명 검증
+- m-of-n 임계값 설정 가능
+
+**WebAuthnValidator:**
+- WebAuthn/Passkey 인증 지원
+- P256 (secp256r1) 곡선 검증 필요
 
 ### Executors
 
@@ -212,9 +222,10 @@ src/privacy/
 
 ```
 src/compliance/
-├── KYCRegistry.sol      # KYC 상태 관리
-├── AuditLogger.sol      # 감사 로그
-└── ProofOfReserve.sol   # 준비금 증명
+├── KYCRegistry.sol          # KYC 상태 관리
+├── AuditLogger.sol          # 감사 로그
+├── ProofOfReserve.sol       # 준비금 증명
+└── RegulatoryRegistry.sol   # 규제 기관 등록 및 추적 승인
 ```
 
 ### KYCRegistry

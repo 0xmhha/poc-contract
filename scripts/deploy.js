@@ -57,9 +57,9 @@ const DEPLOYMENT_STEPS = [
     {
         id: "defi",
         label: "DeFi Integration",
-        description: "Price oracle confirmation and optional Uniswap integration (requires SWAP_ROUTER/QUOTER/WKRW_ADDRESS)",
+        description: "Price oracle confirmation and optional Uniswap integration (requires SWAP_ROUTER/QUOTER/WKRC_ADDRESS)",
         target: "script/DeployDeFi.s.sol:DeployDeFiScript",
-        passthroughEnv: ["SWAP_ROUTER", "QUOTER", "WKRW_ADDRESS"],
+        passthroughEnv: ["SWAP_ROUTER", "QUOTER", "WKRC_ADDRESS"],
     },
     {
         id: "privacy",
@@ -90,14 +90,14 @@ const DEPLOYMENT_STEPS = [
     {
         id: "tokens",
         label: "Token Infrastructure",
-        description: "WKRW deployment and persistence for downstream dependencies",
+        description: "wKRC and USDC deployment and persistence for downstream dependencies",
         target: "script/DeployTokens.s.sol:DeployTokensScript",
     },
     {
         id: "validators",
         label: "Validator Modules",
         description: "ECDSA/Weighted/MultiChain validators",
-        target: "script/DeployValidators.s.sol:DeployValidatorsScript",
+        target: "script/deploy-contract/DeployValidators.s.sol:DeployValidatorsScript",
     },
     {
         id: "executors",
@@ -121,7 +121,7 @@ const DEPLOYMENT_STEPS = [
         id: "kernel",
         label: "Kernel Stack",
         description: "Kernel + factory deployment for an existing EntryPoint",
-        target: "script/DeployKernel.s.sol:DeployKernelScript",
+        target: "script/deploy-contract/DeployKernel.s.sol:DeployKernelScript",
         passthroughEnv: ["ENTRYPOINT_ADDRESS"],
         requires: ["layer0"],
     },
@@ -129,7 +129,7 @@ const DEPLOYMENT_STEPS = [
         id: "paymasters",
         label: "Paymaster Suite",
         description: "Verifying + ERC20 + Permit2 paymasters",
-        target: "script/DeployPaymasters.s.sol:DeployPaymastersScript",
+        target: "script/deploy-contract/DeployPaymasters.s.sol:DeployPaymastersScript",
         passthroughEnv: [
             "ENTRYPOINT_ADDRESS",
             "OWNER_ADDRESS",

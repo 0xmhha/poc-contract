@@ -119,7 +119,9 @@ Modules that verify transaction signatures.
 src/erc7579-validators/
 ├── ECDSAValidator.sol           # Single ECDSA signature
 ├── WeightedECDSAValidator.sol   # Weighted multisig
-└── MultiChainValidator.sol      # Multi-chain signatures
+├── MultiChainValidator.sol      # Multi-chain signatures
+├── MultiSigValidator.sol        # Multi-signature validation
+└── WebAuthnValidator.sol        # WebAuthn/Passkey validation
 ```
 
 **ECDSAValidator:**
@@ -129,6 +131,14 @@ src/erc7579-validators/
 **WeightedECDSAValidator:**
 - Assigns weights to multiple signers
 - Requires threshold weight to be met
+
+**MultiSigValidator:**
+- Multi-party signature validation
+- Configurable threshold (m-of-n)
+
+**WebAuthnValidator:**
+- WebAuthn/Passkey authentication support
+- Requires P256 (secp256r1) curve verification
 
 ### Executors
 
@@ -214,9 +224,10 @@ Contracts for regulatory compliance.
 
 ```
 src/compliance/
-├── KYCRegistry.sol      # KYC status management
-├── AuditLogger.sol      # Audit logging
-└── ProofOfReserve.sol   # Proof of reserves
+├── KYCRegistry.sol          # KYC status management
+├── AuditLogger.sol          # Audit logging
+├── ProofOfReserve.sol       # Proof of reserves
+└── RegulatoryRegistry.sol   # Regulator registration and trace approvals
 ```
 
 ### KYCRegistry

@@ -10,8 +10,8 @@ via_ir = true
 evm_version = "prague"
 fs_permissions = [{ access = "read-write", path = "deployments" }]
 dotenv = true
-# Exclude Uniswap contracts, dex folder and nested libs from default compilation
-skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "src/dex/*"]
+# Exclude Uniswap contracts, dex folder, entrypoint (has dedicated profile) and nested libs from default compilation
+skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "src/dex/*", "src/erc4337-entrypoint/*"]
 # OZ v5 as default, with specific v3 overrides for Uniswap V3 compatibility
 remappings = [
     "forge-std/=lib/forge-std/src/",
@@ -33,17 +33,6 @@ remappings = [
     "@uniswap/lib/=lib/uniswap-lib/contracts/",
     "base64-sol/=lib/base64-sol/",
 ]
-
-# Fast build profile for development (disable IR, lower optimizer runs)
-[profile.fast]
-src = "src"
-out = "out"
-libs = ["lib"]
-solc = "0.8.28"
-optimizer = true
-optimizer_runs = 1
-via_ir = false
-evm_version = "prague"
 
 # Profile for Universal Router (Solidity 0.8.24+)
 [profile.universal-router]
@@ -78,6 +67,327 @@ remappings = [
     "@uniswap/v4-periphery/=lib/v4-periphery/",
     "@uniswap/lib/=lib/uniswap-lib/contracts/",
     "base64-sol/=lib/base64-sol/",
+]
+
+# Profile for tokens only build
+[profile.tokens]
+src = "src/tokens"
+test = "test/tokens"
+script = "script/deploy-contract/DeployTokens.s.sol"
+out = "out/tokens"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+    "solmate/=lib/solmate/",
+]
+
+# Profile for ERC-4337 EntryPoint build and test
+# Uses vendored OpenZeppelin to minimize dependencies (13 files instead of 425)
+[profile.entrypoint]
+src = "src/erc4337-entrypoint"
+test = "test/erc4337-entrypoint"
+script = "script/deploy-contract/DeployEntryPoint.s.sol"
+out = "out/entrypoint"
+libs = ["lib/forge-std"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+]
+
+# Profile for ERC-4337 Paymaster build and test
+# Deployment Order: 2 (after EntryPoint)
+[profile.paymaster]
+src = "src/erc4337-paymaster"
+test = "test/erc4337-paymaster"
+script = "script/deploy-contract/DeployPaymasters.s.sol"
+out = "out/paymaster"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+]
+
+# Profile for ERC-7579 Smart Account (Kernel) build and test
+# Deployment Order: 3 (after Paymaster)
+[profile.smartaccount]
+src = "src/erc7579-smartaccount"
+test = "test/erc7579-smartaccount"
+script = "script/deploy-contract/DeployKernel.s.sol"
+out = "out/smartaccount"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+    "ExcessivelySafeCall/=lib/ExcessivelySafeCall/src/",
+]
+
+# Profile for ERC-7579 Validators build and test
+# Deployment Order: 4 (after SmartAccount/Kernel)
+[profile.validators]
+src = "src/erc7579-validators"
+test = "test/erc7579-validators"
+script = "script/deploy-contract/DeployValidators.s.sol"
+out = "out/validators"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "solady/=lib/solady/src/",
+]
+
+# Profile for ERC-7579 Hooks build and test
+# Deployment Order: 5 (after Validators)
+[profile.hooks]
+src = "src/erc7579-hooks"
+test = "test/erc7579-hooks"
+script = "script/deploy-contract/DeployHooks.s.sol"
+out = "out/hooks"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "solady/=lib/solady/src/",
+]
+
+# Profile for ERC-7579 Fallbacks build and test
+# Deployment Order: 6 (after Hooks)
+[profile.fallbacks]
+src = "src/erc7579-fallbacks"
+test = "test/erc7579-fallbacks"
+script = "script/deploy-contract/DeployFallbacks.s.sol"
+out = "out/fallbacks"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+]
+
+# Profile for ERC-7579 Executors build and test
+# Deployment Order: 7 (after Fallbacks)
+[profile.executors]
+src = "src/erc7579-executors"
+test = "test/erc7579-executors"
+script = "script/deploy-contract/DeployExecutors.s.sol"
+out = "out/executors"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+]
+
+# Profile for ERC-7579 Plugins build and test
+# Deployment Order: 8 (after Executors, requires PriceOracle and DEX)
+[profile.plugins]
+src = "src/erc7579-plugins"
+test = "test/erc7579-plugins"
+script = "script/deploy-contract/DeployPlugins.s.sol"
+out = "out/plugins"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+]
+
+# Profile for Compliance contracts build and test
+# Deployment Order: 9 (after Plugins, no external dependencies - Layer 0)
+[profile.compliance]
+src = "src/compliance"
+test = "test/compliance"
+script = "script/deploy-contract/DeployCompliance.s.sol"
+out = "out/compliance"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+]
+
+# Profile for Privacy contracts build and test (ERC-5564/6538 Stealth Addresses)
+# Deployment Order: 10 (after Compliance)
+# Layer 0: ERC5564Announcer, ERC6538Registry
+# Layer 1: PrivateBank (depends on Announcer and Registry)
+[profile.privacy]
+src = "src/privacy"
+test = "test/privacy"
+script = "script/deploy-contract/DeployPrivacy.s.sol"
+out = "out/privacy"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+]
+
+# Profile for Permit2 build and test
+# Deployment Order: 11 (after Privacy, no external dependencies)
+[profile.permit2]
+src = "src/permit2"
+test = "test/permit2"
+script = "script/deploy-contract/DeployPermit2.s.sol"
+out = "out/permit2"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+]
+
+# Profile for DeFi contracts build and test (PriceOracle, DEXIntegration)
+# Deployment Order: 12 (after Permit2)
+# Layer 0: PriceOracle (no dependencies)
+# Layer 1+: DEXIntegration (depends on wKRC and external Uniswap V3 contracts)
+[profile.defi]
+src = "src/defi"
+test = "test/defi"
+script = "script/deploy-contract/DeployDeFi.s.sol"
+out = "out/defi"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+]
+
+# Profile for Subscription contracts build and test (ERC-7715 PermissionManager, SubscriptionManager)
+# Deployment Order: 13 (after DeFi)
+# Layer 0: ERC7715PermissionManager (no dependencies)
+# Layer 1: SubscriptionManager (depends on ERC7715PermissionManager)
+[profile.subscription]
+src = "src/subscription"
+test = "test/subscription"
+script = "script/deploy-contract/DeploySubscription.s.sol"
+out = "out/subscription"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+]
+
+# Profile for Bridge contracts build and test
+# Deployment Order: 14 (after Subscription)
+# Layer 0: FraudProofVerifier, BridgeRateLimiter (no dependencies)
+# Layer 1: BridgeValidator, BridgeGuardian, OptimisticVerifier (config params)
+# Layer 2: SecureBridge (depends on all Layer 1 contracts)
+[profile.bridge]
+src = "src/bridge"
+test = "test/bridge"
+script = "script/deploy-contract/DeployBridge.s.sol"
+out = "out/bridge"
+libs = ["lib"]
+solc = "0.8.28"
+auto_detect_remappings = false
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "prague"
+fs_permissions = [{ access = "read-write", path = "deployments" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
 ]
 
 # Profile for Uniswap V3 deployment (Solidity 0.7.6)

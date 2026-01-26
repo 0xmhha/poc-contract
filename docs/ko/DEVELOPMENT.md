@@ -45,7 +45,8 @@ poc-contract/
 │   └── defi/               # DeFi
 ├── test/                   # 테스트
 ├── script/                 # 배포 스크립트
-│   ├── deploy/             # 카테고리별 배포
+│   ├── DeployAll.s.sol     # 통합 배포 (전체 컨트랙트)
+│   ├── deploy-contract/    # 도메인별 배포 스크립트
 │   └── utils/              # 유틸리티
 ├── lib/                    # 외부 의존성
 ├── docs/                   # 문서
@@ -322,15 +323,6 @@ forge test --gas-report
    ```
 
 ## Foundry 프로파일
-
-### fast 프로파일 (개발용)
-
-```bash
-forge build --profile fast
-forge test --profile fast
-```
-
-빠른 빌드를 위해 IR 비활성화, optimizer runs 감소.
 
 ### default 프로파일 (프로덕션)
 

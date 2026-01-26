@@ -10,7 +10,7 @@
 #   - Environment variables set:
 #     - RPC_URL: RPC endpoint URL
 #     - DEPLOYER_PRIVATE_KEY: Deployer's private key
-#     - WKRW_ADDRESS: Wrapped native token address
+#     - WKRC_ADDRESS: Wrapped native token address
 #     - NATIVE_CURRENCY_LABEL: Native currency label (optional, defaults to "KRW")
 #
 # Usage:
@@ -63,8 +63,8 @@ if [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
     exit 1
 fi
 
-if [ -z "$WKRW_ADDRESS" ]; then
-    echo -e "${RED}Error: WKRW_ADDRESS environment variable not set${NC}"
+if [ -z "$WKRC_ADDRESS" ]; then
+    echo -e "${RED}Error: WKRC_ADDRESS environment variable not set${NC}"
     exit 1
 fi
 
@@ -78,7 +78,7 @@ echo ""
 echo "Configuration:"
 echo "  RPC URL: $RPC_URL"
 echo "  Deployer: $DEPLOYER_ADDRESS"
-echo "  WKRW Address: $WKRW_ADDRESS"
+echo "  wKRC Address: $WKRC_ADDRESS"
 echo "  Native Currency: $NATIVE_CURRENCY_LABEL"
 echo "  Broadcast: ${BROADCAST:-"false (dry run)"}"
 echo "  Verify: ${VERIFY:-"false"}"
@@ -123,7 +123,7 @@ ROUTER_ADDRESS=$(forge create \
     -R "base64-sol/=lib/base64-sol/" \
     --use 0.7.6 \
     --optimize \
-    --constructor-args "$FACTORY_ADDRESS" "$WKRW_ADDRESS" \
+    --constructor-args "$FACTORY_ADDRESS" "$WKRC_ADDRESS" \
     lib/v3-periphery/contracts/SwapRouter.sol:SwapRouter \
     $BROADCAST $VERIFY 2>&1 | tee /dev/stderr | grep "Deployed to:" | awk '{print $3}')
 
@@ -146,7 +146,7 @@ QUOTER_ADDRESS=$(forge create \
     -R "base64-sol/=lib/base64-sol/" \
     --use 0.7.6 \
     --optimize \
-    --constructor-args "$FACTORY_ADDRESS" "$WKRW_ADDRESS" \
+    --constructor-args "$FACTORY_ADDRESS" "$WKRC_ADDRESS" \
     lib/v3-periphery/contracts/lens/Quoter.sol:Quoter \
     $BROADCAST $VERIFY 2>&1 | tee /dev/stderr | grep "Deployed to:" | awk '{print $3}')
 
@@ -172,7 +172,7 @@ DESCRIPTOR_ADDRESS=$(forge create \
     -R "base64-sol/=lib/base64-sol/" \
     --use 0.7.6 \
     --optimize \
-    --constructor-args "$WKRW_ADDRESS" "$NATIVE_LABEL_BYTES32" \
+    --constructor-args "$WKRC_ADDRESS" "$NATIVE_LABEL_BYTES32" \
     lib/v3-periphery/contracts/NonfungibleTokenPositionDescriptor.sol:NonfungibleTokenPositionDescriptor \
     $BROADCAST $VERIFY 2>&1 | tee /dev/stderr | grep "Deployed to:" | awk '{print $3}') || true
 
@@ -197,7 +197,7 @@ if [ "$DESCRIPTOR_ADDRESS" != "0x0000000000000000000000000000000000000000" ]; th
         -R "base64-sol/=lib/base64-sol/" \
         --use 0.7.6 \
         --optimize \
-        --constructor-args "$FACTORY_ADDRESS" "$WKRW_ADDRESS" "$DESCRIPTOR_ADDRESS" \
+        --constructor-args "$FACTORY_ADDRESS" "$WKRC_ADDRESS" "$DESCRIPTOR_ADDRESS" \
         lib/v3-periphery/contracts/NonfungiblePositionManager.sol:NonfungiblePositionManager \
         $BROADCAST $VERIFY 2>&1 | tee /dev/stderr | grep "Deployed to:" | awk '{print $3}') || true
 
@@ -231,7 +231,7 @@ echo "  NonfungibleTokenPositionDescriptor: $DESCRIPTOR_ADDRESS"
 echo "  NonfungiblePositionManager: $POSITION_MANAGER_ADDRESS"
 echo ""
 echo "Configuration:"
-echo "  WKRW: $WKRW_ADDRESS"
+echo "  wKRC: $WKRC_ADDRESS"
 echo -e "${YELLOW}========================================${NC}"
 
 # Save deployment info to JSON if broadcast was used
@@ -255,7 +255,7 @@ if [ -n "$BROADCAST" ]; then
         "NonfungiblePositionManager": "$POSITION_MANAGER_ADDRESS"
     },
     "configuration": {
-        "WKRW": "$WKRW_ADDRESS",
+        "wKRC": "$WKRC_ADDRESS",
         "nativeCurrencyLabel": "$NATIVE_CURRENCY_LABEL"
     }
 }

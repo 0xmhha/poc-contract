@@ -91,16 +91,16 @@ const NETWORKS = {
 const DEPLOYMENT_STEPS = [
     // Phase 1: 기본 토큰·컴플라이언스 레지스트리
     {
-        id: "stableToken",
-        label: "StableToken",
-        target: "script/DeployOrdered.s.sol:DeployStableToken", // 프로젝트 루트 기준
-        extractAddress: (output) => extractAddress(output, "StableToken"),
+        id: "usdc",
+        label: "USDC",
+        target: "script/DeployOrdered.s.sol:DeployUSDC", // 프로젝트 루트 기준
+        extractAddress: (output) => extractAddress(output, "USDC"),
     },
     {
-        id: "wkrw",
-        label: "WKRW",
-        target: "script/DeployOrdered.s.sol:DeployWKRW",
-        extractAddress: (output) => extractAddress(output, "WKRW"),
+        id: "wkrc",
+        label: "wKRC",
+        target: "script/DeployOrdered.s.sol:DeploywKRC",
+        extractAddress: (output) => extractAddress(output, "wKRC"),
     },
     {
         id: "kycRegistry",
@@ -140,7 +140,7 @@ const DEPLOYMENT_STEPS = [
         target: "script/DeployOrdered.s.sol:DeployDEXIntegration",
         extractAddress: (output) => extractAddress(output, "DEXIntegration"),
         optional: true,
-        requires: ["wkrw", "priceOracle"],
+        requires: ["wkrc", "priceOracle"],
     },
     {
         id: "erc6538Registry",
@@ -394,7 +394,7 @@ function validateEnvironment(networkKey) {
 }
 
 function formatCommand(target, config, envVars = {}) {
-    // target은 "script/DeployOrdered.s.sol:DeployStableToken" 형식
+    // target은 "script/DeployOrdered.s.sol:DeployUSDC" 형식
     // forge script는 프로젝트 루트에서 실행되므로 상대 경로 그대로 사용
     // 단, 절대 경로가 제공되면 그대로 사용
     let scriptTarget = target;
@@ -498,8 +498,8 @@ function getEnvVarName(stepId) {
     // 자동 매핑: stepId를 기반으로 환경 변수 이름 생성
     const mapping = {
         // Phase 1: Tokens & Compliance
-        stableToken: "STABLE_TOKEN_ADDRESS",
-        wkrw: "WKRW_ADDRESS",
+        usdc: "USDC_ADDRESS",
+        wkrc: "WKRC_ADDRESS",
         kycRegistry: "KYC_REGISTRY_ADDRESS",
         regulatoryRegistry: "REGULATORY_REGISTRY_ADDRESS",
         auditLogger: "AUDIT_LOGGER_ADDRESS",
