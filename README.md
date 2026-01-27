@@ -3,7 +3,7 @@
 [![CI](https://github.com/0xmhha/poc-contract/actions/workflows/test.yml/badge.svg)](https://github.com/0xmhha/poc-contract/actions/workflows/test.yml)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.28-363636?logo=solidity)](https://soliditylang.org/)
 [![Foundry](https://img.shields.io/badge/Built%20with-Foundry-FFDB1C?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01ek0yIDE3bDEwIDUgMTAtNS0xMC01LTEwIDV6TTIgMTJsMTAgNSAxMC01LTEwLTUtMTAgNXoiIGZpbGw9IiMzMzMiLz48L3N2Zz4=)](https://getfoundry.sh/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
 Smart contract Proof of Concept (PoC) repository for StableNet.
 
@@ -392,4 +392,4 @@ via_ir = true
 
 ## License
 
-MIT License
+GPL-3.0 License
