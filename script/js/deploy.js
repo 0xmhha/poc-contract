@@ -4,7 +4,7 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+require("dotenv").config({ path: path.join(__dirname, "..", "..", ".env") });
 
 const NETWORKS = {
     local: {
@@ -366,7 +366,7 @@ function runStep(step, config, baseEnv) {
         // Capture output while still showing it in real-time
         // Use stdio: 'pipe' to capture, but we'll also inherit to show output
         output = execSync(command, {
-            cwd: path.join(__dirname, ".."),
+            cwd: path.join(__dirname, "..", ".."),
             encoding: "utf8",
             stdio: 'pipe', // Capture output
             env,

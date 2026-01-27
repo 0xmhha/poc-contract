@@ -8,8 +8,8 @@ const path = require("path");
 // 스크립트가 어디서 실행되든 프로젝트 루트를 정확히 찾음
 const PROJECT_ROOT = (() => {
     // 스크립트 파일의 위치에서 프로젝트 루트 찾기
-    const scriptDir = __dirname; // scripts/
-    const projectRoot = path.resolve(scriptDir, "..");
+    const scriptDir = __dirname; // script/js/
+    const projectRoot = path.resolve(scriptDir, "..", "..");
     
     // 프로젝트 루트 확인 (foundry.toml 또는 package.json 존재 확인)
     const foundryToml = path.join(projectRoot, "foundry.toml");

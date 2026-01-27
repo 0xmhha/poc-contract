@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "description": "StableNet POC Smart Contracts",
   "scripts": {
-    "deploy": "node scripts/deploy.js",
-    "deploy:local": "NETWORK=local node scripts/deploy.js",
-    "deploy:sepolia": "NETWORK=sepolia node scripts/deploy.js",
-    "deploy:stablenet-testnet": "NETWORK=stablenet-testnet node scripts/deploy.js",
-    "deploy:stablenet": "NETWORK=stablenet node scripts/deploy.js",
+    "deploy": "node script/js/deploy.js",
+    "deploy:local": "NETWORK=local node script/js/deploy.js",
+    "deploy:sepolia": "NETWORK=sepolia node script/js/deploy.js",
+    "deploy:stablenet-testnet": "NETWORK=stablenet-testnet node script/js/deploy.js",
+    "deploy:stablenet": "NETWORK=stablenet node script/js/deploy.js",
     "build": "forge build",
     "test": "forge test",
     "clean": "forge clean"
