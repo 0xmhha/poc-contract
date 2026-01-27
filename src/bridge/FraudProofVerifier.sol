@@ -414,8 +414,9 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
 
         // Call BridgeValidator to verify signatures
         // If verification returns false, fraud is proven (signatures are invalid)
-        try BridgeValidator(bridgeValidator)
-            .verifySignaturesView(message, signatures) returns (bool valid, uint256 validCount) {
+        try BridgeValidator(bridgeValidator).verifySignaturesView(message, signatures) returns (
+            bool valid, uint256 validCount
+        ) {
             // Fraud is proven if signatures are NOT valid
             // validCount helps understand how many signatures were actually valid
             if (!valid) {
@@ -531,9 +532,8 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
         // IOptimisticVerifier(optimisticVerifier).resolveChallenge(requestId, fraudProven);
 
         // For now, use low-level call
-        (bool success,) = optimisticVerifier.call(
-            abi.encodeWithSignature("resolveChallenge(bytes32,bool)", requestId, fraudProven)
-        );
+        (bool success,) =
+            optimisticVerifier.call(abi.encodeWithSignature("resolveChallenge(bytes32,bool)", requestId, fraudProven));
 
         // We don't revert if call fails - just log
         if (!success) {

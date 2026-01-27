@@ -77,7 +77,7 @@ contract wKRC is ERC20 {
         assembly {
             // Transfer the native token and check if it succeeded
             if iszero(call(gas(), caller(), amount, codesize(), 0x00, codesize(), 0x00)) {
-                mstore(0x00, 0_xb1_2d1_3eb) // `NativeTransferFailed()`.
+                mstore(0x00, 0xb12d13eb) // `NativeTransferFailed()`.
                 revert(0x1c, 0x04)
             }
         }
@@ -110,7 +110,7 @@ contract wKRC is ERC20 {
         assembly {
             // Transfer the native token to the specified address
             if iszero(call(gas(), to, amount, codesize(), 0x00, codesize(), 0x00)) {
-                mstore(0x00, 0_xb1_2d1_3eb) // `NativeTransferFailed()`.
+                mstore(0x00, 0xb12d13eb) // `NativeTransferFailed()`.
                 revert(0x1c, 0x04)
             }
         }

@@ -331,7 +331,7 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
                 );
             } else if (vType == VALIDATION_TYPE_7702) {
                 validationData = _verify7702Signature(ECDSA.toEthSignedMessageHash(userOpHash), userOpSig)
-                        == ERC1271_MAGICVALUE
+                    == ERC1271_MAGICVALUE
                     ? ValidationData.wrap(0)
                     : ValidationData.wrap(1);
             } else {
@@ -481,9 +481,8 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
         ValidationStorage storage state = _validationStorage();
         config.hook = IHook(hook);
         unchecked {
-            config.nonce = state.validationConfig[vId].nonce == state.currentNonce
-                ? state.currentNonce + 1
-                : state.currentNonce;
+            config.nonce =
+                state.validationConfig[vId].nonce == state.currentNonce ? state.currentNonce + 1 : state.currentNonce;
         }
 
         // forge-lint: disable-next-line(asm-keccak256)
@@ -621,9 +620,9 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
                 if (PassFlag.unwrap(mSig.flag) & PassFlag.unwrap(SKIP_SIGNATURE) == 0) {
                     ValidationData vd = ValidationData.wrap(
                         mSig.policy
-                        .checkSignaturePolicy(
-                            bytes32(PermissionId.unwrap(mSig.permission)), mSig.caller, mSig.digest, mSig.permSig
-                        )
+                            .checkSignaturePolicy(
+                                bytes32(PermissionId.unwrap(mSig.permission)), mSig.caller, mSig.digest, mSig.permSig
+                            )
                     );
                     address result = getValidationResult(vd);
                     if (result != address(0)) {
@@ -668,7 +667,7 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
         /// @solidity memory-safe-assembly
         assembly {
             // Compute the digest.
-            mstore(0x00, 0x1_901_000_000_000_000) // Store "\x19\x01".
+            mstore(0x00, 0x1901000000000000) // Store "\x19\x01".
             mstore(0x1a, digest) // Store the domain separator.
             mstore(0x3a, structHash) // Store the struct hash.
             digest := keccak256(0x18, 0x42)

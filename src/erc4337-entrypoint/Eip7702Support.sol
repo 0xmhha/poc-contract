@@ -11,7 +11,7 @@ library Eip7702Support {
     error Eip7702SenderNotDelegate(address sender);
 
     // EIP-7702 code prefix before delegate address.
-    bytes3 internal constant EIP7702_PREFIX = 0x_ef0_100;
+    bytes3 internal constant EIP7702_PREFIX = 0xef0_100;
 
     // EIP-7702 initCode marker, to specify this account is EIP-7702.
     bytes2 internal constant INITCODE_EIP7702_MARKER = 0x7_702;
@@ -48,8 +48,6 @@ library Eip7702Support {
      * @return true if the 'initCode' is EIP-7702 authorization, false otherwise.
      */
     function _isEip7702InitCode(bytes calldata initCode) internal pure returns (bool) {
-
-
         if (initCode.length < 2) {
             return false;
         }
@@ -70,8 +68,6 @@ library Eip7702Support {
      * @return the address of the EIP-7702 authorized contract.
      */
     function _getEip7702Delegate(address sender) internal view returns (address) {
-
-
         bytes32 senderCode;
 
         assembly ("memory-safe") {

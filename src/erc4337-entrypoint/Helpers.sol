@@ -162,8 +162,6 @@ function min(uint256 a, uint256 b) pure returns (uint256) {
  * @param allocationSize - Bytes allocated from memPointer.
  */
 function finalizeAllocation(uint256 memPointer, uint256 allocationSize) pure {
-
-
     assembly ("memory-safe") {
         finalize_allocation(memPointer, allocationSize)
 

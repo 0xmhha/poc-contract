@@ -372,7 +372,7 @@ contract WebAuthnValidator is IValidator {
 
         bytes memory input = abi.encodePacked(hash, r, s, pubKeyX, pubKeyY);
 
-        (bool success, bytes memory output) = address(0x_100).staticcall(input);
+        (bool success, bytes memory output) = address(0x100).staticcall(input);
 
         if (success && output.length == 32) {
             return abi.decode(output, (uint256)) == 1;

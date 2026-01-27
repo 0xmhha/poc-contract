@@ -24,7 +24,7 @@ contract VerifyingPaymasterTest is Test {
     function setUp() public {
         // Setup accounts
         owner = makeAddr("owner");
-        signerPrivateKey = 0_xA1_1CE;
+        signerPrivateKey = 0xA1_1CE;
         verifyingSigner = vm.addr(signerPrivateKey);
         user = makeAddr("user");
 
@@ -133,7 +133,7 @@ contract VerifyingPaymasterTest is Test {
         uint48 validAfter = uint48(block.timestamp);
 
         // Create invalid signature (wrong private key)
-        uint256 wrongPrivateKey = 0x_BAD;
+        uint256 wrongPrivateKey = 0xBAD;
         bytes32 hash = paymaster.getHash(userOp, validUntil, validAfter);
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPrivateKey, ethSignedHash);

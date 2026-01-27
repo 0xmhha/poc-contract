@@ -340,7 +340,8 @@ library Math {
             while (remainder != 0) {
                 uint256 quotient = gcd / remainder;
 
-                (gcd, remainder) = (
+                (gcd, remainder) =
+                (
                     // The old remainder is the next gcd to try.
                     remainder,
                     // Compute the next remainder.
@@ -349,7 +350,8 @@ library Math {
                     gcd - remainder * quotient
                 );
 
-                (x, y) = (
+                (x, y) =
+                (
                     // Increment the coefficient of a.
                     y,
                     // Decrement the coefficient of n.
@@ -616,11 +618,11 @@ library Math {
      */
     function log2(uint256 x) internal pure returns (uint256 r) {
         // If value has upper 128 bits set, log2 result is at least 128
-        r = SafeCast.toUint(x > 0_xff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff) << 7;
+        r = SafeCast.toUint(x > 0xff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff) << 7;
         // If upper 64 bits of 128-bit half set, add 64 to result
         r |= SafeCast.toUint((x >> r) > 0xf_fff_fff_fff_fff_fff) << 6;
         // If upper 32 bits of 64-bit half set, add 32 to result
-        r |= SafeCast.toUint((x >> r) > 0_xff_fff_fff) << 5;
+        r |= SafeCast.toUint((x >> r) > 0xff_fff_fff) << 5;
         // If upper 16 bits of 32-bit half set, add 16 to result
         r |= SafeCast.toUint((x >> r) > 0xf_fff) << 4;
         // If upper 8 bits of 16-bit half set, add 8 to result
@@ -651,10 +653,7 @@ library Math {
         //
         // The lookup table is represented as a 32-byte value with the MSB positions for 0-15 in the last 16 bytes.
         assembly ("memory-safe") {
-            r := or(
-                r,
-                byte(shr(r, x), 0x0_000_010_102_020_202_030_303_030_303_030_300_000_000_000_000_000_000_000_000_000_000)
-            )
+            r := or(r, byte(shr(r, x), 0x0000010102020202030303030303030300000000000000000000000000000000))
         }
     }
 
@@ -726,11 +725,11 @@ library Math {
      */
     function log256(uint256 x) internal pure returns (uint256 r) {
         // If value has upper 128 bits set, log2 result is at least 128
-        r = SafeCast.toUint(x > 0_xff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff) << 7;
+        r = SafeCast.toUint(x > 0xff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff) << 7;
         // If upper 64 bits of 128-bit half set, add 64 to result
         r |= SafeCast.toUint((x >> r) > 0xf_fff_fff_fff_fff_fff) << 6;
         // If upper 32 bits of 64-bit half set, add 32 to result
-        r |= SafeCast.toUint((x >> r) > 0_xff_fff_fff) << 5;
+        r |= SafeCast.toUint((x >> r) > 0xff_fff_fff) << 5;
         // If upper 16 bits of 32-bit half set, add 16 to result
         r |= SafeCast.toUint((x >> r) > 0xf_fff) << 4;
         // Add 1 if upper 8 bits of 16-bit half set, and divide accumulated result by 8

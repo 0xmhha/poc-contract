@@ -92,7 +92,7 @@ contract MockSmartAccount is IERC7579Account {
     }
 
     function isValidSignature(bytes32, bytes calldata) external pure override returns (bytes4) {
-        return 0_x16_26b_a7e; // EIP-1271 magic value
+        return 0x16_26b_a7e; // EIP-1271 magic value
     }
 
     receive() external payable { }

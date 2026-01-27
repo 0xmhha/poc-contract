@@ -54,12 +54,12 @@ contract TokenReceiverFallback is IFallback {
     mapping(address => AccountStorage) internal accountStorage;
 
     // ERC-721 callback selector
-    bytes4 private constant ERC721_RECEIVED = 0_x15_0b7_a02;
+    bytes4 private constant ERC721_RECEIVED = 0x15_0b7_a02;
     // ERC-1155 callback selectors
-    bytes4 private constant ERC1155_RECEIVED = 0_xf2_3a6_e61;
-    bytes4 private constant ERC1155_BATCH_RECEIVED = 0_xbc_197_c81;
+    bytes4 private constant ERC1155_RECEIVED = 0xf2_3a6_e61;
+    bytes4 private constant ERC1155_BATCH_RECEIVED = 0xbc_197_c81;
     // ERC-777 callback selector
-    bytes4 private constant ERC777_TOKENS_RECEIVED = 0_x00_23d_e29;
+    bytes4 private constant ERC777_TOKENS_RECEIVED = 0x00_23d_e29;
 
     // Events
     event TokenReceived(
@@ -451,15 +451,15 @@ contract TokenReceiverFallback is IFallback {
         bytes calldata data
     ) internal {
         store.transferLogs
-        .push(
-            TransferLog({
-                timestamp: block.timestamp,
-                token: token,
-                from: from,
-                tokenId: tokenId,
-                amount: amount,
-                dataHash: keccak256(data)
-            })
-        );
+            .push(
+                TransferLog({
+                    timestamp: block.timestamp,
+                    token: token,
+                    from: from,
+                    tokenId: tokenId,
+                    amount: amount,
+                    dataHash: keccak256(data)
+                })
+            );
     }
 }

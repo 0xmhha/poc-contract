@@ -58,8 +58,8 @@ contract EntryPoint is IEntryPointSimulations, StakeManager, NonceManager, ERC16
     // Threshold below which no penalty would be charged
     uint256 private constant PENALTY_GAS_THRESHOLD = 40_000;
 
-    uint48 private constant VALIDITY_BLOCK_RANGE_FLAG = 0x_800_000_000_000;
-    uint48 private constant VALIDITY_BLOCK_RANGE_MASK = 0x_7ff_fff_fff_fff;
+    uint48 private constant VALIDITY_BLOCK_RANGE_FLAG = 0x800_000_000_000;
+    uint48 private constant VALIDITY_BLOCK_RANGE_MASK = 0x7ff_fff_fff_fff;
 
     SenderCreator private immutable _SENDER_CREATOR = new SenderCreator();
 
@@ -80,7 +80,8 @@ contract EntryPoint is IEntryPointSimulations, StakeManager, NonceManager, ERC16
     function _nonReentrant() internal view {
         require(
             // solhint-disable avoid-tx-origin
-            tx.origin == msg.sender && msg.sender.code.length == 0, Reentrancy()
+            tx.origin == msg.sender && msg.sender.code.length == 0,
+            Reentrancy()
         );
     }
 
@@ -108,8 +109,6 @@ contract EntryPoint is IEntryPointSimulations, StakeManager, NonceManager, ERC16
         virtual
         nonReentrant
     {
-
-
         unchecked {
             uint256 opasLen = opsPerAggregator.length;
             uint256 totalOps = 0;
@@ -466,9 +465,8 @@ contract EntryPoint is IEntryPointSimulations, StakeManager, NonceManager, ERC16
      */
     function _getRequiredPrefund(MemoryUserOp memory mUserOp) internal pure virtual returns (uint256 requiredPrefund) {
         unchecked {
-            uint256 requiredGas =
-                mUserOp.verificationGasLimit + mUserOp.callGasLimit + mUserOp.paymasterVerificationGasLimit
-                + mUserOp.paymasterPostOpGasLimit + mUserOp.preVerificationGas;
+            uint256 requiredGas = mUserOp.verificationGasLimit + mUserOp.callGasLimit
+                + mUserOp.paymasterVerificationGasLimit + mUserOp.paymasterPostOpGasLimit + mUserOp.preVerificationGas;
 
             requiredPrefund = requiredGas * mUserOp.maxFeePerGas;
         }
@@ -574,9 +572,8 @@ contract EntryPoint is IEntryPointSimulations, StakeManager, NonceManager, ERC16
         bool success;
         {
             uint256 saveFreePtr = _getFreePtr();
-            bytes memory callData = abi.encodeCall(
-                IAccount.validateUserOp, (op, opInfo.userOpHash, missingAccountFunds)
-            );
+            bytes memory callData =
+                abi.encodeCall(IAccount.validateUserOp, (op, opInfo.userOpHash, missingAccountFunds));
             assembly ("memory-safe") {
                 success := call(gasLimit, sender, 0, add(callData, 0x20), mload(callData), 0, 32)
                 validationData := mload(0)
@@ -786,8 +783,7 @@ contract EntryPoint is IEntryPointSimulations, StakeManager, NonceManager, ERC16
         // Validate all numeric values in userOp are well below 128 bit, so they can safely be added
         // and multiplied without causing overflow.
         uint256 verificationGasLimit = mUserOp.verificationGasLimit;
-        uint256 maxGasValues =
-            mUserOp.preVerificationGas | verificationGasLimit | mUserOp.callGasLimit
+        uint256 maxGasValues = mUserOp.preVerificationGas | verificationGasLimit | mUserOp.callGasLimit
             | mUserOp.paymasterVerificationGasLimit | mUserOp.paymasterPostOpGasLimit | mUserOp.maxFeePerGas
             | mUserOp.maxPriorityFeePerGas;
         require(maxGasValues <= type(uint120).max, FailedOp(opIndex, "AA94 gas values overflow"));
@@ -853,8 +849,9 @@ contract EntryPoint is IEntryPointSimulations, StakeManager, NonceManager, ERC16
                     actualGasCost = actualGas * gasPrice;
                     uint256 postOpPreGas = gasleft();
                     if (mode != IPaymaster.PostOpMode.postOpReverted) {
-                        try IPaymaster(paymaster)
-                        .postOp{ gas: mUserOp.paymasterPostOpGasLimit }(mode, context, actualGasCost, gasPrice) {
+                        try IPaymaster(paymaster).postOp{ gas: mUserOp.paymasterPostOpGasLimit }(
+                            mode, context, actualGasCost, gasPrice
+                        ) {
                         // solhint-disable-next-line no-empty-blocks
                         }
                         catch {

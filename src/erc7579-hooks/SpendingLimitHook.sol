@@ -144,7 +144,8 @@ contract SpendingLimitHook is IHook {
         }
 
         // Check ERC-20 transfers
-        if (msgData.length >= 56) { // 20 (target) + 32 (value) + 4 (selector)
+        if (msgData.length >= 56) {
+            // 20 (target) + 32 (value) + 4 (selector)
 
             bytes4 selector = bytes4(msgData[52:56]);
 

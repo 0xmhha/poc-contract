@@ -8,7 +8,7 @@ contract BridgeDeploymentSimulationTest is Test, BridgeDeploymentHelper {
     function testBridgeDeploymentWiring() public {
         BridgeDeploymentConfig memory config;
         config.deployer = address(this);
-        config.feeRecipient = address(0x_FEE);
+        config.feeRecipient = address(0xFEE);
 
         address[] memory signers = new address[](3);
         signers[0] = address(0x1);

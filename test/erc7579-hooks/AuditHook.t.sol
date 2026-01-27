@@ -146,7 +146,7 @@ contract AuditHookTest is Test {
     function test_PreCheck_CreatesAuditEntry() public {
         _installHook();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(0.5 ether), bytes4(0_x12_345_678), bytes28(0));
+        bytes memory msgData = abi.encodePacked(recipient, uint256(0.5 ether), bytes4(0x12_345_678), bytes28(0));
 
         vm.prank(address(account));
         bytes memory hookData = hook.preCheck(user, 0.5 ether, msgData);

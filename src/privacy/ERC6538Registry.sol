@@ -96,7 +96,7 @@ contract ERC6538Registry is IERC6538Registry {
     bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;
 
     /// @notice EIP-1271 magic value for valid signatures
-    bytes4 internal constant EIP1271_MAGIC_VALUE = 0_x16_26b_a7e;
+    bytes4 internal constant EIP1271_MAGIC_VALUE = 0x16_26b_a7e;
 
     /* //////////////////////////////////////////////////////////////
                               CONSTRUCTOR

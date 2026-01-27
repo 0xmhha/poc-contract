@@ -15,27 +15,28 @@ function _intersectValidationData(ValidationData a, ValidationData b) pure retur
         // a mul b != 0 && xor(a,b) != 0
         let sum := shl(96, add(a, b))
         switch or(
-            iszero(
-                and(xor(a, b), 0x0_000_000_000_000_000_000_000_00f_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff)
-            ),
+            iszero(and(xor(a, b), 0x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff)),
             or(eq(sum, shl(96, a)), eq(sum, shl(96, b)))
         )
         case 1 {
-            validationData := and(
-                or(a, b),
-                0x0_000_000_000_000_000_000_000_00f_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff
-            )
+            validationData := and(or(a, b), 0x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff)
             // validAfter
-            let a_vd := and(0xf_fff_fff_fff_ff0_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000, a)
-            let b_vd := and(0xf_fff_fff_fff_ff0_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000_000, b)
+            let a_vd := and(0xffffffffffff0000000000000000000000000000000000000000000000000000, a)
+            let b_vd := and(0xffffffffffff0000000000000000000000000000000000000000000000000000, b)
             validationData := or(validationData, xor(a_vd, mul(xor(a_vd, b_vd), gt(b_vd, a_vd))))
             // validUntil
-            a_vd := and(0x0_000_000_000_00f_fff_fff_fff_ff0_000_000_000_000_000_000_000_000_000_000_000_000_000, a)
-            if iszero(a_vd) { a_vd := 0x0_000_000_000_00f_fff_fff_fff_ff0_000_000_000_000_000_000_000_000_000_000_000_000_000 }
-            b_vd := and(0x0_000_000_000_00f_fff_fff_fff_ff0_000_000_000_000_000_000_000_000_000_000_000_000_000, b)
-            if iszero(b_vd) { b_vd := 0x0_000_000_000_00f_fff_fff_fff_ff0_000_000_000_000_000_000_000_000_000_000_000_000_000 }
+            a_vd := and(0x000000000000ffffffffffff0000000000000000000000000000000000000000, a)
+            if iszero(a_vd) {
+                a_vd := 0x000000000000ffffffffffff0000000000000000000000000000000000000000
+            }
+            b_vd := and(0x000000000000ffffffffffff0000000000000000000000000000000000000000, b)
+            if iszero(b_vd) {
+                b_vd := 0x000000000000ffffffffffff0000000000000000000000000000000000000000
+            }
             let until := xor(a_vd, mul(xor(a_vd, b_vd), lt(b_vd, a_vd)))
-            if iszero(until) { until := 0x0_000_000_000_00f_fff_fff_fff_ff0_000_000_000_000_000_000_000_000_000_000_000_000_000 }
+            if iszero(until) {
+                until := 0x000000000000ffffffffffff0000000000000000000000000000000000000000
+            }
             validationData := or(validationData, until)
         }
         default { validationData := SIG_VALIDATION_FAILED_UINT }

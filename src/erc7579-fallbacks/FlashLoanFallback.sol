@@ -509,17 +509,17 @@ contract FlashLoanFallback is IFallback {
 
         if (store.config.logFlashLoans) {
             store.flashLoanLogs
-            .push(
-                FlashLoanLog({
-                    timestamp: block.timestamp,
-                    protocol: protocol,
-                    tokens: tokens,
-                    amounts: amounts,
-                    premiums: premiums,
-                    initiatorHash: keccak256(abi.encodePacked(initiator)),
-                    success: success
-                })
-            );
+                .push(
+                    FlashLoanLog({
+                        timestamp: block.timestamp,
+                        protocol: protocol,
+                        tokens: tokens,
+                        amounts: amounts,
+                        premiums: premiums,
+                        initiatorHash: keccak256(abi.encodePacked(initiator)),
+                        success: success
+                    })
+                );
 
             emit FlashLoanExecuted(smartAccount, protocol, tokens, amounts, premiums);
         }

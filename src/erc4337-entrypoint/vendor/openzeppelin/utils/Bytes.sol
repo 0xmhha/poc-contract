@@ -189,32 +189,32 @@ library Bytes {
      * Inspired by https://graphics.stanford.edu/~seander/bithacks.html#ReverseParallel[Reverse Parallel]
      */
     function reverseBytes32(bytes32 value) internal pure returns (bytes32) {
-        value =  // swap bytes
-        ((value >> 8) & 0x0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF)
+        value = // swap bytes
+             ((value >> 8) & 0x0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF)
             | ((value & 0x0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF) << 8);
-        value =  // swap 2-byte long pairs
-        ((value >> 16) & 0x0_000_FFF_F00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF)
+        value = // swap 2-byte long pairs
+             ((value >> 16) & 0x0_000_FFF_F00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF)
             | ((value & 0x0_000_FFF_F00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF) << 16);
-        value =  // swap 4-byte long pairs
-        ((value >> 32) & 0x0_000_000_0FF_FFF_FFF_000_000_00F_FFF_FFF_F00_000_000_FFF_FFF_FF0_000_000_0FF_FFF_FFF)
+        value = // swap 4-byte long pairs
+             ((value >> 32) & 0x0_000_000_0FF_FFF_FFF_000_000_00F_FFF_FFF_F00_000_000_FFF_FFF_FF0_000_000_0FF_FFF_FFF)
             | ((value & 0x0_000_000_0FF_FFF_FFF_000_000_00F_FFF_FFF_F00_000_000_FFF_FFF_FF0_000_000_0FF_FFF_FFF) << 32);
-        value =  // swap 8-byte long pairs
-        ((value >> 64) & 0x0_000_000_000_000_000_FFF_FFF_FFF_FFF_FFF_F00_000_000_000_000_00F_FFF_FFF_FFF_FFF_FFF)
+        value = // swap 8-byte long pairs
+             ((value >> 64) & 0x0_000_000_000_000_000_FFF_FFF_FFF_FFF_FFF_F00_000_000_000_000_00F_FFF_FFF_FFF_FFF_FFF)
             | ((value & 0x0_000_000_000_000_000_FFF_FFF_FFF_FFF_FFF_F00_000_000_000_000_00F_FFF_FFF_FFF_FFF_FFF) << 64);
         return (value >> 128) | (value << 128); // swap 16-byte long pairs
     }
 
     /// @dev Same as {reverseBytes32} but optimized for 128-bit values.
     function reverseBytes16(bytes16 value) internal pure returns (bytes16) {
-        value =  // swap bytes
-        ((value & 0_xFF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00) >> 8)
-            | ((value & 0_x00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF) << 8);
-        value =  // swap 2-byte long pairs
-        ((value & 0_xFF_FF0_000_FFF_F00_00F_FFF_000_0FF_FF0_000) >> 16)
-            | ((value & 0_x00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF) << 16);
-        value =  // swap 4-byte long pairs
-        ((value & 0_xFF_FFF_FFF_000_000_00F_FFF_FFF_F00_000_000) >> 32)
-            | ((value & 0_x00_000_000_FFF_FFF_FF0_000_000_0FF_FFF_FFF) << 32);
+        value = // swap bytes
+             ((value & 0xFF_00F_F00_FF0_0FF_00F_F00_FF0_0FF_00F_F00) >> 8)
+            | ((value & 0x00_FF0_0FF_00F_F00_FF0_0FF_00F_F00_FF0_0FF) << 8);
+        value = // swap 2-byte long pairs
+             ((value & 0xFF_FF0_000_FFF_F00_00F_FFF_000_0FF_FF0_000) >> 16)
+            | ((value & 0x00_00F_FFF_000_0FF_FF0_000_FFF_F00_00F_FFF) << 16);
+        value = // swap 4-byte long pairs
+             ((value & 0xFF_FFF_FFF_000_000_00F_FFF_FFF_F00_000_000) >> 32)
+            | ((value & 0x00_000_000_FFF_FFF_FF0_000_000_0FF_FFF_FFF) << 32);
         return (value >> 64) | (value << 64); // swap 8-byte long pairs
     }
 
@@ -222,13 +222,13 @@ library Bytes {
     function reverseBytes8(bytes8 value) internal pure returns (bytes8) {
         value = ((value & 0xF_F00_FF0_0FF_00F_F00) >> 8) | ((value & 0x0_0FF_00F_F00_FF0_0FF) << 8); // swap bytes
         value = ((value & 0xF_FFF_000_0FF_FF0_000) >> 16) | ((value & 0x0_000_FFF_F00_00F_FFF) << 16); // swap 2-byte
-            // long pairs
+        // long pairs
         return (value >> 32) | (value << 32); // swap 4-byte long pairs
     }
 
     /// @dev Same as {reverseBytes32} but optimized for 32-bit values.
     function reverseBytes4(bytes4 value) internal pure returns (bytes4) {
-        value = ((value & 0_xFF_00F_F00) >> 8) | ((value & 0_x00_FF0_0FF) << 8); // swap bytes
+        value = ((value & 0xFF_00F_F00) >> 8) | ((value & 0x00_FF0_0FF) << 8); // swap bytes
         return (value >> 16) | (value << 16); // swap 2-byte long pairs
     }
 

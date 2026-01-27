@@ -25,7 +25,7 @@ ExecType constant EXECTYPE_DEFAULT = ExecType.wrap(0x00);
 ExecType constant EXECTYPE_TRY = ExecType.wrap(0x01);
 
 // --- ERC7579 mode selector ---
-ExecModeSelector constant EXEC_MODE_DEFAULT = ExecModeSelector.wrap(bytes4(0_x00_000_000));
+ExecModeSelector constant EXEC_MODE_DEFAULT = ExecModeSelector.wrap(bytes4(0x00_000_000));
 
 // --- Kernel permission skip flags ---
 PassFlag constant SKIP_USEROP = PassFlag.wrap(0x0_001);
@@ -48,7 +48,7 @@ address constant HOOK_MODULE_INSTALLED = address(1);
 address constant HOOK_ONLY_ENTRYPOINT = address(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF);
 
 // --- EIP7702 constants ---
-bytes3 constant EIP7702_PREFIX = bytes3(0x_ef0_100);
+bytes3 constant EIP7702_PREFIX = bytes3(0xef0_100);
 
 // --- storage slots ---
 // bytes32(uint256(keccak256('kernel.v3.selector')) - 1)
@@ -84,8 +84,8 @@ uint256 constant SIG_VALIDATION_SUCCESS_UINT = 0;
 ValidationData constant SIG_VALIDATION_FAILED = ValidationData.wrap(SIG_VALIDATION_FAILED_UINT);
 
 // ERC-1271 constants
-bytes4 constant ERC1271_MAGICVALUE = 0_x16_26b_a7e;
-bytes4 constant ERC1271_INVALID = 0_xff_fff_fff;
+bytes4 constant ERC1271_MAGICVALUE = 0x16_26b_a7e;
+bytes4 constant ERC1271_INVALID = 0xff_fff_fff;
 
 uint256 constant MODULE_TYPE_VALIDATOR = 1;
 uint256 constant MODULE_TYPE_EXECUTOR = 2;

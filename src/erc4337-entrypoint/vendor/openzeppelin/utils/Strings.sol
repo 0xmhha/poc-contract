@@ -16,8 +16,7 @@ library Strings {
 
     bytes16 private constant HEX_DIGITS = "0123456789abcdef";
     uint8 private constant ADDRESS_LENGTH = 20;
-    uint256 private constant SPECIAL_CHARS_LOOKUP =
-        (1 << 0x08) // backspace
+    uint256 private constant SPECIAL_CHARS_LOOKUP = (1 << 0x08) // backspace
         | (1 << 0x09) // tab
         | (1 << 0x0a) // newline
         | (1 << 0x0c) // form feed
@@ -292,7 +291,7 @@ library Strings {
 
         // Check presence of a negative sign.
         bytes1 sign = begin == end ? bytes1(0) : bytes1(_unsafeReadBytesOffset(buffer, begin)); // don't do out-of-bound
-            // (possibly unsafe) read if sub-string is empty
+        // (possibly unsafe) read if sub-string is empty
         bool positiveSign = sign == bytes1("+");
         bool negativeSign = sign == bytes1("-");
         uint256 offset = (positiveSign || negativeSign).toUint();
@@ -372,7 +371,7 @@ library Strings {
 
         // skip 0x prefix if present
         bool hasPrefix = (end > begin + 1) && bytes2(_unsafeReadBytesOffset(buffer, begin)) == bytes2("0x"); // don't do
-            // out-of-bound (possibly unsafe) read if sub-string is empty
+        // out-of-bound (possibly unsafe) read if sub-string is empty
         uint256 offset = hasPrefix.toUint() * 2;
 
         uint256 result = 0;
@@ -434,7 +433,7 @@ library Strings {
         if (end > bytes(input).length || begin > end) return (false, address(0));
 
         bool hasPrefix = (end > begin + 1) && bytes2(_unsafeReadBytesOffset(bytes(input), begin)) == bytes2("0x"); // don't
-            // do out-of-bound (possibly unsafe) read if sub-string is empty
+        // do out-of-bound (possibly unsafe) read if sub-string is empty
         uint256 expectedLength = 40 + hasPrefix.toUint() * 2;
 
         // check that input is the correct length

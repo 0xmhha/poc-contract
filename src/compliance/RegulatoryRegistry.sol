@@ -138,12 +138,10 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
      * @param jurisdiction Jurisdiction code (e.g., "US", "EU", "KR")
      * @param accessLevel Access level (1-5)
      */
-    function registerRegulator(
-        address regulator,
-        string calldata name,
-        string calldata jurisdiction,
-        uint8 accessLevel
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function registerRegulator(address regulator, string calldata name, string calldata jurisdiction, uint8 accessLevel)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         if (regulator == address(0)) revert InvalidAddress();
         if (bytes(name).length == 0) revert EmptyName();
         if (bytes(jurisdiction).length == 0) revert InvalidJurisdiction();

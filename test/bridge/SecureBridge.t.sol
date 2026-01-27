@@ -179,9 +179,9 @@ contract SecureBridgeTest is Test {
         vm.deal(sender, amount);
 
         vm.prank(sender);
-        bytes32 requestId = bridge.initiateBridge{
-            value: amount
-        }(address(0), amount, recipient, TARGET_CHAIN, block.timestamp + 1 hours);
+        bytes32 requestId = bridge.initiateBridge{ value: amount }(
+            address(0), amount, recipient, TARGET_CHAIN, block.timestamp + 1 hours
+        );
 
         assertNotEq(requestId, bytes32(0));
         assertEq(address(bridge).balance, amount);

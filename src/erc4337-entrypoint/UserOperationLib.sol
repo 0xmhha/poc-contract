@@ -18,10 +18,10 @@ library UserOperationLib {
 
     uint256 internal constant PAYMASTER_SIG_MAGIC_LEN = 8;
     uint256 internal constant PAYMASTER_SUFFIX_LEN = PAYMASTER_SIG_MAGIC_LEN + 2; // suffix length (signature length +
-        // magic)
+    // magic)
     bytes8 internal constant PAYMASTER_SIG_MAGIC = 0x2_2e3_25a_297_439_656; // keccak("PaymasterSignature")[:8]
     uint256 internal constant MIN_PAYMASTER_DATA_WITH_SUFFIX_LEN = PAYMASTER_DATA_OFFSET + PAYMASTER_SUFFIX_LEN; // minimum
-        // length of paymasterData that can contain a paymaster signature.
+    // length of paymasterData that can contain a paymaster signature.
 
     /**
      * Relayer/block builder might submit the TX with higher priorityFee,

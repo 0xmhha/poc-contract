@@ -173,18 +173,18 @@ contract AuditHook is IHook {
         // Create audit entry
         uint256 logIndex = store.auditLog.length;
         store.auditLog
-        .push(
-            AuditEntry({
-                timestamp: block.timestamp,
-                sender: msgSender,
-                target: target,
-                value: msgValue,
-                selector: selector,
-                dataHash: keccak256(msgData),
-                isFlagged: isFlagged,
-                isExecuted: false
-            })
-        );
+            .push(
+                AuditEntry({
+                    timestamp: block.timestamp,
+                    sender: msgSender,
+                    target: target,
+                    value: msgValue,
+                    selector: selector,
+                    dataHash: keccak256(msgData),
+                    isFlagged: isFlagged,
+                    isExecuted: false
+                })
+            );
 
         // Update statistics
         store.totalTransactions++;

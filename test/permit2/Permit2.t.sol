@@ -57,7 +57,7 @@ contract Permit2Test is Test {
 
     function setUp() public {
         // Setup accounts
-        ownerPrivateKey = 0_xA1_1CE;
+        ownerPrivateKey = 0xA1_1CE;
         owner = vm.addr(ownerPrivateKey);
         spender = makeAddr("spender");
         recipient = makeAddr("recipient");

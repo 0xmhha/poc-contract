@@ -547,8 +547,7 @@ contract DeployAllScript is DeploymentHelper {
         // ERC20Paymaster (depends on EntryPoint, PriceOracle)
         if (_getAddress(DeploymentAddresses.KEY_ERC20_PAYMASTER) == address(0)) {
             if (priceOracleAddr != address(0)) {
-                ERC20Paymaster erc20Paymaster =
-                    new ERC20Paymaster(
+                ERC20Paymaster erc20Paymaster = new ERC20Paymaster(
                     IEntryPoint(entryPointAddr), admin, IPriceOracle(priceOracleAddr), DEFAULT_MARKUP
                 );
                 _setAddress(DeploymentAddresses.KEY_ERC20_PAYMASTER, address(erc20Paymaster));

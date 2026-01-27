@@ -15,9 +15,9 @@ contract TokenReceiverFallbackTest is Test {
     address public recipient;
 
     // Selectors
-    bytes4 constant ERC721_RECEIVED = 0_x15_0b7_a02;
-    bytes4 constant ERC1155_RECEIVED = 0_xf2_3a6_e61;
-    bytes4 constant ERC1155_BATCH_RECEIVED = 0_xbc_197_c81;
+    bytes4 constant ERC721_RECEIVED = 0x15_0b7_a02;
+    bytes4 constant ERC1155_RECEIVED = 0xf2_3a6_e61;
+    bytes4 constant ERC1155_BATCH_RECEIVED = 0xbc_197_c81;
 
     function setUp() public {
         user = makeAddr("user");

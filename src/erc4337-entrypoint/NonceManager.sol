@@ -29,8 +29,6 @@ abstract contract NonceManager is INonceManager {
      *         false if the current nonce doesn't match the given one.
      */
     function _validateAndUpdateNonce(address sender, uint256 nonce) internal virtual returns (bool) {
-
-
         // casting to 'uint192' is safe because we're extracting the high 192 bits from a 256-bit nonce
         // forge-lint: disable-next-line(unsafe-typecast)
         uint192 key = uint192(nonce >> 64);

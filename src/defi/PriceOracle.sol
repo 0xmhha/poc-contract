@@ -442,27 +442,27 @@ contract PriceOracle is Ownable, IPriceOracle {
         if (absTick > uint256(int256(type(int24).max))) revert InvalidTick();
 
         uint256 ratio = absTick & 0x1 != 0
-            ? 0_xff_fcb_933_bd6_fad_37a_a2d_162_d1a_594_001
-            : 0x_100_000_000_000_000_000_000_000_000_000_000;
-        if (absTick & 0x2 != 0) ratio = (ratio * 0_xff_f97_272_373_d41_325_9a4_699_058_0e2_13a) >> 128;
-        if (absTick & 0x4 != 0) ratio = (ratio * 0_xff_f2e_50f_5f6_569_32e_f12_357_cf3_c7f_dcc) >> 128;
-        if (absTick & 0x8 != 0) ratio = (ratio * 0_xff_e5c_aca_7e1_0e4_e61_c36_24e_aa0_941_cd0) >> 128;
-        if (absTick & 0x10 != 0) ratio = (ratio * 0_xff_cb9_843_d60_f61_59c_9db_588_35c_926_644) >> 128;
-        if (absTick & 0x20 != 0) ratio = (ratio * 0_xff_973_b41_fa9_8c0_814_72e_689_6df_b25_4c0) >> 128;
-        if (absTick & 0x40 != 0) ratio = (ratio * 0_xff_2ea_164_66c_96a_384_3ec_78b_326_b52_861) >> 128;
-        if (absTick & 0x80 != 0) ratio = (ratio * 0_xfe_5de_e04_6a9_9a2_a81_1c4_61f_196_9c3_053) >> 128;
-        if (absTick & 0x_100 != 0) ratio = (ratio * 0_xfc_be8_6c7_900_a88_aed_cff_c83_b47_9aa_3a4) >> 128;
-        if (absTick & 0x_200 != 0) ratio = (ratio * 0_xf9_87a_725_3ac_413_176_f2b_074_cf7_815_e54) >> 128;
-        if (absTick & 0x_400 != 0) ratio = (ratio * 0_xf3_392_b08_22b_700_059_40c_7a3_98e_4b7_0f3) >> 128;
-        if (absTick & 0x_800 != 0) ratio = (ratio * 0_xe7_159_475_a2c_29b_744_3b2_9c7_fa6_e88_9d9) >> 128;
-        if (absTick & 0x1_000 != 0) ratio = (ratio * 0_xd0_97f_3bd_fd2_022_b88_45a_d8f_792_aa5_825) >> 128;
-        if (absTick & 0x2_000 != 0) ratio = (ratio * 0_xa9_f74_646_2d8_70f_df8_a65_dc1_f90_e06_1e5) >> 128;
-        if (absTick & 0x4_000 != 0) ratio = (ratio * 0_x70_d86_9a1_56d_2a1_b89_0bb_3df_62b_af3_2f7) >> 128;
-        if (absTick & 0x8_000 != 0) ratio = (ratio * 0_x31_be1_35f_97d_08f_d98_123_150_554_2fc_fa6) >> 128;
-        if (absTick & 0_x10_000 != 0) ratio = (ratio * 0x9_aa5_08b_5b7_a84_e1c_677_de5_4f3_e99_bc9) >> 128;
-        if (absTick & 0_x20_000 != 0) ratio = (ratio * 0x_5d6_af8_ded_b81_196_699_c32_922_5ee_604) >> 128;
-        if (absTick & 0_x40_000 != 0) ratio = (ratio * 0x2_216_e58_4f5_fa1_ea9_260_41b_edf_e98) >> 128;
-        if (absTick & 0_x80_000 != 0) ratio = (ratio * 0_x48_a17_039_1f7_dc4_244_4e8_fa2) >> 128;
+            ? 0xff_fcb_933_bd6_fad_37a_a2d_162_d1a_594_001
+            : 0x100_000_000_000_000_000_000_000_000_000_000;
+        if (absTick & 0x2 != 0) ratio = (ratio * 0xff_f97_272_373_d41_325_9a4_699_058_0e2_13a) >> 128;
+        if (absTick & 0x4 != 0) ratio = (ratio * 0xff_f2e_50f_5f6_569_32e_f12_357_cf3_c7f_dcc) >> 128;
+        if (absTick & 0x8 != 0) ratio = (ratio * 0xff_e5c_aca_7e1_0e4_e61_c36_24e_aa0_941_cd0) >> 128;
+        if (absTick & 0x10 != 0) ratio = (ratio * 0xff_cb9_843_d60_f61_59c_9db_588_35c_926_644) >> 128;
+        if (absTick & 0x20 != 0) ratio = (ratio * 0xff_973_b41_fa9_8c0_814_72e_689_6df_b25_4c0) >> 128;
+        if (absTick & 0x40 != 0) ratio = (ratio * 0xff_2ea_164_66c_96a_384_3ec_78b_326_b52_861) >> 128;
+        if (absTick & 0x80 != 0) ratio = (ratio * 0xfe_5de_e04_6a9_9a2_a81_1c4_61f_196_9c3_053) >> 128;
+        if (absTick & 0x100 != 0) ratio = (ratio * 0xfc_be8_6c7_900_a88_aed_cff_c83_b47_9aa_3a4) >> 128;
+        if (absTick & 0x200 != 0) ratio = (ratio * 0xf9_87a_725_3ac_413_176_f2b_074_cf7_815_e54) >> 128;
+        if (absTick & 0x400 != 0) ratio = (ratio * 0xf3_392_b08_22b_700_059_40c_7a3_98e_4b7_0f3) >> 128;
+        if (absTick & 0x800 != 0) ratio = (ratio * 0xe7_159_475_a2c_29b_744_3b2_9c7_fa6_e88_9d9) >> 128;
+        if (absTick & 0x1_000 != 0) ratio = (ratio * 0xd0_97f_3bd_fd2_022_b88_45a_d8f_792_aa5_825) >> 128;
+        if (absTick & 0x2_000 != 0) ratio = (ratio * 0xa9_f74_646_2d8_70f_df8_a65_dc1_f90_e06_1e5) >> 128;
+        if (absTick & 0x4_000 != 0) ratio = (ratio * 0x70_d86_9a1_56d_2a1_b89_0bb_3df_62b_af3_2f7) >> 128;
+        if (absTick & 0x8_000 != 0) ratio = (ratio * 0x31_be1_35f_97d_08f_d98_123_150_554_2fc_fa6) >> 128;
+        if (absTick & 0x10_000 != 0) ratio = (ratio * 0x9_aa5_08b_5b7_a84_e1c_677_de5_4f3_e99_bc9) >> 128;
+        if (absTick & 0x20_000 != 0) ratio = (ratio * 0x5d6_af8_ded_b81_196_699_c32_922_5ee_604) >> 128;
+        if (absTick & 0x40_000 != 0) ratio = (ratio * 0x2_216_e58_4f5_fa1_ea9_260_41b_edf_e98) >> 128;
+        if (absTick & 0x80_000 != 0) ratio = (ratio * 0x48_a17_039_1f7_dc4_244_4e8_fa2) >> 128;
 
         if (tick > 0) ratio = type(uint256).max / ratio;
 

@@ -18,7 +18,8 @@ library SignatureVerification {
     /// @notice Thrown when the recovered contract signature is incorrect
     error InvalidContractSignature();
 
-    bytes32 constant UPPER_BIT_MASK = (0x7_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff);
+    bytes32 constant UPPER_BIT_MASK =
+        (0x7_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff_fff);
 
     function verify(bytes calldata signature, bytes32 hash, address claimedSigner) internal view {
         bytes32 r;

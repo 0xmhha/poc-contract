@@ -23,7 +23,7 @@ contract ERC6538RegistryTest is Test {
 
         // Sample stealth meta-address (66 bytes = spending key + viewing key)
         stealthMetaAddress = hex"02abc123def456789012345678901234567890123456789012345678901234567890"
-                hex"03def456abc789012345678901234567890123456789012345678901234567890123";
+            hex"03def456abc789012345678901234567890123456789012345678901234567890123";
     }
 
     // ============ Constructor Tests ============

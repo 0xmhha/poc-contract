@@ -27,7 +27,7 @@ contract MultiChainValidatorTest is Test {
         validator = new MultiChainValidator();
 
         smartAccount = makeAddr("smartAccount");
-        ownerPrivateKey = 0_xA1_1CE;
+        ownerPrivateKey = 0xA1_1CE;
         owner = vm.addr(ownerPrivateKey);
     }
 
@@ -125,7 +125,7 @@ contract MultiChainValidatorTest is Test {
         vm.prank(smartAccount);
         validator.onInstall(abi.encodePacked(owner));
 
-        uint256 wrongKey = 0x_BAD;
+        uint256 wrongKey = 0xBAD;
         bytes32 userOpHash = keccak256("userOp");
         bytes32 ethSignedHash = userOpHash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, ethSignedHash);
@@ -280,7 +280,7 @@ contract MultiChainValidatorTest is Test {
         vm.prank(smartAccount);
         validator.onInstall(abi.encodePacked(owner));
 
-        uint256 wrongKey = 0x_BAD;
+        uint256 wrongKey = 0xBAD;
         bytes32 hash = keccak256("message");
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, ethSignedHash);

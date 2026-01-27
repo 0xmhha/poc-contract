@@ -105,9 +105,9 @@ function parseValidationData(uint256 validationData)
 {
     assembly {
         result := validationData
-        validUntil := and(shr(160, validationData), 0x_fff_fff_fff_fff)
+        validUntil := and(shr(160, validationData), 0xffffffffffff)
         switch iszero(validUntil)
-        case 1 { validUntil := 0x_fff_fff_fff_fff }
+        case 1 { validUntil := 0xffffffffffff }
         validAfter := shr(208, validationData)
     }
 }
