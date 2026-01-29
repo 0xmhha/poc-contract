@@ -207,8 +207,6 @@ run_mythril() {
         contracts=(
             "src/subscription/SubscriptionManager.sol"
             "src/subscription/ERC7715PermissionManager.sol"
-            "src/delegation/DelegationRegistry.sol"
-            "src/delegation/DelegateKernel.sol"
             "src/privacy/enterprise/StealthVault.sol"
         )
     fi
@@ -275,7 +273,6 @@ This report contains the results of automated security analysis using:
 | Category | Contracts |
 |----------|-----------|
 | Subscription | SubscriptionManager, ERC7715PermissionManager, RecurringPaymentExecutor |
-| Delegation | DelegationRegistry, DelegateKernel |
 | Privacy | StealthVault, StealthLedger, WithdrawalManager, RoleManager |
 | Bridge | SecureBridge, BridgeValidator, BridgeGuardian |
 

@@ -68,11 +68,6 @@ targets:
     - src/subscription/SubscriptionManager.sol
     - src/subscription/RecurringPaymentExecutor.sol
 
-  # Delegation contracts
-  delegation:
-    - src/delegation/DelegationRegistry.sol
-    - src/delegation/DelegateKernel.sol
-
   # Privacy contracts
   privacy:
     - src/privacy/enterprise/StealthVault.sol

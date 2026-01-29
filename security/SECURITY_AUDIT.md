@@ -62,8 +62,6 @@ myth analyze src/subscription/SubscriptionManager.sol -o json > mythril-report.j
 | SubscriptionManager | `src/subscription/SubscriptionManager.sol` | High |
 | ERC7715PermissionManager | `src/subscription/ERC7715PermissionManager.sol` | High |
 | RecurringPaymentExecutor | `src/subscription/RecurringPaymentExecutor.sol` | High |
-| DelegationRegistry | `src/delegation/DelegationRegistry.sol` | High |
-| DelegateKernel | `src/delegation/DelegateKernel.sol` | High |
 
 ### Medium Priority (Financial Operations)
 
@@ -152,7 +150,7 @@ security/reports/
 ├── slither-20260128_120000.json     # Slither JSON report
 ├── slither-20260128_120000.md       # Slither text report
 ├── mythril-SubscriptionManager-20260128_120000.json
-├── mythril-DelegationRegistry-20260128_120000.json
+├── mythril-StealthVault-20260128_120000.json
 └── security-audit-20260128_120000.md  # Combined report
 ```
 
