@@ -137,6 +137,8 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
      * @param stealthAddressHash The hash of the stealth address
      * @return depositId The unique deposit ID
      */
+    // depositETH follows the standard naming convention for ETH deposit functions
+    // forge-lint: disable-next-line(mixed-case-function)
     function depositETH(bytes32 stealthAddressHash)
         external
         payable

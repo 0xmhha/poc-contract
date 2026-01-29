@@ -314,10 +314,10 @@ contract MockFlashLoanProvider {
         address receiver,
         address[] calldata assets,
         uint256[] calldata amounts,
-        uint256[] calldata modes,
-        address onBehalfOf,
+        uint256[] calldata,
+        address,
         bytes calldata params,
-        uint16 referralCode
+        uint16
     ) external {
         uint256[] memory premiums = new uint256[](assets.length);
 

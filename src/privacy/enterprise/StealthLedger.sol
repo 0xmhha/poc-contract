@@ -123,8 +123,12 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
     ////////////////////////////////////////////////////////////// */
 
     modifier onlyAuthorizedVault() {
-        if (!authorizedVaults[msg.sender]) revert UnauthorizedVault();
+        _checkAuthorizedVault();
         _;
+    }
+
+    function _checkAuthorizedVault() internal view {
+        if (!authorizedVaults[msg.sender]) revert UnauthorizedVault();
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -169,6 +173,8 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
             bytes32(0)
         );
 
+        // casting to 'int256' is safe because amount is bounded by token supply which fits in int256
+        // forge-lint: disable-next-line(unsafe-typecast)
         emit BalanceUpdated(stealthAddressHash, token, balance.amount, int256(amount));
     }
 
@@ -210,6 +216,8 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
             bytes32(0)
         );
 
+        // casting to 'int256' is safe because amount is bounded by token supply which fits in int256
+        // forge-lint: disable-next-line(unsafe-typecast)
         emit BalanceUpdated(stealthAddressHash, token, balance.amount, -int256(amount));
     }
 
@@ -259,7 +267,10 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
         // Link transactions
         transactions[fromTxId].relatedTxId = toTxId;
 
+        // casting to 'int256' is safe because amount is bounded by token supply which fits in int256
+        // forge-lint: disable-next-line(unsafe-typecast)
         emit BalanceUpdated(fromHash, token, fromBalance.amount, -int256(amount));
+        // forge-lint: disable-next-line(unsafe-typecast)
         emit BalanceUpdated(toHash, token, toBalance.amount, int256(amount));
     }
 
@@ -300,6 +311,8 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
             bytes32(0)
         );
 
+        // casting to 'int256' is safe because amount is bounded by token supply which fits in int256
+        // forge-lint: disable-next-line(unsafe-typecast)
         emit BalanceUpdated(stealthAddressHash, token, balance.amount, -int256(amount));
     }
 

@@ -313,7 +313,7 @@ contract TokenReceiverFallbackTest is Test {
         assertEq(reason, "Token not whitelisted");
     }
 
-    function test_WillAcceptToken_NotEnabled() public {
+    function test_WillAcceptToken_NotEnabled() public view {
         // Don't install module
         (bool willAccept, string memory reason) = fallbackModule.willAcceptToken(address(account), address(erc721));
         assertFalse(willAccept);

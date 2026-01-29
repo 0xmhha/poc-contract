@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { Test, console2 } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { SubscriptionManager, ISubscriptionManager } from "../../src/subscription/SubscriptionManager.sol";
 import {
     ERC7715PermissionManager,
@@ -79,7 +79,7 @@ contract SubscriptionManagerFuzzTest is Test {
             "Description"
         );
 
-        (,uint256 storedAmount,,,,,,,,) = subManager.plans(planId);
+        (,uint256 storedAmount,,,,,,,,,) = subManager.plans(planId);
         assertEq(storedAmount, amount, "Amount not stored correctly");
     }
 
@@ -103,7 +103,7 @@ contract SubscriptionManagerFuzzTest is Test {
             "Description"
         );
 
-        (,,uint256 storedPeriod,,,,,,,) = subManager.plans(planId);
+        (,,uint256 storedPeriod,,,,,,,,) = subManager.plans(planId);
         assertEq(storedPeriod, period, "Period not stored correctly");
     }
 
@@ -171,7 +171,7 @@ contract SubscriptionManagerFuzzTest is Test {
             "Description"
         );
 
-        (,,,,uint256 storedTrialPeriod,,,,,) = subManager.plans(planId);
+        (,,,,uint256 storedTrialPeriod,,,,,,) = subManager.plans(planId);
         assertEq(storedTrialPeriod, trialPeriod, "Trial period not stored correctly");
     }
 
@@ -195,7 +195,7 @@ contract SubscriptionManagerFuzzTest is Test {
             "Description"
         );
 
-        (,,,,,uint256 storedGracePeriod,,,,) = subManager.plans(planId);
+        (,,,,,uint256 storedGracePeriod,,,,,) = subManager.plans(planId);
         assertEq(storedGracePeriod, gracePeriod, "Grace period not stored correctly");
     }
 
@@ -370,13 +370,13 @@ contract SubscriptionManagerFuzzTest is Test {
 
     /**
      * @notice Fuzz test creating multiple plans
-     * @param planCount Number of plans to create
+     * @param planCountInput Number of plans to create
      */
-    function testFuzz_CreateMultiplePlans(uint8 planCount) public {
+    function testFuzz_CreateMultiplePlans(uint8 planCountInput) public {
         // Bound plan count to reasonable range
-        planCount = uint8(bound(planCount, 1, 50));
+        uint256 planCount = bound(uint256(planCountInput), 1, 50);
 
-        for (uint8 i = 0; i < planCount; i++) {
+        for (uint256 i = 0; i < planCount; i++) {
             vm.prank(merchant);
             uint256 planId = subManager.createPlan(
                 (i + 1) * 1 ether,
@@ -389,7 +389,7 @@ contract SubscriptionManagerFuzzTest is Test {
                 "Description"
             );
 
-            assertEq(planId, i, "Plan ID should be sequential");
+            assertEq(planId, i + 1, "Plan ID should be sequential starting from 1");
         }
 
         assertEq(subManager.planCount(), planCount, "Plan count should match");
@@ -415,7 +415,7 @@ contract SubscriptionManagerFuzzTest is Test {
             "Description"
         );
 
-        (,uint256 amount,,,,,,,,) = subManager.plans(planId);
+        (,uint256 amount,,,,,,,,,) = subManager.plans(planId);
         assertEq(amount, 1, "Minimum amount should be accepted");
     }
 
@@ -453,7 +453,7 @@ contract SubscriptionManagerFuzzTest is Test {
             "Description"
         );
 
-        (,,uint256 period,,,,,,,) = subManager.plans(planId);
+        (,,uint256 period,,,,,,,,) = subManager.plans(planId);
         assertEq(period, MIN_PERIOD, "Minimum period should be accepted");
     }
 
@@ -473,7 +473,7 @@ contract SubscriptionManagerFuzzTest is Test {
             "Description"
         );
 
-        (,,uint256 period,,,,,,,) = subManager.plans(planId);
+        (,,uint256 period,,,,,,,,) = subManager.plans(planId);
         assertEq(period, MAX_PERIOD, "Maximum period should be accepted");
     }
 }

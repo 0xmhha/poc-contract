@@ -65,7 +65,7 @@ interface IRoleManager {
         uint256 expiresAt
     );
 
-    event RoleRevoked(
+    event CustomRoleRevoked(
         bytes32 indexed roleId,
         address indexed account,
         address indexed revoker
@@ -334,7 +334,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
         // Revoke the OpenZeppelin role
         _revokeRole(roleId, account);
 
-        emit RoleRevoked(roleId, account, msg.sender);
+        emit CustomRoleRevoked(roleId, account, msg.sender);
     }
 
     /**
@@ -369,7 +369,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
 
         _revokeRole(roleId, account);
 
-        emit RoleRevoked(roleId, account, address(this));
+        emit CustomRoleRevoked(roleId, account, address(this));
     }
 
     /* //////////////////////////////////////////////////////////////

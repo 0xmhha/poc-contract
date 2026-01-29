@@ -521,6 +521,7 @@ contract BridgeValidatorTest is Test {
 
     function _signMessage(BridgeValidator.BridgeMessage memory message, uint256 numSigners)
         internal
+        view
         returns (bytes[] memory)
     {
         bytes32 messageHash = validator.hashBridgeMessage(message);

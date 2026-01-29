@@ -74,8 +74,9 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         _;
     }
 
-    // Modifier requires local variable to pass data from pre to post hook
-    // forge-lint: disable-next-line(unwrapped-modifier-logic)
+    /// @dev Modifier with pre/post hook pattern. Cannot be refactored because:
+    ///      1. Pre-hook returns hookRet that must be passed to post-hook
+    ///      2. Function body (`_;`) must execute between pre and post hooks
     modifier onlyEntryPointOrSelfOrRoot() {
         bytes memory hookRet = _checkEntryPointOrSelfOrRoot();
         _;

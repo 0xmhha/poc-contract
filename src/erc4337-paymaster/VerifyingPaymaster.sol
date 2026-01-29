@@ -151,6 +151,7 @@ contract VerifyingPaymaster is BasePaymaster {
      */
     function _postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
         internal
+        pure
         override
     {
         // No post-op logic needed for basic verifying paymaster

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { Test, console2 } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { SubscriptionManager, ISubscriptionManager } from "../../src/subscription/SubscriptionManager.sol";
 import {
     ERC7715PermissionManager,
@@ -103,7 +103,7 @@ contract SubscriptionIntegrationTest is Test {
             "Premium Plan",
             "Monthly premium access"
         );
-        assertEq(planId, 0, "First plan should have ID 0");
+        assertEq(planId, 1, "First plan should have ID 1");
 
         // Step 2: Subscriber grants permission to SubscriptionManager
         vm.startPrank(subscriber);
@@ -185,19 +185,50 @@ contract SubscriptionIntegrationTest is Test {
      * @notice Test permission revocation blocks payment processing
      */
     function test_PermissionRevocation_BlocksPayment() public {
-        // Setup: Create plan and subscription
-        _setupBasicSubscription();
+        // Setup: Create plan with grace period so we can test permission revocation properly
+        vm.prank(merchant);
+        planId = subManager.createPlan(
+            10 ether,
+            30 days,
+            address(token),
+            0,              // No trial
+            3 days,         // 3 day grace period
+            0,
+            "Test Plan",
+            "Description"
+        );
 
-        // Skip trial period
-        vm.warp(block.timestamp + 7 days + 1);
+        // Setup subscription
+        vm.startPrank(subscriber);
+        token.approve(address(subManager), type(uint256).max);
 
-        // Revoke permission
+        IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
+            permissionType: "subscription",
+            isAdjustmentAllowed: true,
+            data: abi.encode(uint256(1000 ether))
+        });
+
+        permissionId = permManager.grantPermission(
+            address(subManager),
+            address(subManager),
+            permission,
+            new IERC7715PermissionManager.Rule[](0)
+        );
+
+        subscriptionId = subManager.subscribe(planId, permissionId);
+        vm.stopPrank();
+
+        // First payment was processed during subscribe
+        // Warp to next payment time (within grace period)
+        vm.warp(block.timestamp + 30 days + 1);
+
+        // Revoke permission before payment
         vm.prank(subscriber);
         permManager.revokePermission(permissionId);
 
-        // Attempt to process payment should fail
+        // Attempt to process payment should fail with PaymentFailed (within grace period)
         vm.prank(processor);
-        vm.expectRevert(ISubscriptionManager.PermissionNotGranted.selector);
+        vm.expectRevert(ISubscriptionManager.PaymentFailed.selector);
         subManager.processPayment(subscriptionId);
     }
 
@@ -251,20 +282,31 @@ contract SubscriptionIntegrationTest is Test {
         assertTrue(active1, "First subscription should be active");
         assertTrue(active2, "Second subscription should be active");
 
-        // Process payments
+        // Verify first payments were already processed during subscribe (since no trial period)
+        (,,,,,, uint256 paymentCount1, uint256 totalPaid1,,) = subManager.subscriptions(subId1);
+        (,,,,,, uint256 paymentCount2, uint256 totalPaid2,,) = subManager.subscriptions(subId2);
+
+        assertEq(paymentCount1, 1, "First subscription should have 1 payment from subscribe");
+        assertEq(paymentCount2, 1, "Second subscription should have 1 payment from subscribe");
+        assertEq(totalPaid1, 10 ether, "First subscription total should be 10 ether");
+        assertEq(totalPaid2, 50 ether, "Second subscription total should be 50 ether");
+
+        // Warp to next payment period and process second payments
+        vm.warp(block.timestamp + 30 days + 1);
+
         vm.startPrank(processor);
         subManager.processPayment(subId1);
         subManager.processPayment(subId2);
         vm.stopPrank();
 
-        // Verify different amounts were deducted
-        (,,,,,, uint256 paymentCount1, uint256 totalPaid1,,) = subManager.subscriptions(subId1);
-        (,,,,,, uint256 paymentCount2, uint256 totalPaid2,,) = subManager.subscriptions(subId2);
+        // Verify second payments were processed
+        (,,,,,, uint256 paymentCount1After, uint256 totalPaid1After,,) = subManager.subscriptions(subId1);
+        (,,,,,, uint256 paymentCount2After, uint256 totalPaid2After,,) = subManager.subscriptions(subId2);
 
-        assertEq(paymentCount1, 1, "First subscription should have 1 payment");
-        assertEq(paymentCount2, 1, "Second subscription should have 1 payment");
-        assertEq(totalPaid1, 10 ether, "First subscription total should be 10 ether");
-        assertEq(totalPaid2, 50 ether, "Second subscription total should be 50 ether");
+        assertEq(paymentCount1After, 2, "First subscription should have 2 payments");
+        assertEq(paymentCount2After, 2, "Second subscription should have 2 payments");
+        assertEq(totalPaid1After, 20 ether, "First subscription total should be 20 ether");
+        assertEq(totalPaid2After, 100 ether, "Second subscription total should be 100 ether");
     }
 
     /**
@@ -302,11 +344,8 @@ contract SubscriptionIntegrationTest is Test {
         subscriptionId = subManager.subscribe(planId, permissionId);
         vm.stopPrank();
 
-        // Process first payment
-        vm.prank(processor);
-        subManager.processPayment(subscriptionId);
-
-        // Warp to next payment
+        // First payment was already processed during subscribe (since no trial period)
+        // Warp to second payment time
         vm.warp(block.timestamp + 1 hours + 1);
 
         // Process second payment
@@ -316,6 +355,7 @@ contract SubscriptionIntegrationTest is Test {
         // Warp to third payment
         vm.warp(block.timestamp + 1 hours + 1);
 
+        // Process third payment (this should use up most of the limit: 100 + 100 + 100 = 300 > 250)
         // Third payment should fail due to spending limit
         vm.prank(processor);
         vm.expectRevert(); // Should fail due to limit exceeded
@@ -359,14 +399,18 @@ contract SubscriptionIntegrationTest is Test {
         subscriptionId = subManager.subscribe(planId, permissionId);
         vm.stopPrank();
 
-        // Process first payment
+        // First payment was already processed during subscribe (since no trial period)
+        // Warp to second payment time (30 days after first payment)
+        vm.warp(block.timestamp + 30 days + 1);
+
+        // Process second payment
         vm.prank(processor);
         subManager.processPayment(subscriptionId);
 
-        // Warp past due date but within grace period
+        // Warp past third payment due date but within grace period (30 days + 1 day into grace period)
         vm.warp(block.timestamp + 30 days + 1 days);
 
-        // Payment should still be possible
+        // Payment should still be possible within grace period
         vm.prank(processor);
         subManager.processPayment(subscriptionId);
 
@@ -379,12 +423,8 @@ contract SubscriptionIntegrationTest is Test {
      * @notice Test subscription cancellation workflow
      */
     function test_SubscriptionCancellation_Workflow() public {
-        // Setup subscription
+        // Setup subscription (first payment is processed during subscribe since no trial)
         _setupBasicSubscription();
-
-        // Process first payment
-        vm.prank(processor);
-        subManager.processPayment(subscriptionId);
 
         // Subscriber cancels subscription
         vm.prank(subscriber);
@@ -466,17 +506,14 @@ contract SubscriptionIntegrationTest is Test {
         subscriptionId = subManager.subscribe(planId, permissionId);
         vm.stopPrank();
 
-        // First payment succeeds
-        vm.prank(processor);
-        subManager.processPayment(subscriptionId);
-
-        // Warp to next payment
+        // First payment was already processed during subscribe (since no trial period)
+        // Warp to second payment time
         vm.warp(block.timestamp + 30 days + 1);
 
-        // Second payment would fail...
-        // Adjust permission to increase limit
+        // Second payment would fail due to low limit...
+        // Adjust permission to increase limit before processing
         vm.prank(subscriber);
-        permManager.adjustPermissionLimit(permissionId, 200 ether);
+        permManager.adjustPermission(permissionId, abi.encode(200 ether));
 
         // Now payment should succeed
         vm.prank(processor);

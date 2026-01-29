@@ -142,7 +142,11 @@ contract SignatureTransfer is ISignatureTransfer, EIP712 {
     /// @dev The first 248 bits of the nonce value is the index of the desired bitmap
     /// @dev The last 8 bits of the nonce value is the position of the bit in the bitmap
     function bitmapPositions(uint256 nonce) private pure returns (uint256 wordPos, uint256 bitPos) {
+        // casting to 'uint248' is safe because nonce >> 8 extracts upper 248 bits
+        // forge-lint: disable-next-line(unsafe-typecast)
         wordPos = uint248(nonce >> 8);
+        // casting to 'uint8' is safe because it extracts the lower 8 bits
+        // forge-lint: disable-next-line(unsafe-typecast)
         bitPos = uint8(nonce);
     }
 
@@ -151,6 +155,8 @@ contract SignatureTransfer is ISignatureTransfer, EIP712 {
     /// @param nonce The nonce to spend
     function _useUnorderedNonce(address from, uint256 nonce) internal {
         (uint256 wordPos, uint256 bitPos) = bitmapPositions(nonce);
+        // shift order is correct: 1 << bitPos sets bit at position bitPos (0-255)
+        // forge-lint: disable-next-line(incorrect-shift)
         uint256 bit = 1 << bitPos;
         uint256 flipped = nonceBitmap[from][wordPos] ^= bit;
 

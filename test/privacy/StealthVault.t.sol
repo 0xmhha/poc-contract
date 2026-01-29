@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { Test, console2 } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { StealthVault, IStealthVault } from "../../src/privacy/enterprise/StealthVault.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -55,6 +55,8 @@ contract StealthVaultTest is Test {
         operator = makeAddr("operator");
 
         // Generate test stealth hash
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
         testStealthHash = keccak256(abi.encodePacked(recipient, bytes32("secret")));
 
         vm.startPrank(admin);
@@ -174,7 +176,9 @@ contract StealthVaultTest is Test {
         bytes32 depositId = vault.depositETH{ value: amount }(testStealthHash);
 
         // Create valid proof
-        bytes memory proof = bytes32("secret");
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes memory proof = abi.encodePacked(bytes32("secret"));
 
         // Withdraw
         uint256 recipientBalanceBefore = recipient.balance;
@@ -199,7 +203,9 @@ contract StealthVaultTest is Test {
         vm.stopPrank();
 
         // Create valid proof
-        bytes memory proof = bytes32("secret");
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes memory proof = abi.encodePacked(bytes32("secret"));
 
         // Withdraw
         vm.prank(recipient);
@@ -214,7 +220,9 @@ contract StealthVaultTest is Test {
 
     function test_Withdraw_DepositNotFound() public {
         bytes32 fakeId = keccak256("fake");
-        bytes memory proof = bytes32("secret");
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes memory proof = abi.encodePacked(bytes32("secret"));
 
         vm.prank(recipient);
         vm.expectRevert(IStealthVault.DepositNotFound.selector);
@@ -227,7 +235,9 @@ contract StealthVaultTest is Test {
         vm.prank(depositor);
         bytes32 depositId = vault.depositETH{ value: amount }(testStealthHash);
 
-        bytes memory proof = bytes32("secret");
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes memory proof = abi.encodePacked(bytes32("secret"));
         vm.prank(recipient);
         vault.withdraw(depositId, recipient, proof);
 
@@ -244,7 +254,9 @@ contract StealthVaultTest is Test {
         bytes32 depositId = vault.depositETH{ value: amount }(testStealthHash);
 
         // Invalid proof
-        bytes memory invalidProof = bytes32("wrong_secret");
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes memory invalidProof = abi.encodePacked(bytes32("wrong_secret"));
 
         vm.prank(recipient);
         vm.expectRevert(IStealthVault.InvalidProof.selector);
@@ -306,11 +318,13 @@ contract StealthVaultTest is Test {
     }
 
     function test_GetDepositorDeposits() public {
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
         bytes32 stealthHash2 = keccak256(abi.encodePacked(recipient, bytes32("secret2")));
 
         vm.startPrank(depositor);
-        bytes32 depositId1 = vault.depositETH{ value: 1 ether }(testStealthHash);
-        bytes32 depositId2 = vault.depositETH{ value: 2 ether }(stealthHash2);
+        vault.depositETH{ value: 1 ether }(testStealthHash);
+        vault.depositETH{ value: 2 ether }(stealthHash2);
         vm.stopPrank();
 
         bytes32[] memory deposits = vault.getDepositorDeposits(depositor);

@@ -90,6 +90,15 @@ interface IDelegationRegistry {
     error SelectorNotAllowed();
     error InvalidSignature();
     error DelegationAlreadyExists();
+
+    /* //////////////////////////////////////////////////////////////
+                                FUNCTIONS
+    ////////////////////////////////////////////////////////////// */
+
+    function getDelegation(bytes32 delegationId) external view returns (Delegation memory);
+    function isDelegationValidForSelector(bytes32 delegationId, bytes4 selector) external view returns (bool isValid);
+    function useDelegation(bytes32 delegationId, uint256 amount) external;
+    function hasDelegation(address delegator, address delegatee) external view returns (bool hasActiveDelegation);
 }
 
 /**

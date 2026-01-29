@@ -2,8 +2,6 @@
 pragma solidity ^0.8.28;
 
 import { IPermit2 } from "../../../src/permit2/interfaces/IPermit2.sol";
-import { IAllowanceTransfer } from "../../../src/permit2/interfaces/IAllowanceTransfer.sol";
-import { ISignatureTransfer } from "../../../src/permit2/interfaces/ISignatureTransfer.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -137,7 +135,7 @@ contract MockPermit2 is IPermit2 {
     // ============ ISignatureTransfer ============
 
     function permitTransferFrom(
-        PermitTransferFrom memory permit,
+        PermitTransferFrom memory permitData,
         SignatureTransferDetails calldata transferDetails,
         address owner,
         bytes calldata /* signature */
@@ -146,17 +144,17 @@ contract MockPermit2 is IPermit2 {
             revert("MockPermit2: permit failed");
         }
 
-        require(block.timestamp <= permit.deadline, "MockPermit2: expired");
-        require(transferDetails.requestedAmount <= permit.permitted.amount, "MockPermit2: invalid amount");
+        require(block.timestamp <= permitData.deadline, "MockPermit2: expired");
+        require(transferDetails.requestedAmount <= permitData.permitted.amount, "MockPermit2: invalid amount");
 
         // Mark nonce as used
-        _useUnorderedNonce(owner, permit.nonce);
+        _useUnorderedNonce(owner, permitData.nonce);
 
-        IERC20(permit.permitted.token).safeTransferFrom(owner, transferDetails.to, transferDetails.requestedAmount);
+        IERC20(permitData.permitted.token).safeTransferFrom(owner, transferDetails.to, transferDetails.requestedAmount);
     }
 
     function permitWitnessTransferFrom(
-        PermitTransferFrom memory permit,
+        PermitTransferFrom memory permitData,
         SignatureTransferDetails calldata transferDetails,
         address owner,
         bytes32,
@@ -169,16 +167,16 @@ contract MockPermit2 is IPermit2 {
             revert("MockPermit2: permit failed");
         }
 
-        require(block.timestamp <= permit.deadline, "MockPermit2: expired");
-        require(transferDetails.requestedAmount <= permit.permitted.amount, "MockPermit2: invalid amount");
+        require(block.timestamp <= permitData.deadline, "MockPermit2: expired");
+        require(transferDetails.requestedAmount <= permitData.permitted.amount, "MockPermit2: invalid amount");
 
-        _useUnorderedNonce(owner, permit.nonce);
+        _useUnorderedNonce(owner, permitData.nonce);
 
-        IERC20(permit.permitted.token).safeTransferFrom(owner, transferDetails.to, transferDetails.requestedAmount);
+        IERC20(permitData.permitted.token).safeTransferFrom(owner, transferDetails.to, transferDetails.requestedAmount);
     }
 
     function permitTransferFrom(
-        PermitBatchTransferFrom memory permit,
+        PermitBatchTransferFrom memory permitBatch,
         SignatureTransferDetails[] calldata transferDetails,
         address owner,
         bytes calldata /* signature */
@@ -187,22 +185,22 @@ contract MockPermit2 is IPermit2 {
             revert("MockPermit2: permit failed");
         }
 
-        require(block.timestamp <= permit.deadline, "MockPermit2: expired");
-        require(permit.permitted.length == transferDetails.length, "MockPermit2: length mismatch");
+        require(block.timestamp <= permitBatch.deadline, "MockPermit2: expired");
+        require(permitBatch.permitted.length == transferDetails.length, "MockPermit2: length mismatch");
 
-        _useUnorderedNonce(owner, permit.nonce);
+        _useUnorderedNonce(owner, permitBatch.nonce);
 
-        for (uint256 i = 0; i < permit.permitted.length; i++) {
-            require(transferDetails[i].requestedAmount <= permit.permitted[i].amount, "MockPermit2: invalid amount");
+        for (uint256 i = 0; i < permitBatch.permitted.length; i++) {
+            require(transferDetails[i].requestedAmount <= permitBatch.permitted[i].amount, "MockPermit2: invalid amount");
             if (transferDetails[i].requestedAmount > 0) {
-                IERC20(permit.permitted[i].token)
+                IERC20(permitBatch.permitted[i].token)
                     .safeTransferFrom(owner, transferDetails[i].to, transferDetails[i].requestedAmount);
             }
         }
     }
 
     function permitWitnessTransferFrom(
-        PermitBatchTransferFrom memory permit,
+        PermitBatchTransferFrom memory permitBatch,
         SignatureTransferDetails[] calldata transferDetails,
         address owner,
         bytes32,
@@ -215,15 +213,15 @@ contract MockPermit2 is IPermit2 {
             revert("MockPermit2: permit failed");
         }
 
-        require(block.timestamp <= permit.deadline, "MockPermit2: expired");
-        require(permit.permitted.length == transferDetails.length, "MockPermit2: length mismatch");
+        require(block.timestamp <= permitBatch.deadline, "MockPermit2: expired");
+        require(permitBatch.permitted.length == transferDetails.length, "MockPermit2: length mismatch");
 
-        _useUnorderedNonce(owner, permit.nonce);
+        _useUnorderedNonce(owner, permitBatch.nonce);
 
-        for (uint256 i = 0; i < permit.permitted.length; i++) {
-            require(transferDetails[i].requestedAmount <= permit.permitted[i].amount, "MockPermit2: invalid amount");
+        for (uint256 i = 0; i < permitBatch.permitted.length; i++) {
+            require(transferDetails[i].requestedAmount <= permitBatch.permitted[i].amount, "MockPermit2: invalid amount");
             if (transferDetails[i].requestedAmount > 0) {
-                IERC20(permit.permitted[i].token)
+                IERC20(permitBatch.permitted[i].token)
                     .safeTransferFrom(owner, transferDetails[i].to, transferDetails[i].requestedAmount);
             }
         }
@@ -236,6 +234,8 @@ contract MockPermit2 is IPermit2 {
 
     // ============ IEIP712 ============
 
+    // DOMAIN_SEPARATOR is the EIP-712 standard function name
+    // forge-lint: disable-next-line(mixed-case-function)
     function DOMAIN_SEPARATOR() external pure override returns (bytes32) {
         // Return a mock domain separator for testing
         return keccak256("MockPermit2");
@@ -246,6 +246,8 @@ contract MockPermit2 is IPermit2 {
     function _useUnorderedNonce(address from, uint256 nonce) internal {
         uint256 wordPos = nonce >> 8;
         uint256 bitPos = nonce & 0xff;
+        // shift order is correct: 1 << bitPos sets bit at position bitPos (0-255)
+        // forge-lint: disable-next-line(incorrect-shift)
         uint256 bit = 1 << bitPos;
         uint256 flipped = nonceBitmap[from][wordPos] ^= bit;
         require(flipped & bit != 0, "MockPermit2: nonce already used");

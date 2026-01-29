@@ -477,7 +477,9 @@ fail_on_revert = false
 
 # Linter
 [lint]
-exclude_lints = ["asm-keccak256"]
+# asm-keccak256: Using assembly for keccak256 is intentional for gas optimization
+# unwrapped-modifier-logic: Kernel.sol modifier requires local variable to pass data from pre to post hook
+exclude_lints = ["asm-keccak256", "unwrapped-modifier-logic"]
 
 # Documentation
 [doc]

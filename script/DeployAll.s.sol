@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { Script, console } from "forge-std/Script.sol";
+import { console } from "forge-std/Script.sol";
 import { DeploymentHelper, DeploymentAddresses } from "./utils/DeploymentAddresses.sol";
 
 // ============ Tokens ============
@@ -159,37 +159,37 @@ contract DeployAllScript is DeploymentHelper {
         // ========================================
         // Phase 0: Base Infrastructure
         // ========================================
-        _deployPhase0_BaseInfrastructure();
+        _deployPhase0BaseInfrastructure();
 
         // ========================================
         // Phase 1: Core Smart Account
         // ========================================
-        _deployPhase1_CoreSmartAccount();
+        _deployPhase1CoreSmartAccount();
 
         // ========================================
         // Phase 2: ERC-7579 Modules
         // ========================================
-        _deployPhase2_ERC7579Modules();
+        _deployPhase2Erc7579Modules();
 
         // ========================================
         // Phase 3: Feature Modules
         // ========================================
-        _deployPhase3_FeatureModules();
+        _deployPhase3FeatureModules();
 
         // ========================================
         // Phase 4: DeFi & Paymasters
         // ========================================
-        _deployPhase4_DeFiAndPaymasters();
+        _deployPhase4DeFiAndPaymasters();
 
         // ========================================
         // Phase 5: Plugins
         // ========================================
-        _deployPhase5_Plugins();
+        _deployPhase5Plugins();
 
         // ========================================
         // Phase 6: Subscription & Bridge
         // ========================================
-        _deployPhase6_SubscriptionAndBridge();
+        _deployPhase6SubscriptionAndBridge();
 
         vm.stopBroadcast();
 
@@ -201,7 +201,7 @@ contract DeployAllScript is DeploymentHelper {
     // ============================================================
     // Phase 0: Base Infrastructure (Tokens, EntryPoint)
     // ============================================================
-    function _deployPhase0_BaseInfrastructure() internal {
+    function _deployPhase0BaseInfrastructure() internal {
         console.log(">>> Phase 0: Base Infrastructure");
 
         // 1. wKRC (Wrapped Native Token)
@@ -239,7 +239,7 @@ contract DeployAllScript is DeploymentHelper {
     // ============================================================
     // Phase 1: Core Smart Account (Kernel, Factory)
     // ============================================================
-    function _deployPhase1_CoreSmartAccount() internal {
+    function _deployPhase1CoreSmartAccount() internal {
         console.log(">>> Phase 1: Core Smart Account");
 
         address entryPointAddr = _getAddress(DeploymentAddresses.KEY_ENTRYPOINT);
@@ -279,7 +279,7 @@ contract DeployAllScript is DeploymentHelper {
     // ============================================================
     // Phase 2: ERC-7579 Modules (Validators, Hooks, Fallbacks, Executors)
     // ============================================================
-    function _deployPhase2_ERC7579Modules() internal {
+    function _deployPhase2Erc7579Modules() internal {
         console.log(">>> Phase 2: ERC-7579 Modules");
 
         // --- Validators ---
@@ -392,7 +392,7 @@ contract DeployAllScript is DeploymentHelper {
     // ============================================================
     // Phase 3: Feature Modules (Compliance, Privacy, Permit2)
     // ============================================================
-    function _deployPhase3_FeatureModules() internal {
+    function _deployPhase3FeatureModules() internal {
         console.log(">>> Phase 3: Feature Modules");
 
         // --- Compliance ---
@@ -487,7 +487,7 @@ contract DeployAllScript is DeploymentHelper {
     // ============================================================
     // Phase 4: DeFi & Paymasters
     // ============================================================
-    function _deployPhase4_DeFiAndPaymasters() internal {
+    function _deployPhase4DeFiAndPaymasters() internal {
         console.log(">>> Phase 4: DeFi & Paymasters");
 
         // --- DeFi ---
@@ -584,7 +584,7 @@ contract DeployAllScript is DeploymentHelper {
     // ============================================================
     // Phase 5: Plugins
     // ============================================================
-    function _deployPhase5_Plugins() internal {
+    function _deployPhase5Plugins() internal {
         console.log(">>> Phase 5: Plugins");
 
         address priceOracleAddr = _getAddress(DeploymentAddresses.KEY_PRICE_ORACLE);
@@ -640,7 +640,7 @@ contract DeployAllScript is DeploymentHelper {
     // ============================================================
     // Phase 6: Subscription & Bridge
     // ============================================================
-    function _deployPhase6_SubscriptionAndBridge() internal {
+    function _deployPhase6SubscriptionAndBridge() internal {
         console.log(">>> Phase 6: Subscription & Bridge");
 
         // --- Subscription ---

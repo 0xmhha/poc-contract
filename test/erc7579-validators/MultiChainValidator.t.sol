@@ -184,11 +184,6 @@ contract MultiChainValidatorTest is Test {
         bytes32 otherHash = keccak256("otherOp");
         bytes32 merkleRoot = _hashPair(dummyUserOpHash, otherHash);
 
-        // Sign the merkle root
-        bytes32 ethSignedRoot = merkleRoot.toEthSignedMessageHash();
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, ethSignedRoot);
-        bytes memory ecdsaSig = abi.encodePacked(r, s, v);
-
         // Create proof for dummyUserOpHash
         bytes32[] memory proof = new bytes32[](1);
         proof[0] = otherHash;

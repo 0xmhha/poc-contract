@@ -304,7 +304,7 @@ contract wKRCTest is Test {
         token.deposit{ value: depositAmount }();
 
         vm.prank(user1);
-        token.transfer(user2, transferAmount);
+        require(token.transfer(user2, transferAmount), "Transfer failed");
 
         assertEq(token.balanceOf(user1), depositAmount - transferAmount);
         assertEq(token.balanceOf(user2), transferAmount);

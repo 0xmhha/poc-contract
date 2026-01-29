@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { Test, console2 } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import {
     ERC7715PermissionManager,
     IERC7715PermissionManager
@@ -89,7 +89,9 @@ contract ERC7715PermissionManagerFuzzTest is Test {
     function testFuzz_GrantPermission_PermissionTypes(uint8 permissionTypeSeed) public {
         address granter = makeAddr("granter");
 
-        string[5] memory types = ["subscription", "transfer", "stake", "swap", "custom"];
+        // Use only valid permission types registered in the contract
+        string[5] memory types =
+            ["subscription", "native-token-recurring-allowance", "erc20-recurring-allowance", "session-key", "spending-limit"];
         string memory permType = types[permissionTypeSeed % 5];
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
@@ -138,7 +140,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
 
         // Record spending (if executor tries to use)
         vm.prank(executor);
-        bool canSpend = permManager.validateAndRecordSpend(permissionId, spentAmount);
+        bool canSpend = permManager.usePermission(permissionId, spentAmount);
         assertTrue(canSpend, "Should be able to spend within limit");
     }
 
@@ -167,7 +169,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         // Attempt to spend more than limit should fail
         vm.prank(executor);
         vm.expectRevert();
-        permManager.validateAndRecordSpend(permissionId, excessAmount);
+        permManager.usePermission(permissionId, excessAmount);
     }
 
     /* //////////////////////////////////////////////////////////////

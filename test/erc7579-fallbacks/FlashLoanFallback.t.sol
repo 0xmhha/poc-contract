@@ -287,7 +287,7 @@ contract FlashLoanFallbackTest is Test {
         assertEq(reason, "Protocol not whitelisted");
     }
 
-    function test_WillAcceptProtocol_NotEnabled() public {
+    function test_WillAcceptProtocol_NotEnabled() public view {
         // Don't install module
         (bool willAccept, string memory reason) =
             fallbackModule.willAcceptProtocol(address(account), address(flashLoanProvider));

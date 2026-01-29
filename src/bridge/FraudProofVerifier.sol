@@ -415,7 +415,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
         // Call BridgeValidator to verify signatures
         // If verification returns false, fraud is proven (signatures are invalid)
         try BridgeValidator(bridgeValidator).verifySignaturesView(message, signatures) returns (
-            bool valid, uint256 validCount
+            bool valid, uint256
         ) {
             // Fraud is proven if signatures are NOT valid
             // validCount helps understand how many signatures were actually valid
@@ -448,7 +448,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
         // Decode evidence: (bytes32 txHash1, bytes32 txHash2, bytes32 inputHash)
         if (proof.evidence.length == 0) return false;
 
-        (bytes32 txHash1, bytes32 txHash2, bytes32 inputHash) = abi.decode(proof.evidence, (bytes32, bytes32, bytes32));
+        (bytes32 txHash1, bytes32 txHash2,) = abi.decode(proof.evidence, (bytes32, bytes32, bytes32));
 
         // Verify merkle proofs for both transactions
         if (proof.merkleProof.length == 0) return false;
@@ -471,7 +471,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param proof The fraud proof
      * @return isValid Whether the proof is valid
      */
-    function _verifyInvalidAmountProof(FraudProof calldata proof) internal view returns (bool) {
+    function _verifyInvalidAmountProof(FraudProof calldata proof) internal pure returns (bool) {
         // Decode evidence: (uint256 sourceAmount, uint256 targetAmount, uint256 expectedAmount)
         if (proof.evidence.length == 0) return false;
 

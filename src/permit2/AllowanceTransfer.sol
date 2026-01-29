@@ -86,6 +86,8 @@ contract AllowanceTransfer is IAllowanceTransfer, EIP712 {
                 revert InsufficientAllowance(maxAmount);
             } else {
                 unchecked {
+                    // casting to 'uint160' is safe because maxAmount is already uint160 stored in PackedAllowance
+                    // forge-lint: disable-next-line(unsafe-typecast)
                     allowed.amount = uint160(maxAmount) - amount;
                 }
             }

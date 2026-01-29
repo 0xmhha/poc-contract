@@ -175,7 +175,7 @@ contract DeployBridgeScript is DeploymentHelper {
     /**
      * @notice Get signer addresses from env or generate test addresses
      */
-    function _getSigners() internal returns (address[] memory) {
+    function _getSigners() internal view returns (address[] memory) {
         string memory signersEnv = vm.envOr("BRIDGE_SIGNERS", string(""));
 
         if (bytes(signersEnv).length > 0) {
@@ -197,7 +197,7 @@ contract DeployBridgeScript is DeploymentHelper {
     /**
      * @notice Get guardian addresses from env or generate test addresses
      */
-    function _getGuardians() internal returns (address[] memory) {
+    function _getGuardians() internal view returns (address[] memory) {
         string memory guardiansEnv = vm.envOr("BRIDGE_GUARDIANS", string(""));
 
         if (bytes(guardiansEnv).length > 0) {

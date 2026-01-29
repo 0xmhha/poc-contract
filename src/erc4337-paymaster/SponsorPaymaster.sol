@@ -227,12 +227,11 @@ contract SponsorPaymaster is BasePaymaster {
     /**
      * @notice Internal validation logic
      * @param userOp The user operation
-     * @param userOpHash Hash of the user operation
      * @param maxCost Maximum cost in native currency
      * @return context Encoded context for postOp
      * @return validationData Validation result with time range
      */
-    function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+    function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32, uint256 maxCost)
         internal
         override
         returns (bytes memory context, uint256 validationData)

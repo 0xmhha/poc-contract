@@ -26,6 +26,8 @@ contract EIP712 is IEIP712 {
 
     /// @notice Returns the domain separator for the current chain.
     /// @dev Uses cached version if chainid and address are unchanged from construction.
+    // DOMAIN_SEPARATOR is the EIP-712 standard function name
+    // forge-lint: disable-next-line(mixed-case-function)
     function DOMAIN_SEPARATOR() public view override returns (bytes32) {
         return
             block.chainid == _CACHED_CHAIN_ID

@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { PriceOracle } from "../../src/defi/PriceOracle.sol";
-import { IPriceOracle } from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
 
 /**
  * @title MockChainlinkAggregator
@@ -163,7 +162,10 @@ contract PriceOracleTest is Test {
         testToken = new MockERC20("Test Token", "TEST", 18);
 
         // Deploy mock Chainlink feeds
+        // casting to 'int256' is safe because test price constants fit within int256 range
+        // forge-lint: disable-next-line(unsafe-typecast)
         chainlinkFeed = new MockChainlinkAggregator(int256(TOKEN_PRICE), 8);
+        // forge-lint: disable-next-line(unsafe-typecast)
         ethUsdFeed = new MockChainlinkAggregator(int256(ETH_PRICE), 8);
 
         // Deploy mock Uniswap pool (testToken/USDC)
@@ -363,6 +365,8 @@ contract PriceOracleTest is Test {
 
     function test_GetPrice_UniswapTWAP_WithQuoteToken() public {
         // Setup Chainlink feed for quote token (USDC) first
+        // casting to 'int256' is safe because test price constant fits within int256 range
+        // forge-lint: disable-next-line(unsafe-typecast)
         MockChainlinkAggregator usdcFeed = new MockChainlinkAggregator(int256(USDC_PRICE), 8);
         oracle.setChainlinkFeed(address(usdc), address(usdcFeed));
 
@@ -403,7 +407,7 @@ contract PriceOracleTest is Test {
         assertTrue(isValid);
     }
 
-    function test_HasValidPrice_ReturnsFalse_NoFeed() public {
+    function test_HasValidPrice_ReturnsFalse_NoFeed() public view {
         bool isValid = oracle.hasValidPrice(address(testToken));
         assertFalse(isValid);
     }
@@ -435,7 +439,7 @@ contract PriceOracleTest is Test {
         assertTrue(oracle.hasPriceFeed(address(testToken)));
     }
 
-    function test_HasPriceFeed_ReturnsFalse() public {
+    function test_HasPriceFeed_ReturnsFalse() public view {
         assertFalse(oracle.hasPriceFeed(address(testToken)));
     }
 
@@ -453,7 +457,7 @@ contract PriceOracleTest is Test {
         assertEq(source, "UniswapV3TWAP");
     }
 
-    function test_GetPriceSource_None() public {
+    function test_GetPriceSource_None() public view {
         string memory source = oracle.getPriceSource(address(testToken));
         assertEq(source, "None");
     }
@@ -473,12 +477,12 @@ contract PriceOracleTest is Test {
         assertEq(converted, 100e18);
     }
 
-    function test_ConvertAmount_ZeroAmount() public {
+    function test_ConvertAmount_ZeroAmount() public view {
         uint256 converted = oracle.convertAmount(address(testToken), address(usdc), 0);
         assertEq(converted, 0);
     }
 
-    function test_ConvertAmount_SameToken() public {
+    function test_ConvertAmount_SameToken() public view {
         uint256 amount = 100e18;
         uint256 converted = oracle.convertAmount(address(testToken), address(testToken), amount);
         assertEq(converted, amount);

@@ -366,10 +366,10 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
     /**
      * @notice Check if a request can be executed
      * @param requestId The request ID
-     * @return canExecute True if the request can be executed
+     * @return executable True if the request can be executed
      * @return reason The reason if it cannot be executed
      */
-    function canExecute(bytes32 requestId) external view returns (bool canExecute, string memory reason) {
+    function canExecute(bytes32 requestId) external view returns (bool executable, string memory reason) {
         WithdrawalRequest storage request = requests[requestId];
 
         if (request.requester == address(0)) {

@@ -121,13 +121,12 @@ contract TokenReceiverFallback is IFallback {
 
     /**
      * @notice Handle ERC-721 token received
-     * @param operator The address which initiated the transfer
      * @param from The address which previously owned the token
      * @param tokenId The NFT identifier
      * @param data Additional data with no specified format
      * @return bytes4 `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`
      */
-    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
+    function onERC721Received(address, address from, uint256 tokenId, bytes calldata data)
         external
         returns (bytes4)
     {
@@ -142,14 +141,13 @@ contract TokenReceiverFallback is IFallback {
 
     /**
      * @notice Handle ERC-1155 single token received
-     * @param operator The address which initiated the transfer
      * @param from The address which previously owned the token
      * @param id The token identifier
      * @param value The amount of tokens transferred
      * @param data Additional data with no specified format
      * @return bytes4 `bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))`
      */
-    function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes calldata data)
+    function onERC1155Received(address, address from, uint256 id, uint256 value, bytes calldata data)
         external
         returns (bytes4)
     {
@@ -162,7 +160,6 @@ contract TokenReceiverFallback is IFallback {
 
     /**
      * @notice Handle ERC-1155 batch token received
-     * @param operator The address which initiated the transfer
      * @param from The address which previously owned the tokens
      * @param ids Array of token identifiers
      * @param values Array of token amounts
@@ -170,7 +167,7 @@ contract TokenReceiverFallback is IFallback {
      * @return bytes4 `bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"))`
      */
     function onERC1155BatchReceived(
-        address operator,
+        address,
         address from,
         uint256[] calldata ids,
         uint256[] calldata values,
@@ -207,20 +204,17 @@ contract TokenReceiverFallback is IFallback {
 
     /**
      * @notice Handle ERC-777 tokens received
-     * @param operator The address which initiated the transfer
      * @param from The address which previously owned the tokens
-     * @param to The address which received the tokens (smart account)
      * @param amount The amount of tokens transferred
      * @param userData Data provided by the user
-     * @param operatorData Data provided by the operator
      */
     function tokensReceived(
-        address operator,
+        address,
         address from,
-        address to,
+        address,
         uint256 amount,
         bytes calldata userData,
-        bytes calldata operatorData
+        bytes calldata
     ) external {
         (address token, address smartAccount) = _extractContext();
 

@@ -331,6 +331,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         PermissionRecord storage record = permissions[permissionId];
 
         if (record.createdAt == 0) revert PermissionNotFound();
+        if (!record.active) revert PermissionNotFound();
         if (record.granter != msg.sender && msg.sender != owner()) {
             revert UnauthorizedCaller();
         }

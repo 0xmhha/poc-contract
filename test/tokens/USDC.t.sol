@@ -394,6 +394,7 @@ contract USDCTest is Test {
 
         vm.prank(user1);
         vm.expectRevert(USDC.ContractPaused.selector);
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
         usdc.transfer(user2, 100e6);
     }
 
@@ -406,6 +407,7 @@ contract USDCTest is Test {
 
         vm.prank(user1);
         vm.expectRevert(USDC.Blacklist.selector);
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
         usdc.transfer(user2, 100e6);
     }
 
@@ -418,6 +420,7 @@ contract USDCTest is Test {
 
         vm.prank(user1);
         vm.expectRevert(USDC.Blacklist.selector);
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
         usdc.transfer(user2, 100e6);
     }
 
@@ -453,6 +456,7 @@ contract USDCTest is Test {
 
         vm.prank(user2);
         vm.expectRevert(USDC.ContractPaused.selector);
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
         usdc.transferFrom(user1, user2, 100e6);
     }
 
@@ -468,6 +472,7 @@ contract USDCTest is Test {
 
         vm.prank(user2);
         vm.expectRevert(USDC.Blacklist.selector);
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
         usdc.transferFrom(user1, user2, 100e6);
     }
 
@@ -485,6 +490,7 @@ contract USDCTest is Test {
 
         vm.prank(user2);
         vm.expectRevert(USDC.Blacklist.selector);
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
         usdc.transferFrom(user1, user3, 100e6);
     }
 
@@ -500,6 +506,7 @@ contract USDCTest is Test {
 
         vm.prank(user2);
         vm.expectRevert(USDC.Blacklist.selector);
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
         usdc.transferFrom(user1, user2, 100e6);
     }
 
@@ -595,7 +602,7 @@ contract USDCTest is Test {
         usdc.mint(user1, mintAmount);
 
         vm.prank(user1);
-        usdc.transfer(user2, transferAmount);
+        require(usdc.transfer(user2, transferAmount), "Transfer failed");
 
         assertEq(usdc.balanceOf(user1), mintAmount - transferAmount);
         assertEq(usdc.balanceOf(user2), transferAmount);

@@ -208,7 +208,7 @@ contract BridgeRateLimiterTest is Test {
 
     // ============ View Function Tests ============
 
-    function test_CheckTransaction_View() public {
+    function test_CheckTransaction_View() public view {
         uint256 amount = 10_000 * 1e18;
 
         (bool allowed, string memory reason) = limiter.checkTransaction(token, amount);
@@ -217,7 +217,7 @@ contract BridgeRateLimiterTest is Test {
         assertEq(reason, "");
     }
 
-    function test_CheckTransaction_ReturnsReasonOnFailure() public {
+    function test_CheckTransaction_ReturnsReasonOnFailure() public view {
         uint256 amount = 150_000 * 1e18;
 
         (bool allowed, string memory reason) = limiter.checkTransaction(token, amount);

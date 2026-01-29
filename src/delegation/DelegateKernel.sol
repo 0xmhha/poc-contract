@@ -162,6 +162,8 @@ contract DelegateKernel is IDelegateKernel, ReentrancyGuard {
      * @dev In EIP-7702, the EOA address becomes the owner
      * @param _delegationRegistry The delegation registry address
      */
+    // initializeEIP7702 uses the EIP standard number in function name
+    // forge-lint: disable-next-line(mixed-case-function)
     function initializeEIP7702(address _delegationRegistry) external {
         if (initialized) revert AlreadyInitialized();
 
@@ -178,13 +180,21 @@ contract DelegateKernel is IDelegateKernel, ReentrancyGuard {
     ////////////////////////////////////////////////////////////// */
 
     modifier onlyOwner() {
-        if (msg.sender != owner) revert Unauthorized();
+        _checkOwner();
         _;
     }
 
     modifier onlyInitialized() {
-        if (!initialized) revert NotInitialized();
+        _checkInitialized();
         _;
+    }
+
+    function _checkOwner() internal view {
+        if (msg.sender != owner) revert Unauthorized();
+    }
+
+    function _checkInitialized() internal view {
+        if (!initialized) revert NotInitialized();
     }
 
     /* //////////////////////////////////////////////////////////////
