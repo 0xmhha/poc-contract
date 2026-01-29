@@ -1,0 +1,92 @@
+# Mythril Security Analysis Configuration
+# https://mythril-classic.readthedocs.io/en/master/
+
+# Analysis settings
+analysis:
+  # Maximum execution time in seconds
+  execution_timeout: 300
+
+  # Maximum depth to analyze
+  max_depth: 128
+
+  # Transaction count (number of transactions to simulate)
+  transaction_count: 3
+
+  # Enable parallel execution
+  parallel_solving: true
+
+  # Strategy for symbolic execution
+  strategy: bfs  # breadth-first search
+
+# Solidity compiler settings
+solc:
+  version: "0.8.28"
+  remappings:
+    - "forge-std/=lib/forge-std/src/"
+    - "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/"
+    - "solady/=lib/solady/src/"
+    - "solmate/=lib/solmate/"
+    - "ExcessivelySafeCall/=lib/ExcessivelySafeCall/src/"
+
+# Output settings
+output:
+  format: "json"
+  file: "security/mythril-report.json"
+
+# Detectors to enable
+# Full list: https://mythril-classic.readthedocs.io/en/master/security-analysis.html
+detectors:
+  - arbitrary-send
+  - controlled-array-length
+  - delegatecall-loop
+  - deprecated-standards
+  - ether-thief
+  - integer-overflow
+  - multiple-sends
+  - reentrancy
+  - selfdestruct
+  - state-change-external-call
+  - suicide
+  - timestamp-dependence
+  - tx-origin
+  - unchecked-call-retval
+  - unprotected-selfdestruct
+  - weak-randomness
+
+# Files to exclude
+exclude:
+  - "lib/**"
+  - "test/**"
+  - "script/**"
+  - "node_modules/**"
+
+# Target contracts for analysis
+targets:
+  # Subscription contracts
+  subscription:
+    - src/subscription/ERC7715PermissionManager.sol
+    - src/subscription/SubscriptionManager.sol
+    - src/subscription/RecurringPaymentExecutor.sol
+
+  # Delegation contracts
+  delegation:
+    - src/delegation/DelegationRegistry.sol
+    - src/delegation/DelegateKernel.sol
+
+  # Privacy contracts
+  privacy:
+    - src/privacy/enterprise/StealthVault.sol
+    - src/privacy/enterprise/StealthLedger.sol
+    - src/privacy/enterprise/WithdrawalManager.sol
+    - src/privacy/enterprise/RoleManager.sol
+
+  # Bridge contracts
+  bridge:
+    - src/bridge/SecureBridge.sol
+    - src/bridge/BridgeValidator.sol
+    - src/bridge/BridgeGuardian.sol
+
+  # Core contracts
+  core:
+    - src/tokens/USDC.sol
+    - src/tokens/wKRC.sol

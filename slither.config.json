@@ -1,0 +1,28 @@
+{
+  "detectors_to_run": "all",
+  "exclude_informational": false,
+  "exclude_low": false,
+  "exclude_medium": false,
+  "exclude_high": false,
+  "exclude_optimization": true,
+  "filter_paths": [
+    "lib/",
+    "test/",
+    "script/",
+    "node_modules/"
+  ],
+  "solc_remaps": [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+    "solmate/=lib/solmate/",
+    "ExcessivelySafeCall/=lib/ExcessivelySafeCall/src/"
+  ],
+  "solc_args": "--via-ir --optimize --optimize-runs 200",
+  "exclude_dependencies": true,
+  "legacy_ast": false,
+  "printers_to_run": "",
+  "show_ignored_findings": false,
+  "json": "security/slither-report.json",
+  "markdown_root": "https://github.com/stablenet/poc-contract/blob/main/"
+}
