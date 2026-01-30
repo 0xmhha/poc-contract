@@ -3,19 +3,27 @@
   "version": "0.1.0",
   "description": "StableNet POC Smart Contracts",
   "scripts": {
-    "deploy": "node script/js/deploy.js",
-    "deploy:local": "NETWORK=local node script/js/deploy.js",
-    "deploy:sepolia": "NETWORK=sepolia node script/js/deploy.js",
-    "deploy:stablenet-testnet": "NETWORK=stablenet-testnet node script/js/deploy.js",
-    "deploy:stablenet": "NETWORK=stablenet node script/js/deploy.js",
+    "deploy": "npx ts-node script/ts/deploy.ts",
+    "deploy:local": "NETWORK=local npx ts-node script/ts/deploy.ts",
+    "deploy:sepolia": "NETWORK=sepolia npx ts-node script/ts/deploy.ts",
+    "deploy:stablenet-testnet": "NETWORK=stablenet-testnet npx ts-node script/ts/deploy.ts",
+    "deploy:stablenet": "NETWORK=stablenet npx ts-node script/ts/deploy.ts",
+    "deploy:ordered": "npx ts-node script/ts/deploy-ordered.ts",
     "build": "forge build",
     "test": "forge test",
-    "clean": "forge clean"
+    "clean": "forge clean",
+    "test:eip7702": "npx ts-node script/ts/eip7702-integration-test.ts",
+    "test:integration": "npx ts-node script/ts/eip7702-integration-test.ts"
   },
   "dependencies": {
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "viem": "^2.21.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.0"
+  },
   "engines": {
     "node": ">=18.0.0"
   },

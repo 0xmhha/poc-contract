@@ -451,8 +451,8 @@ stablenet = "${RPC_URL_STABLENET}"
 
 [etherscan]
 sepolia = { key = "${EXPLORER_API_KEY}" }
-stablenet-testnet = { key = "${EXPLORER_API_KEY}" }
-stablenet = { key = "${EXPLORER_API_KEY}" }
+stablenet-testnet = { key = "${EXPLORER_API_KEY}", url = "${VERIFIER_URL}", chain = 8283 }
+stablenet = { key = "${EXPLORER_API_KEY}", url = "${VERIFIER_URL}", chain = 8283 }
 
 # Formatter
 [fmt]

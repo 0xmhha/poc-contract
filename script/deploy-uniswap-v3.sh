@@ -7,11 +7,8 @@
 #
 # Prerequisites:
 #   - Foundry installed
-#   - Environment variables set:
-#     - RPC_URL: RPC endpoint URL
-#     - DEPLOYER_PRIVATE_KEY: Deployer's private key
-#     - WKRC_ADDRESS: Wrapped native token address
-#     - NATIVE_CURRENCY_LABEL: Native currency label (optional, defaults to "KRW")
+#   - .env file configured with RPC_URL, PRIVATE_KEY_DEPLOYER
+#   - wKRC deployed (WKRC_ADDRESS in .env or deployments/)
 #
 # Usage:
 #   ./script/deploy-uniswap-v3.sh [--broadcast] [--verify]
@@ -22,6 +19,20 @@
 # =============================================================================
 
 set -e
+
+# Navigate to project root
+cd "$(dirname "$0")/.."
+PROJECT_ROOT=$(pwd)
+
+# Load .env file
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    set -a
+    source "$PROJECT_ROOT/.env"
+    set +a
+else
+    echo "Error: .env file not found"
+    exit 1
+fi
 
 # Disable via_ir for Solidity 0.7.6 compatibility
 export FOUNDRY_VIA_IR=false
@@ -48,23 +59,35 @@ for arg in "$@"; do
     esac
 done
 
+# Use PRIVATE_KEY_DEPLOYER or PRIVATE_KEY
+DEPLOYER_PRIVATE_KEY=${PRIVATE_KEY_DEPLOYER:-$PRIVATE_KEY}
+
 # Verify required environment variables
 echo -e "${YELLOW}========================================${NC}"
 echo -e "${YELLOW}    UNISWAP V3 DEPLOYMENT SCRIPT${NC}"
 echo -e "${YELLOW}========================================${NC}"
 
 if [ -z "$RPC_URL" ]; then
-    echo -e "${RED}Error: RPC_URL environment variable not set${NC}"
+    echo -e "${RED}Error: RPC_URL not set in .env${NC}"
     exit 1
 fi
 
 if [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
-    echo -e "${RED}Error: DEPLOYER_PRIVATE_KEY environment variable not set${NC}"
+    echo -e "${RED}Error: PRIVATE_KEY_DEPLOYER not set in .env${NC}"
     exit 1
 fi
 
+# Try to get WKRC_ADDRESS from deployment file if not set
 if [ -z "$WKRC_ADDRESS" ]; then
-    echo -e "${RED}Error: WKRC_ADDRESS environment variable not set${NC}"
+    CHAIN_ID_CHECK=$(cast chain-id --rpc-url "$RPC_URL" 2>/dev/null || echo "")
+    if [ -n "$CHAIN_ID_CHECK" ] && [ -f "$PROJECT_ROOT/deployments/$CHAIN_ID_CHECK/addresses.json" ]; then
+        WKRC_ADDRESS=$(jq -r '.contracts.wKRC // .wKRC // empty' "$PROJECT_ROOT/deployments/$CHAIN_ID_CHECK/addresses.json" 2>/dev/null || echo "")
+    fi
+fi
+
+if [ -z "$WKRC_ADDRESS" ]; then
+    echo -e "${RED}Error: WKRC_ADDRESS not set${NC}"
+    echo "Deploy tokens first: ./script/deploy-tokens.sh --broadcast"
     exit 1
 fi
 
@@ -83,10 +106,6 @@ echo "  Native Currency: $NATIVE_CURRENCY_LABEL"
 echo "  Broadcast: ${BROADCAST:-"false (dry run)"}"
 echo "  Verify: ${VERIFY:-"false"}"
 echo ""
-
-# Navigate to project root
-cd "$(dirname "$0")/.."
-PROJECT_ROOT=$(pwd)
 
 echo -e "${GREEN}[1/5] Deploying UniswapV3Factory...${NC}"
 

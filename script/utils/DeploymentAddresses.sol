@@ -127,7 +127,14 @@ abstract contract DeploymentHelper is Script {
      */
     function _initDeployment() internal {
         chainId = block.chainid;
-        _loadAddresses();
+
+        // Check for force redeploy flag
+        bool forceRedeploy = vm.envOr("FORCE_REDEPLOY", false);
+        if (forceRedeploy) {
+            console.log("FORCE_REDEPLOY=true: Skipping existing addresses, will deploy fresh");
+        } else {
+            _loadAddresses();
+        }
     }
 
     /**
