@@ -11,7 +11,7 @@ Total: **42 contracts** across **7 phases** (0-6)
 
 | Script | Shell Wrapper | Description |
 |--------|---------------|-------------|
-| `script/ts/deploy.ts` | - | Full deployment orchestrator |
+| `script/ts/deploy-all.ts` | `script/deploy-all.sh` | Full deployment + configuration (one-click) |
 | `script/ts/deploy-tokens.ts` | `script/deploy-tokens.sh` | wKRC, USDC tokens |
 | `script/ts/deploy-entrypoint.ts` | `script/deploy-entrypoint.sh` | ERC-4337 EntryPoint |
 | `script/ts/deploy-smartaccount.ts` | `script/deploy-smartaccount.sh` | Kernel, KernelFactory, FactoryStaker |
