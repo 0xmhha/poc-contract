@@ -9,8 +9,8 @@ optimizer_runs = 200
 via_ir = true
 evm_version = "prague"
 fs_permissions = [{ access = "read-write", path = "deployments" }]
-# Exclude Uniswap contracts, dex folder, entrypoint (has dedicated profile) and nested libs from default compilation
-skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "src/dex/*", "src/erc4337-entrypoint/*"]
+# Exclude Uniswap contracts, dex folder, and nested libs from default compilation
+skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "src/dex/*"]
 # OZ v5 as default, with specific v3 overrides for Uniswap V3 compatibility
 remappings = [
     "forge-std/=lib/forge-std/src/",
@@ -45,7 +45,7 @@ optimizer_runs = 200
 via_ir = true
 evm_version = "prague"
 fs_permissions = [{ access = "read-write", path = "deployments" }]
-skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "src/dex/*", "src/erc4337-entrypoint/*"]
+skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "src/dex/*"]
 remappings = [
     "forge-std/=lib/forge-std/src/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
@@ -424,6 +424,7 @@ remappings = [
 ]
 
 # Profile for Uniswap V3 deployment (Solidity 0.7.6)
+# Only compiles script/uniswap/*.sol which re-export UniswapV3 contracts
 [profile.uniswap]
 src = "script/uniswap"
 out = "out/uniswap"
@@ -434,6 +435,14 @@ optimizer_runs = 200
 via_ir = false
 evm_version = "istanbul"
 auto_detect_remappings = false
+# Skip all directories with 0.8.x contracts
+skip = [
+    "src/*",
+    "test/*",
+    "script/deploy-contract/*",
+    "script/utils/*",
+    "script/DeployAll.s.sol",
+]
 remappings = [
     "forge-std/=lib/forge-std/src/",
     "@uniswap/v3-core/=lib/v3-core/",

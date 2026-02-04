@@ -66,7 +66,8 @@ import { Permit2 } from "../src/permit2/Permit2.sol";
 
 // ============ DeFi ============
 import { PriceOracle } from "../src/defi/PriceOracle.sol";
-import { DEXIntegration } from "../src/defi/DEXIntegration.sol";
+import { LendingPool } from "../src/defi/LendingPool.sol";
+import { StakingVault, IStakingVault } from "../src/defi/StakingVault.sol";
 
 // ============ Subscription ============
 import { ERC7715PermissionManager } from "../src/subscription/ERC7715PermissionManager.sol";
@@ -106,7 +107,7 @@ import { SecureBridge } from "../src/bridge/SecureBridge.sol";
  *     11. Permit2
  *
  *   Phase 4 - DeFi & Paymasters:
- *     12. DeFi (PriceOracle, DEXIntegration)
+ *     12. DeFi (PriceOracle, LendingPool, StakingVault)
  *     13. Paymasters (Verifying, Sponsor, ERC20, Permit2)
  *
  *   Phase 5 - Plugins:
@@ -119,8 +120,8 @@ import { SecureBridge } from "../src/bridge/SecureBridge.sol";
  * Environment Variables:
  *   - ADMIN_ADDRESS: Admin/owner address (default: deployer)
  *   - VERIFYING_SIGNER: Signer for VerifyingPaymaster (default: admin)
- *   - SWAP_ROUTER: Uniswap V3 SwapRouter (optional, for DEXIntegration)
- *   - QUOTER: Uniswap V3 Quoter (optional)
+ *   - STAKING_TOKEN: Token to stake (default: NativeCoinAdapter 0x1000)
+ *   - REWARD_TOKEN: Token for rewards (default: same as staking token)
  *
  * Usage:
  *   forge script script/DeployAll.s.sol:DeployAllScript --rpc-url <RPC_URL> --broadcast
@@ -494,36 +495,51 @@ contract DeployAllScript is DeploymentHelper {
         console.log("  --- DeFi ---");
 
         // PriceOracle (no dependencies)
+        address priceOracleAddr;
         if (_getAddress(DeploymentAddresses.KEY_PRICE_ORACLE) == address(0)) {
             PriceOracle priceOracle = new PriceOracle();
             _setAddress(DeploymentAddresses.KEY_PRICE_ORACLE, address(priceOracle));
+            priceOracleAddr = address(priceOracle);
             console.log("    [NEW] PriceOracle:", address(priceOracle));
         } else {
-            console.log("    [SKIP] PriceOracle:", _getAddress(DeploymentAddresses.KEY_PRICE_ORACLE));
+            priceOracleAddr = _getAddress(DeploymentAddresses.KEY_PRICE_ORACLE);
+            console.log("    [SKIP] PriceOracle:", priceOracleAddr);
         }
 
-        // DEXIntegration (depends on wKRC and optional external DEX)
-        address wkrcAddr = _getAddress(DeploymentAddresses.KEY_WKRC);
-        address swapRouter = vm.envOr("SWAP_ROUTER", address(0));
-        address quoter = vm.envOr("QUOTER", address(0));
-
-        if (_getAddress(DeploymentAddresses.KEY_DEX_INTEGRATION) == address(0)) {
-            if (swapRouter != address(0) && wkrcAddr != address(0)) {
-                DEXIntegration dex = new DEXIntegration(swapRouter, quoter, wkrcAddr);
-                _setAddress(DeploymentAddresses.KEY_DEX_INTEGRATION, address(dex));
-                console.log("    [NEW] DEXIntegration:", address(dex));
-            } else {
-                console.log("    [SKIP] DEXIntegration: Missing SWAP_ROUTER or wKRC");
-            }
+        // LendingPool (depends on PriceOracle)
+        if (_getAddress(DeploymentAddresses.KEY_LENDING_POOL) == address(0)) {
+            LendingPool lendingPool = new LendingPool(priceOracleAddr);
+            _setAddress(DeploymentAddresses.KEY_LENDING_POOL, address(lendingPool));
+            console.log("    [NEW] LendingPool:", address(lendingPool));
         } else {
-            console.log("    [SKIP] DEXIntegration:", _getAddress(DeploymentAddresses.KEY_DEX_INTEGRATION));
+            console.log("    [SKIP] LendingPool:", _getAddress(DeploymentAddresses.KEY_LENDING_POOL));
+        }
+
+        // StakingVault (uses NativeCoinAdapter as default staking token)
+        address stakingToken = vm.envOr("STAKING_TOKEN", address(0x1000)); // NativeCoinAdapter
+        address rewardToken = vm.envOr("REWARD_TOKEN", stakingToken);
+
+        if (_getAddress(DeploymentAddresses.KEY_STAKING_VAULT) == address(0)) {
+            IStakingVault.VaultConfig memory config = IStakingVault.VaultConfig({
+                rewardRate: vm.envOr("REWARD_RATE", uint256(1e15)), // 0.001 tokens/sec
+                lockPeriod: vm.envOr("LOCK_PERIOD", uint256(7 days)),
+                earlyWithdrawPenalty: vm.envOr("EARLY_WITHDRAW_PENALTY", uint256(1000)), // 10%
+                minStake: vm.envOr("MIN_STAKE", uint256(1e18)), // 1 token
+                maxStake: vm.envOr("MAX_STAKE", uint256(0)), // unlimited
+                isActive: true
+            });
+
+            StakingVault stakingVault = new StakingVault(stakingToken, rewardToken, config);
+            _setAddress(DeploymentAddresses.KEY_STAKING_VAULT, address(stakingVault));
+            console.log("    [NEW] StakingVault:", address(stakingVault));
+        } else {
+            console.log("    [SKIP] StakingVault:", _getAddress(DeploymentAddresses.KEY_STAKING_VAULT));
         }
 
         // --- Paymasters ---
         console.log("  --- Paymasters ---");
 
         address entryPointAddr = _getAddress(DeploymentAddresses.KEY_ENTRYPOINT);
-        address priceOracleAddr = _getAddress(DeploymentAddresses.KEY_PRICE_ORACLE);
         address permit2Addr = _getAddress(DeploymentAddresses.KEY_PERMIT2);
 
         // VerifyingPaymaster (depends on EntryPoint)
@@ -588,16 +604,20 @@ contract DeployAllScript is DeploymentHelper {
         console.log(">>> Phase 5: Plugins");
 
         address priceOracleAddr = _getAddress(DeploymentAddresses.KEY_PRICE_ORACLE);
-        address dexAddr = _getAddress(DeploymentAddresses.KEY_DEX_INTEGRATION);
+        // Use UniswapV3 SwapRouter address from deployment or environment
+        address swapRouterAddr = _getAddress(DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER);
+        if (swapRouterAddr == address(0)) {
+            swapRouterAddr = vm.envOr("UNISWAP_SWAP_ROUTER", address(0));
+        }
 
-        // AutoSwapPlugin (depends on PriceOracle, DEXIntegration)
+        // AutoSwapPlugin (depends on PriceOracle, UniswapV3 SwapRouter)
         if (_getAddress(DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN) == address(0)) {
-            if (priceOracleAddr != address(0) && dexAddr != address(0)) {
-                AutoSwapPlugin autoSwap = new AutoSwapPlugin(IPriceOracle(priceOracleAddr), dexAddr);
+            if (priceOracleAddr != address(0) && swapRouterAddr != address(0)) {
+                AutoSwapPlugin autoSwap = new AutoSwapPlugin(IPriceOracle(priceOracleAddr), swapRouterAddr);
                 _setAddress(DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN, address(autoSwap));
                 console.log("  [NEW] AutoSwapPlugin:", address(autoSwap));
             } else {
-                console.log("  [SKIP] AutoSwapPlugin: Missing PriceOracle or DEXIntegration");
+                console.log("  [SKIP] AutoSwapPlugin: Missing PriceOracle or UniswapV3 SwapRouter");
             }
         } else {
             console.log("  [SKIP] AutoSwapPlugin:", _getAddress(DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN));
@@ -819,7 +839,8 @@ contract DeployAllScript is DeploymentHelper {
         console.log("");
         console.log("Phase 4 - DeFi & Paymasters:");
         console.log("  PriceOracle:", _getAddress(DeploymentAddresses.KEY_PRICE_ORACLE));
-        console.log("  DEXIntegration:", _getAddress(DeploymentAddresses.KEY_DEX_INTEGRATION));
+        console.log("  LendingPool:", _getAddress(DeploymentAddresses.KEY_LENDING_POOL));
+        console.log("  StakingVault:", _getAddress(DeploymentAddresses.KEY_STAKING_VAULT));
         console.log("  VerifyingPaymaster:", _getAddress(DeploymentAddresses.KEY_VERIFYING_PAYMASTER));
         console.log("  SponsorPaymaster:", _getAddress(DeploymentAddresses.KEY_SPONSOR_PAYMASTER));
         console.log("  ERC20Paymaster:", _getAddress(DeploymentAddresses.KEY_ERC20_PAYMASTER));

@@ -83,7 +83,16 @@ library DeploymentAddresses {
     string constant KEY_WKRC = "wkrc";
     string constant KEY_USDC = "usdc";
     string constant KEY_PRICE_ORACLE = "priceOracle";
-    string constant KEY_DEX_INTEGRATION = "dexIntegration";
+    string constant KEY_LENDING_POOL = "lendingPool";
+    string constant KEY_STAKING_VAULT = "stakingVault";
+
+    // UniswapV3
+    string constant KEY_UNISWAP_FACTORY = "uniswapV3Factory";
+    string constant KEY_UNISWAP_SWAP_ROUTER = "uniswapV3SwapRouter";
+    string constant KEY_UNISWAP_QUOTER = "uniswapV3Quoter";
+    string constant KEY_UNISWAP_NFT_POSITION_MANAGER = "uniswapV3NftPositionManager";
+    string constant KEY_UNISWAP_NFT_DESCRIPTOR = "uniswapV3NftDescriptor";
+    string constant KEY_UNISWAP_WKRC_USDC_POOL = "uniswapV3WkrcUsdcPool";
 
     // Privacy
     string constant KEY_ANNOUNCER = "erc5564Announcer";
@@ -197,7 +206,16 @@ abstract contract DeploymentHelper is Script {
                 _tryParseAddress(json, DeploymentAddresses.KEY_WKRC);
                 _tryParseAddress(json, DeploymentAddresses.KEY_USDC);
                 _tryParseAddress(json, DeploymentAddresses.KEY_PRICE_ORACLE);
-                _tryParseAddress(json, DeploymentAddresses.KEY_DEX_INTEGRATION);
+                _tryParseAddress(json, DeploymentAddresses.KEY_LENDING_POOL);
+                _tryParseAddress(json, DeploymentAddresses.KEY_STAKING_VAULT);
+
+                // UniswapV3
+                _tryParseAddress(json, DeploymentAddresses.KEY_UNISWAP_FACTORY);
+                _tryParseAddress(json, DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_UNISWAP_QUOTER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_UNISWAP_NFT_POSITION_MANAGER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_UNISWAP_NFT_DESCRIPTOR);
+                _tryParseAddress(json, DeploymentAddresses.KEY_UNISWAP_WKRC_USDC_POOL);
 
                 // Privacy
                 _tryParseAddress(json, DeploymentAddresses.KEY_ANNOUNCER);
@@ -395,9 +413,52 @@ abstract contract DeploymentHelper is Script {
                 obj, DeploymentAddresses.KEY_PRICE_ORACLE, _addresses[DeploymentAddresses.KEY_PRICE_ORACLE]
             );
         }
-        if (_addresses[DeploymentAddresses.KEY_DEX_INTEGRATION] != address(0)) {
+        if (_addresses[DeploymentAddresses.KEY_LENDING_POOL] != address(0)) {
             vm.serializeAddress(
-                obj, DeploymentAddresses.KEY_DEX_INTEGRATION, _addresses[DeploymentAddresses.KEY_DEX_INTEGRATION]
+                obj, DeploymentAddresses.KEY_LENDING_POOL, _addresses[DeploymentAddresses.KEY_LENDING_POOL]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_STAKING_VAULT] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_STAKING_VAULT, _addresses[DeploymentAddresses.KEY_STAKING_VAULT]
+            );
+        }
+
+        // UniswapV3
+        if (_addresses[DeploymentAddresses.KEY_UNISWAP_FACTORY] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_UNISWAP_FACTORY, _addresses[DeploymentAddresses.KEY_UNISWAP_FACTORY]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER, _addresses[DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_UNISWAP_QUOTER] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_UNISWAP_QUOTER, _addresses[DeploymentAddresses.KEY_UNISWAP_QUOTER]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_UNISWAP_NFT_POSITION_MANAGER] != address(0)) {
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_UNISWAP_NFT_POSITION_MANAGER,
+                _addresses[DeploymentAddresses.KEY_UNISWAP_NFT_POSITION_MANAGER]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_UNISWAP_NFT_DESCRIPTOR] != address(0)) {
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_UNISWAP_NFT_DESCRIPTOR,
+                _addresses[DeploymentAddresses.KEY_UNISWAP_NFT_DESCRIPTOR]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_UNISWAP_WKRC_USDC_POOL] != address(0)) {
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_UNISWAP_WKRC_USDC_POOL,
+                _addresses[DeploymentAddresses.KEY_UNISWAP_WKRC_USDC_POOL]
             );
         }
 
