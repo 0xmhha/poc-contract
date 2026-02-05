@@ -7,6 +7,7 @@ This document describes the security audit setup and process for the StableNet P
 ```bash
 # Install dependencies
 pip install slither-analyzer mythril
+brew install echidna  # macOS
 
 # Run full security audit
 ./security/run-audit.sh --all
@@ -16,6 +17,9 @@ pip install slither-analyzer mythril
 
 # Run Mythril on specific contract
 ./security/run-audit.sh --mythril -c src/subscription/SubscriptionManager.sol
+
+# Run Echidna fuzzing
+./security/run-audit.sh --echidna
 ```
 
 ## Tools
@@ -51,6 +55,44 @@ Mythril is a security analysis tool for EVM bytecode by ConsenSys. It detects:
 ```bash
 # Run Mythril manually
 myth analyze src/subscription/SubscriptionManager.sol -o json > mythril-report.json
+```
+
+### 3. Echidna (Fuzzing)
+
+Echidna is a property-based smart contract fuzzer by Trail of Bits. It finds:
+- Property violations through random input generation
+- Edge cases missed by manual testing
+- State machine invariant violations
+- Integer boundary conditions
+
+**Configuration:** `security/echidna.yaml`
+
+**Fuzzing Contracts:**
+- `test/echidna/EchidnaKernel.sol` - Kernel module installation invariants
+- `test/echidna/EchidnaSubscription.sol` - Subscription state invariants
+- `test/echidna/EchidnaSpendingLimit.sol` - Spending limit invariants
+
+```bash
+# Run Echidna manually
+echidna test/echidna/EchidnaKernel.sol --contract EchidnaKernel --config security/echidna.yaml
+```
+
+#### Writing Echidna Tests
+
+Properties must start with `echidna_` prefix and return `bool`:
+
+```solidity
+// Good property: invariant that should always be true
+function echidna_balance_never_negative() public view returns (bool) {
+    return balance >= 0;
+}
+
+// Fuzz action: state-changing function that Echidna will call randomly
+function fuzz_deposit(uint256 amount) external {
+    if (amount > 0 && amount < MAX_DEPOSIT) {
+        balance += amount;
+    }
+}
 ```
 
 ## Contracts in Scope
@@ -147,11 +189,14 @@ Reports are saved to `security/reports/`:
 
 ```
 security/reports/
-├── slither-20260128_120000.json     # Slither JSON report
-├── slither-20260128_120000.md       # Slither text report
+├── slither-20260128_120000.json          # Slither JSON report
+├── slither-20260128_120000.md            # Slither text report
 ├── mythril-SubscriptionManager-20260128_120000.json
 ├── mythril-StealthVault-20260128_120000.json
-└── security-audit-20260128_120000.md  # Combined report
+├── echidna-EchidnaKernel-20260128_120000.txt
+├── echidna-EchidnaSubscription-20260128_120000.txt
+├── echidna-EchidnaSpendingLimit-20260128_120000.txt
+└── security-audit-20260128_120000.md     # Combined report
 ```
 
 ## CI/CD Integration
@@ -184,6 +229,8 @@ After automated analysis, manually verify:
 
 - [Slither Documentation](https://github.com/crytic/slither)
 - [Mythril Documentation](https://mythril-classic.readthedocs.io/)
+- [Echidna Documentation](https://github.com/crytic/echidna)
 - [Smart Contract Weakness Classification (SWC)](https://swcregistry.io/)
 - [ConsenSys Smart Contract Best Practices](https://consensys.github.io/smart-contract-best-practices/)
 - [OpenZeppelin Security](https://www.openzeppelin.com/security-audits)
+- [Building Secure Smart Contracts](https://github.com/crytic/building-secure-contracts)

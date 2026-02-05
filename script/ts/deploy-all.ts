@@ -225,24 +225,162 @@ interface DeployedAddresses {
   [key: string]: string | undefined;
 }
 
+// Contract name to JSON key mapping (contractName from broadcast → standard key)
+const CONTRACT_NAME_TO_KEY: { [name: string]: string } = {
+  // Tokens
+  wKRC: "wkrc",
+  USDC: "usdc",
+
+  // ERC-4337 Core
+  EntryPoint: "entryPoint",
+
+  // Smart Account
+  Kernel: "kernel",
+  KernelFactory: "kernelFactory",
+  FactoryStaker: "factoryStaker",
+
+  // Validators
+  ECDSAValidator: "ecdsaValidator",
+  WeightedECDSAValidator: "weightedEcdsaValidator",
+  MultiChainValidator: "multiChainValidator",
+  MultiSigValidator: "multiSigValidator",
+  WebAuthnValidator: "webAuthnValidator",
+
+  // Hooks
+  SpendingLimitHook: "spendingLimitHook",
+  AuditHook: "auditHook",
+
+  // Fallbacks
+  TokenReceiverFallback: "tokenReceiverFallback",
+  FlashLoanFallback: "flashLoanFallback",
+
+  // Executors
+  SessionKeyExecutor: "sessionKeyExecutor",
+  RecurringPaymentExecutor: "recurringPaymentExecutor",
+
+  // Subscription
+  ERC7715PermissionManager: "erc7715PermissionManager",
+  SubscriptionManager: "subscriptionManager",
+
+  // Compliance
+  KYCRegistry: "kycRegistry",
+  AuditLogger: "auditLogger",
+  ProofOfReserve: "proofOfReserve",
+  RegulatoryRegistry: "regulatoryRegistry",
+
+  // Privacy
+  ERC5564Announcer: "erc5564Announcer",
+  ERC6538Registry: "erc6538Registry",
+  PrivateBank: "privateBank",
+
+  // Permit2
+  Permit2: "permit2",
+
+  // DeFi
+  PriceOracle: "priceOracle",
+  LendingPool: "lendingPool",
+  StakingVault: "stakingVault",
+
+  // Paymasters
+  VerifyingPaymaster: "verifyingPaymaster",
+  SponsorPaymaster: "sponsorPaymaster",
+  ERC20Paymaster: "erc20Paymaster",
+  Permit2Paymaster: "permit2Paymaster",
+
+  // Plugins
+  AutoSwapPlugin: "autoSwapPlugin",
+  MicroLoanPlugin: "microLoanPlugin",
+  OnRampPlugin: "onRampPlugin",
+
+  // Bridge
+  BridgeValidator: "bridgeValidator",
+  BridgeGuardian: "bridgeGuardian",
+  BridgeRateLimiter: "bridgeRateLimiter",
+  OptimisticVerifier: "optimisticVerifier",
+  FraudProofVerifier: "fraudProofVerifier",
+  SecureBridge: "secureBridge",
+
+  // UniswapV3 (deployed via TypeScript, may have different names)
+  UniswapV3Factory: "uniswapV3Factory",
+  SwapRouter: "uniswapV3SwapRouter",
+  NonfungiblePositionManager: "uniswapV3NftPositionManager",
+  NonfungibleTokenPositionDescriptor: "uniswapV3NftDescriptor",
+  Quoter: "uniswapV3Quoter",
+};
+
+interface BroadcastTransaction {
+  contractName: string | null;
+  contractAddress: string;
+  transactionType: string;
+}
+
+interface BroadcastFile {
+  transactions: BroadcastTransaction[];
+  timestamp: number;
+}
+
+/**
+ * Load deployed addresses from broadcast folder (primary) and addresses.json (fallback)
+ * Scans all Deploy*.s.sol/{chainId}/run-latest.json files for CREATE transactions
+ */
 function loadDeployedAddresses(chainId: string): DeployedAddresses {
+  const addresses: DeployedAddresses = {};
+
+  // 1. Load from broadcast folder (primary source)
+  const broadcastDir = path.join(PROJECT_ROOT, "broadcast");
+
+  if (fs.existsSync(broadcastDir)) {
+    const scriptDirs = fs.readdirSync(broadcastDir).filter((dir) => dir.endsWith(".s.sol"));
+
+    for (const scriptDir of scriptDirs) {
+      const runLatestPath = path.join(broadcastDir, scriptDir, chainId, "run-latest.json");
+
+      if (fs.existsSync(runLatestPath)) {
+        try {
+          const content = fs.readFileSync(runLatestPath, "utf8");
+          const broadcast: BroadcastFile = JSON.parse(content);
+
+          for (const tx of broadcast.transactions) {
+            if (tx.transactionType === "CREATE" && tx.contractName && tx.contractAddress) {
+              const key = CONTRACT_NAME_TO_KEY[tx.contractName];
+              if (key) {
+                addresses[key] = tx.contractAddress;
+              }
+            }
+          }
+        } catch {
+          // Skip invalid files
+        }
+      }
+    }
+  }
+
+  // 2. Load from addresses.json (fallback for TypeScript deployments like UniswapV3)
   const addressesPath = path.join(PROJECT_ROOT, "deployments", chainId, "addresses.json");
 
-  if (!fs.existsSync(addressesPath)) {
-    return {};
+  if (fs.existsSync(addressesPath)) {
+    try {
+      const content = fs.readFileSync(addressesPath, "utf8");
+      const fallbackAddresses = JSON.parse(content);
+
+      // Only add addresses that weren't found in broadcast
+      for (const [key, value] of Object.entries(fallbackAddresses)) {
+        if (key !== "_chainId" && value && !addresses[key]) {
+          addresses[key] = value as string;
+        }
+      }
+    } catch {
+      // Skip invalid file
+    }
   }
 
-  try {
-    const content = fs.readFileSync(addressesPath, "utf8");
-    return JSON.parse(content);
-  } catch {
-    return {};
-  }
+  return addresses;
 }
 
 // ============ Contract Address Display ============
 
 // Contract display names and categories
+// Keys must match DeploymentAddresses.sol constants
 const CONTRACT_CATEGORIES: { [category: string]: { [key: string]: string } } = {
   "Tokens": {
     wkrc: "WKRC (Wrapped KRC)",
@@ -258,53 +396,72 @@ const CONTRACT_CATEGORIES: { [category: string]: { [key: string]: string } } = {
   },
   "ERC-7579 Validators": {
     ecdsaValidator: "ECDSAValidator",
-    webAuthnValidator: "WebAuthnValidator",
+    weightedEcdsaValidator: "WeightedECDSAValidator",
     multiChainValidator: "MultiChainValidator",
-    sessionKeyValidator: "SessionKeyValidator",
-    permissionValidator: "PermissionValidator",
+    multiSigValidator: "MultiSigValidator",
+    webAuthnValidator: "WebAuthnValidator",
   },
   "ERC-7579 Hooks": {
     spendingLimitHook: "SpendingLimitHook",
+    auditHook: "AuditHook",
   },
   "ERC-7579 Fallbacks": {
-    erc165Handler: "ERC165Handler",
-    tokenReceiver: "TokenReceiver",
+    tokenReceiverFallback: "TokenReceiverFallback",
+    flashLoanFallback: "FlashLoanFallback",
   },
   "ERC-7579 Executors": {
+    sessionKeyExecutor: "SessionKeyExecutor",
     recurringPaymentExecutor: "RecurringPaymentExecutor",
-    subscriptionManager: "SubscriptionManager",
+  },
+  "Subscription (ERC-7715)": {
     erc7715PermissionManager: "ERC7715PermissionManager",
+    subscriptionManager: "SubscriptionManager",
   },
   "Compliance": {
     kycRegistry: "KYCRegistry",
-    sanctionsList: "SanctionsList",
-    complianceModule: "ComplianceModule",
+    auditLogger: "AuditLogger",
+    proofOfReserve: "ProofOfReserve",
+    regulatoryRegistry: "RegulatoryRegistry",
   },
   "Privacy (ERC-5564/6538)": {
-    stealthRegistry: "StealthRegistry (ERC-6538)",
-    stealthAnnouncer: "StealthAnnouncer (ERC-5564)",
+    erc5564Announcer: "ERC5564Announcer (Stealth Announcer)",
+    erc6538Registry: "ERC6538Registry (Stealth Registry)",
+    privateBank: "PrivateBank",
   },
   "Permit2": {
     permit2: "Permit2",
   },
   "UniswapV3": {
     uniswapV3Factory: "UniswapV3Factory",
-    swapRouter: "SwapRouter",
-    nftPositionManager: "NFTPositionManager",
-    quoterV2: "QuoterV2",
-    wkrcUsdcPool: "WKRC/USDC Pool",
+    uniswapV3SwapRouter: "SwapRouter",
+    uniswapV3NftPositionManager: "NonfungiblePositionManager",
+    uniswapV3NftDescriptor: "NonfungibleTokenPositionDescriptor",
+    uniswapV3Quoter: "Quoter",
+    uniswapV3WkrcUsdcPool: "WKRC/USDC Pool",
   },
   "DeFi": {
     priceOracle: "PriceOracle",
     lendingPool: "LendingPool",
     stakingVault: "StakingVault",
-    swapExecutor: "SwapExecutor",
   },
   "Paymasters": {
     verifyingPaymaster: "VerifyingPaymaster",
     sponsorPaymaster: "SponsorPaymaster",
     erc20Paymaster: "ERC20Paymaster",
     permit2Paymaster: "Permit2Paymaster",
+  },
+  "Plugins": {
+    autoSwapPlugin: "AutoSwapPlugin",
+    microLoanPlugin: "MicroLoanPlugin",
+    onRampPlugin: "OnRampPlugin",
+  },
+  "Bridge": {
+    bridgeValidator: "BridgeValidator",
+    bridgeGuardian: "BridgeGuardian",
+    bridgeRateLimiter: "BridgeRateLimiter",
+    optimisticVerifier: "OptimisticVerifier",
+    fraudProofVerifier: "FraudProofVerifier",
+    secureBridge: "SecureBridge",
   },
 };
 

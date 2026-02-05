@@ -1,0 +1,58 @@
+# Echidna Configuration for StableNet PoC Contracts
+# Echidna is a Haskell-based smart contract fuzzer
+
+# Test mode: assertion (check assert/require), property (check invariants), optimization (maximize/minimize)
+testMode: assertion
+
+# Test limit (number of transactions to test)
+testLimit: 50000
+
+# Sequence length (maximum number of transactions per test)
+seqLen: 100
+
+# Shrinking (minimize failing test cases)
+shrinkLimit: 5000
+
+# Contract deployment (for testing)
+deployer: "0x10000"
+sender: ["0x10000", "0x20000", "0x30000"]
+
+# Prefix for property functions (convention: echidna_)
+prefix: "echidna_"
+
+# Crytic compile
+cryticArgs: ["--compile-force-framework", "foundry"]
+
+# Filter functions (only test these)
+filterFunctions: []
+
+# Blacklist functions (don't call these)
+filterBlacklist: true
+
+# Block delay for multi-transaction sequences
+blockDelay: 0
+timeDelay: 0
+
+# Coverage
+coverage: true
+corpusDir: "security/echidna-corpus"
+
+# Multi-ABI testing
+allContracts: false
+
+# Balance settings
+balanceContract: 0xffffffffffffffffffffffffffffffff
+balanceAddr: 0xffffffffffffffffffffffffffffffff
+
+# RPC settings (for forking mainnet state - optional)
+# rpcUrl: "http://localhost:8545"
+# rpcBlock: latest
+
+# Format for output
+format: text
+
+# Workers (parallel testing)
+workers: 1
+
+# Timeout per test (seconds)
+timeout: 120

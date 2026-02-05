@@ -26,6 +26,7 @@ usage() {
     echo "Options:"
     echo "  -s, --slither       Run Slither analysis only"
     echo "  -m, --mythril       Run Mythril analysis only"
+    echo "  -e, --echidna       Run Echidna fuzzing only"
     echo "  -a, --all           Run all security tools (default)"
     echo "  -p, --profile NAME  Specify foundry profile (default: all core profiles)"
     echo "  -c, --contract FILE Analyze specific contract file"
@@ -36,6 +37,7 @@ usage() {
     echo "Examples:"
     echo "  $0 --slither                    # Run Slither only"
     echo "  $0 --mythril -c src/subscription/SubscriptionManager.sol"
+    echo "  $0 --echidna                    # Run Echidna fuzzing"
     echo "  $0 --all --profile subscription # Run all on subscription profile"
     exit 0
 }
@@ -43,6 +45,7 @@ usage() {
 # Parse arguments
 RUN_SLITHER=false
 RUN_MYTHRIL=false
+RUN_ECHIDNA=false
 PROFILE=""
 CONTRACT=""
 VERBOSE=false
@@ -57,9 +60,14 @@ while [[ $# -gt 0 ]]; do
             RUN_MYTHRIL=true
             shift
             ;;
+        -e|--echidna)
+            RUN_ECHIDNA=true
+            shift
+            ;;
         -a|--all)
             RUN_SLITHER=true
             RUN_MYTHRIL=true
+            RUN_ECHIDNA=true
             shift
             ;;
         -p|--profile)
@@ -89,9 +97,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Default to running all if none specified
-if [[ "$RUN_SLITHER" == "false" && "$RUN_MYTHRIL" == "false" ]]; then
+if [[ "$RUN_SLITHER" == "false" && "$RUN_MYTHRIL" == "false" && "$RUN_ECHIDNA" == "false" ]]; then
     RUN_SLITHER=true
     RUN_MYTHRIL=true
+    RUN_ECHIDNA=true
 fi
 
 # Create output directory
@@ -116,12 +125,17 @@ check_dependencies() {
         missing+=("mythril")
     fi
 
+    if [[ "$RUN_ECHIDNA" == "true" ]] && ! command -v echidna &> /dev/null; then
+        missing+=("echidna")
+    fi
+
     if [[ ${#missing[@]} -gt 0 ]]; then
         echo -e "${YELLOW}Missing dependencies: ${missing[*]}${NC}"
         echo ""
         echo "Install instructions:"
         echo "  Slither: pip install slither-analyzer"
         echo "  Mythril: pip install mythril"
+        echo "  Echidna: brew install echidna (macOS) or download from GitHub"
         echo ""
 
         # Don't exit, just warn
@@ -247,6 +261,63 @@ run_mythril() {
     echo ""
 }
 
+# Run Echidna fuzzing
+run_echidna() {
+    echo -e "${GREEN}▶ Running Echidna Fuzzing...${NC}"
+    echo "─────────────────────────────────────────────────────────────"
+
+    cd "$PROJECT_ROOT"
+
+    # Define fuzzing contracts
+    local fuzz_contracts=(
+        "test/echidna/EchidnaKernel.sol:EchidnaKernel"
+        "test/echidna/EchidnaSubscription.sol:EchidnaSubscription"
+        "test/echidna/EchidnaSpendingLimit.sol:EchidnaSpendingLimit"
+    )
+
+    # Create corpus directory
+    mkdir -p "security/echidna-corpus"
+
+    for fuzz_target in "${fuzz_contracts[@]}"; do
+        local contract_file="${fuzz_target%%:*}"
+        local contract_name="${fuzz_target##*:}"
+
+        if [[ -f "$contract_file" ]]; then
+            echo "Fuzzing: $contract_name"
+
+            local echidna_output="$OUTPUT_DIR/echidna-${contract_name}-${TIMESTAMP}.txt"
+
+            # Run Echidna with timeout
+            if timeout 600 echidna "$contract_file" \
+                --contract "$contract_name" \
+                --config "security/echidna.yaml" \
+                --format text > "$echidna_output" 2>&1; then
+
+                echo -e "  ${GREEN}✓${NC} $contract_name passed"
+            else
+                local exit_code=$?
+                if [[ $exit_code -eq 124 ]]; then
+                    echo -e "  ${YELLOW}⚠${NC} $contract_name (timeout)"
+                else
+                    echo -e "  ${RED}✗${NC} $contract_name (property failed)"
+                fi
+            fi
+
+            # Show summary if verbose
+            if [[ "$VERBOSE" == "true" && -f "$echidna_output" ]]; then
+                tail -20 "$echidna_output"
+            fi
+        else
+            echo -e "  ${YELLOW}⚠${NC} File not found: $contract_file"
+        fi
+    done
+
+    echo ""
+    echo -e "${GREEN}✓ Echidna fuzzing complete${NC}"
+    echo "  Reports saved to: $OUTPUT_DIR/echidna-*-${TIMESTAMP}.txt"
+    echo ""
+}
+
 # Generate combined report
 generate_report() {
     echo -e "${GREEN}▶ Generating Combined Security Report...${NC}"
@@ -336,6 +407,17 @@ main() {
         else
             echo -e "${YELLOW}Skipping Mythril (not installed)${NC}"
             echo "  Install: pip install mythril"
+            echo ""
+        fi
+    fi
+
+    if [[ "$RUN_ECHIDNA" == "true" ]]; then
+        if command -v echidna &> /dev/null; then
+            run_echidna
+        else
+            echo -e "${YELLOW}Skipping Echidna (not installed)${NC}"
+            echo "  Install: brew install echidna (macOS)"
+            echo "  Or download from: https://github.com/crytic/echidna/releases"
             echo ""
         fi
     fi
