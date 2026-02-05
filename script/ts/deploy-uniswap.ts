@@ -246,6 +246,28 @@ function getUsdcAddress(chainId: string, addresses: DeployedAddresses): string |
   return undefined;
 }
 
+// ============ Build Uniswap Contracts ============
+
+function buildUniswapContracts(): void {
+  console.log("\n" + "-".repeat(60));
+  console.log("Building Uniswap V3 contracts (Solidity 0.7.6)...");
+  console.log("-".repeat(60));
+
+  try {
+    execSync("forge build --profile uniswap", {
+      cwd: PROJECT_ROOT,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        FOUNDRY_PROFILE: "uniswap",
+      },
+    });
+    console.log("Build successful!\n");
+  } catch (error) {
+    throw new Error(`Failed to build Uniswap contracts: ${error}`);
+  }
+}
+
 // ============ Contract Deployment ============
 
 async function deployContract(
@@ -260,7 +282,7 @@ async function deployContract(
   const artifactFile = path.join(PROJECT_ROOT, "out/uniswap", `${contractName}.sol`, `${contractName}.json`);
 
   if (!fs.existsSync(artifactFile)) {
-    throw new Error(`Artifact not found: ${artifactFile}. Run 'FOUNDRY_PROFILE=uniswap forge build' first.`);
+    throw new Error(`Artifact not found: ${artifactFile}. Build may have failed - check the build output above.`);
   }
 
   const artifact = JSON.parse(fs.readFileSync(artifactFile, "utf8"));
@@ -463,6 +485,9 @@ async function main(): Promise<void> {
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const wallet = new ethers.Wallet(privateKey, provider);
   console.log(`Deployer: ${wallet.address}`);
+
+  // Build Uniswap contracts with uniswap profile (Solidity 0.7.6)
+  buildUniswapContracts();
 
   // Load existing addresses
   const addresses = force ? {} : loadDeployedAddresses(chainId);

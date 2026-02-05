@@ -56,7 +56,7 @@ contract DeployPluginsScript is DeploymentHelper {
 
         // Get configuration from environment or use defaults
         address priceOracle = _getAddressOrEnv(DeploymentAddresses.KEY_PRICE_ORACLE, "PRICE_ORACLE");
-        address dexRouter = _getAddressOrEnv(DeploymentAddresses.KEY_DEX_INTEGRATION, "DEX_ROUTER");
+        address dexRouter = _getAddressOrEnv(DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER, "DEX_ROUTER");
         address feeRecipient = vm.envOr("FEE_RECIPIENT", msg.sender);
         address treasury = vm.envOr("TREASURY", msg.sender);
 

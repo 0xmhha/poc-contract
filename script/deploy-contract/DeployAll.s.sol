@@ -2,84 +2,84 @@
 pragma solidity ^0.8.28;
 
 import { console } from "forge-std/Script.sol";
-import { DeploymentHelper, DeploymentAddresses } from "./utils/DeploymentAddresses.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
 
 // ============ Tokens ============
-import { wKRC } from "../src/tokens/wKRC.sol";
-import { USDC } from "../src/tokens/USDC.sol";
+import { wKRC } from "../../src/tokens/wKRC.sol";
+import { USDC } from "../../src/tokens/USDC.sol";
 
 // ============ ERC-4337 EntryPoint ============
-import { EntryPoint } from "../src/erc4337-entrypoint/EntryPoint.sol";
-import { IEntryPoint } from "../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
+import { EntryPoint } from "../../src/erc4337-entrypoint/EntryPoint.sol";
+import { IEntryPoint } from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
 
 // ============ ERC-4337 Paymasters ============
-import { VerifyingPaymaster } from "../src/erc4337-paymaster/VerifyingPaymaster.sol";
-import { SponsorPaymaster } from "../src/erc4337-paymaster/SponsorPaymaster.sol";
-import { ERC20Paymaster } from "../src/erc4337-paymaster/ERC20Paymaster.sol";
-import { Permit2Paymaster } from "../src/erc4337-paymaster/Permit2Paymaster.sol";
-import { IPriceOracle } from "../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
-import { IPermit2 } from "../src/permit2/interfaces/IPermit2.sol";
+import { VerifyingPaymaster } from "../../src/erc4337-paymaster/VerifyingPaymaster.sol";
+import { SponsorPaymaster } from "../../src/erc4337-paymaster/SponsorPaymaster.sol";
+import { ERC20Paymaster } from "../../src/erc4337-paymaster/ERC20Paymaster.sol";
+import { Permit2Paymaster } from "../../src/erc4337-paymaster/Permit2Paymaster.sol";
+import { IPriceOracle } from "../../src/erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { IPermit2 } from "../../src/permit2/interfaces/IPermit2.sol";
 
 // ============ ERC-7579 Smart Account ============
-import { IEntryPoint as IKernelEntryPoint } from "../src/erc7579-smartaccount/interfaces/IEntryPoint.sol";
-import { Kernel } from "../src/erc7579-smartaccount/Kernel.sol";
-import { KernelFactory } from "../src/erc7579-smartaccount/factory/KernelFactory.sol";
-import { FactoryStaker } from "../src/erc7579-smartaccount/factory/FactoryStaker.sol";
+import { IEntryPoint as IKernelEntryPoint } from "../../src/erc7579-smartaccount/interfaces/IEntryPoint.sol";
+import { Kernel } from "../../src/erc7579-smartaccount/Kernel.sol";
+import { KernelFactory } from "../../src/erc7579-smartaccount/factory/KernelFactory.sol";
+import { FactoryStaker } from "../../src/erc7579-smartaccount/factory/FactoryStaker.sol";
 
 // ============ ERC-7579 Validators ============
-import { ECDSAValidator } from "../src/erc7579-validators/ECDSAValidator.sol";
-import { WeightedECDSAValidator } from "../src/erc7579-validators/WeightedECDSAValidator.sol";
-import { MultiChainValidator } from "../src/erc7579-validators/MultiChainValidator.sol";
-import { MultiSigValidator } from "../src/erc7579-validators/MultiSigValidator.sol";
-import { WebAuthnValidator } from "../src/erc7579-validators/WebAuthnValidator.sol";
+import { ECDSAValidator } from "../../src/erc7579-validators/ECDSAValidator.sol";
+import { WeightedECDSAValidator } from "../../src/erc7579-validators/WeightedECDSAValidator.sol";
+import { MultiChainValidator } from "../../src/erc7579-validators/MultiChainValidator.sol";
+import { MultiSigValidator } from "../../src/erc7579-validators/MultiSigValidator.sol";
+import { WebAuthnValidator } from "../../src/erc7579-validators/WebAuthnValidator.sol";
 
 // ============ ERC-7579 Hooks ============
-import { AuditHook } from "../src/erc7579-hooks/AuditHook.sol";
-import { SpendingLimitHook } from "../src/erc7579-hooks/SpendingLimitHook.sol";
+import { AuditHook } from "../../src/erc7579-hooks/AuditHook.sol";
+import { SpendingLimitHook } from "../../src/erc7579-hooks/SpendingLimitHook.sol";
 
 // ============ ERC-7579 Fallbacks ============
-import { TokenReceiverFallback } from "../src/erc7579-fallbacks/TokenReceiverFallback.sol";
-import { FlashLoanFallback } from "../src/erc7579-fallbacks/FlashLoanFallback.sol";
+import { TokenReceiverFallback } from "../../src/erc7579-fallbacks/TokenReceiverFallback.sol";
+import { FlashLoanFallback } from "../../src/erc7579-fallbacks/FlashLoanFallback.sol";
 
 // ============ ERC-7579 Executors ============
-import { SessionKeyExecutor } from "../src/erc7579-executors/SessionKeyExecutor.sol";
-import { RecurringPaymentExecutor } from "../src/erc7579-executors/RecurringPaymentExecutor.sol";
+import { SessionKeyExecutor } from "../../src/erc7579-executors/SessionKeyExecutor.sol";
+import { RecurringPaymentExecutor } from "../../src/erc7579-executors/RecurringPaymentExecutor.sol";
 
 // ============ ERC-7579 Plugins ============
-import { AutoSwapPlugin } from "../src/erc7579-plugins/AutoSwapPlugin.sol";
-import { MicroLoanPlugin } from "../src/erc7579-plugins/MicroLoanPlugin.sol";
-import { OnRampPlugin } from "../src/erc7579-plugins/OnRampPlugin.sol";
+import { AutoSwapPlugin } from "../../src/erc7579-plugins/AutoSwapPlugin.sol";
+import { MicroLoanPlugin } from "../../src/erc7579-plugins/MicroLoanPlugin.sol";
+import { OnRampPlugin } from "../../src/erc7579-plugins/OnRampPlugin.sol";
 
 // ============ Compliance ============
-import { KYCRegistry } from "../src/compliance/KYCRegistry.sol";
-import { AuditLogger } from "../src/compliance/AuditLogger.sol";
-import { ProofOfReserve } from "../src/compliance/ProofOfReserve.sol";
-import { RegulatoryRegistry } from "../src/compliance/RegulatoryRegistry.sol";
+import { KYCRegistry } from "../../src/compliance/KYCRegistry.sol";
+import { AuditLogger } from "../../src/compliance/AuditLogger.sol";
+import { ProofOfReserve } from "../../src/compliance/ProofOfReserve.sol";
+import { RegulatoryRegistry } from "../../src/compliance/RegulatoryRegistry.sol";
 
 // ============ Privacy ============
-import { ERC5564Announcer } from "../src/privacy/ERC5564Announcer.sol";
-import { ERC6538Registry } from "../src/privacy/ERC6538Registry.sol";
-import { PrivateBank } from "../src/privacy/PrivateBank.sol";
+import { ERC5564Announcer } from "../../src/privacy/ERC5564Announcer.sol";
+import { ERC6538Registry } from "../../src/privacy/ERC6538Registry.sol";
+import { PrivateBank } from "../../src/privacy/PrivateBank.sol";
 
 // ============ Permit2 ============
-import { Permit2 } from "../src/permit2/Permit2.sol";
+import { Permit2 } from "../../src/permit2/Permit2.sol";
 
 // ============ DeFi ============
-import { PriceOracle } from "../src/defi/PriceOracle.sol";
-import { LendingPool } from "../src/defi/LendingPool.sol";
-import { StakingVault, IStakingVault } from "../src/defi/StakingVault.sol";
+import { PriceOracle } from "../../src/defi/PriceOracle.sol";
+import { LendingPool } from "../../src/defi/LendingPool.sol";
+import { StakingVault, IStakingVault } from "../../src/defi/StakingVault.sol";
 
 // ============ Subscription ============
-import { ERC7715PermissionManager } from "../src/subscription/ERC7715PermissionManager.sol";
-import { SubscriptionManager } from "../src/subscription/SubscriptionManager.sol";
+import { ERC7715PermissionManager } from "../../src/subscription/ERC7715PermissionManager.sol";
+import { SubscriptionManager } from "../../src/subscription/SubscriptionManager.sol";
 
 // ============ Bridge ============
-import { FraudProofVerifier } from "../src/bridge/FraudProofVerifier.sol";
-import { BridgeRateLimiter } from "../src/bridge/BridgeRateLimiter.sol";
-import { BridgeValidator } from "../src/bridge/BridgeValidator.sol";
-import { BridgeGuardian } from "../src/bridge/BridgeGuardian.sol";
-import { OptimisticVerifier } from "../src/bridge/OptimisticVerifier.sol";
-import { SecureBridge } from "../src/bridge/SecureBridge.sol";
+import { FraudProofVerifier } from "../../src/bridge/FraudProofVerifier.sol";
+import { BridgeRateLimiter } from "../../src/bridge/BridgeRateLimiter.sol";
+import { BridgeValidator } from "../../src/bridge/BridgeValidator.sol";
+import { BridgeGuardian } from "../../src/bridge/BridgeGuardian.sol";
+import { OptimisticVerifier } from "../../src/bridge/OptimisticVerifier.sol";
+import { SecureBridge } from "../../src/bridge/SecureBridge.sol";
 
 /**
  * @title DeployAllScript

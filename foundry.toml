@@ -9,8 +9,8 @@ optimizer_runs = 200
 via_ir = true
 evm_version = "prague"
 fs_permissions = [{ access = "read-write", path = "deployments" }]
-# Exclude Uniswap contracts, dex folder, and nested libs from default compilation
-skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "src/dex/*"]
+# Exclude Uniswap contracts, dex folder, nested libs, and Uniswap scripts (Solidity 0.7.6) from default compilation
+skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "src/dex/*", "script/uniswap/*"]
 # OZ v5 as default, with specific v3 overrides for Uniswap V3 compatibility
 remappings = [
     "forge-std/=lib/forge-std/src/",
@@ -45,7 +45,7 @@ optimizer_runs = 200
 via_ir = true
 evm_version = "prague"
 fs_permissions = [{ access = "read-write", path = "deployments" }]
-skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "src/dex/*"]
+skip = ["lib/v3-core/*", "lib/v3-periphery/*", "lib/v4-periphery/*", "lib/v4-core/*", "src/dex/*", "script/uniswap/*"]
 remappings = [
     "forge-std/=lib/forge-std/src/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
