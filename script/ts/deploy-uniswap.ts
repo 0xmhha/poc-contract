@@ -246,28 +246,6 @@ function getUsdcAddress(chainId: string, addresses: DeployedAddresses): string |
   return undefined;
 }
 
-// ============ Build Uniswap Contracts ============
-
-function buildUniswapContracts(): void {
-  console.log("\n" + "-".repeat(60));
-  console.log("Building Uniswap V3 contracts (Solidity 0.7.6)...");
-  console.log("-".repeat(60));
-
-  try {
-    execSync("forge build --profile uniswap", {
-      cwd: PROJECT_ROOT,
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        FOUNDRY_PROFILE: "uniswap",
-      },
-    });
-    console.log("Build successful!\n");
-  } catch (error) {
-    throw new Error(`Failed to build Uniswap contracts: ${error}`);
-  }
-}
-
 // ============ Contract Deployment ============
 
 async function deployContract(
@@ -486,8 +464,8 @@ async function main(): Promise<void> {
   const wallet = new ethers.Wallet(privateKey, provider);
   console.log(`Deployer: ${wallet.address}`);
 
-  // Build Uniswap contracts with uniswap profile (Solidity 0.7.6)
-  buildUniswapContracts();
+  // Note: Uniswap contracts are built by the shell wrapper (deploy-uniswap.sh)
+  // which handles remappings.txt correctly before calling this script.
 
   // Load existing addresses
   const addresses = force ? {} : loadDeployedAddresses(chainId);

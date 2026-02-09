@@ -154,11 +154,12 @@ function buildVerifyCommand(options: {
   contractAddress: string;
   contractArtifact: string;
   constructorArgs?: string;
-}): string {
+}): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
   if (!verifierUrl) {
-    throw new Error("VERIFIER_URL is not set in .env");
+    console.log("VERIFIER_URL is not set in .env, skipping verification");
+    return null;
   }
 
   const args = [
@@ -401,15 +402,19 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
       continue;
     }
 
+    const verifyCmd = buildVerifyCommand({
+      contractAddress: address,
+      contractArtifact: contract.artifact,
+      constructorArgs,
+    });
+
+    if (!verifyCmd) {
+      return;
+    }
+
+    console.log(`Command: ${verifyCmd}\n`);
+
     try {
-      const verifyCmd = buildVerifyCommand({
-        contractAddress: address,
-        contractArtifact: contract.artifact,
-        constructorArgs,
-      });
-
-      console.log(`Command: ${verifyCmd}\n`);
-
       execSync(verifyCmd, {
         cwd: PROJECT_ROOT,
         stdio: "inherit",

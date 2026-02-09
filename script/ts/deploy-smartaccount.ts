@@ -113,13 +113,14 @@ function buildDeployCommand(options: {
 
 function buildVerifyCommand(options: {
   contractAddress: string;
-  contractName: string;
+  contractArtifact: string;
   constructorArgs?: string;
-}): string {
+}): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
   if (!verifierUrl) {
-    throw new Error("VERIFIER_URL is not set in .env");
+    console.log("⚠️  VERIFIER_URL is not set in .env, skipping verification");
+    return null;
   }
 
   const args = [
@@ -130,7 +131,7 @@ function buildVerifyCommand(options: {
     "--verifier",
     "custom",
     options.contractAddress,
-    options.contractName,
+    options.contractArtifact,
   ];
 
   if (options.constructorArgs) {
@@ -201,16 +202,19 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
   const contracts = [
     {
       name: "Kernel",
+      artifact: "src/erc7579-smartaccount/Kernel.sol:Kernel",
       address: addresses.kernel,
       constructorArgs: kernelConstructorArgs,
     },
     {
       name: "KernelFactory",
+      artifact: "src/erc7579-smartaccount/factory/KernelFactory.sol:KernelFactory",
       address: addresses.kernelFactory,
       constructorArgs: kernelFactoryConstructorArgs,
     },
     {
       name: "FactoryStaker",
+      artifact: "src/erc7579-smartaccount/factory/FactoryStaker.sol:FactoryStaker",
       address: addresses.factoryStaker,
       constructorArgs: factoryStakerConstructorArgs,
     },
@@ -226,9 +230,13 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
 
     const verifyCmd = buildVerifyCommand({
       contractAddress: contract.address,
-      contractName: contract.name,
+      contractArtifact: contract.artifact,
       constructorArgs: contract.constructorArgs,
     });
+
+    if (!verifyCmd) {
+      return; // VERIFIER_URL not set
+    }
 
     console.log(`Command: ${verifyCmd}\n`);
 
@@ -243,7 +251,7 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
       });
       console.log(`✅ ${contract.name} verified successfully`);
     } catch (error) {
-      console.error(`${contract.name} verification failed (contract may already be verified)`);
+      console.error(`⚠️  ${contract.name} verification failed (contract may already be verified)`);
     }
   }
 }

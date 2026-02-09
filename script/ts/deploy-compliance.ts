@@ -42,12 +42,12 @@ dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 const FORGE_SCRIPT = "script/deploy-contract/DeployCompliance.s.sol:DeployComplianceScript";
 const FOUNDRY_PROFILE = "compliance";
 
-// Contract names and their JSON keys
+// Contract names, artifacts, and their JSON keys
 const CONTRACTS = [
-  { name: "KYCRegistry", jsonKey: "kycRegistry", hasConstructorArgs: true },
-  { name: "AuditLogger", jsonKey: "auditLogger", hasConstructorArgs: true },
-  { name: "ProofOfReserve", jsonKey: "proofOfReserve", hasConstructorArgs: true },
-  { name: "RegulatoryRegistry", jsonKey: "regulatoryRegistry", hasConstructorArgs: true },
+  { name: "KYCRegistry", artifact: "src/compliance/KYCRegistry.sol:KYCRegistry", jsonKey: "kycRegistry", hasConstructorArgs: true },
+  { name: "AuditLogger", artifact: "src/compliance/AuditLogger.sol:AuditLogger", jsonKey: "auditLogger", hasConstructorArgs: true },
+  { name: "ProofOfReserve", artifact: "src/compliance/ProofOfReserve.sol:ProofOfReserve", jsonKey: "proofOfReserve", hasConstructorArgs: true },
+  { name: "RegulatoryRegistry", artifact: "src/compliance/RegulatoryRegistry.sol:RegulatoryRegistry", jsonKey: "regulatoryRegistry", hasConstructorArgs: true },
 ];
 
 // ============ Argument Parsing ============
@@ -125,13 +125,14 @@ function buildDeployCommand(options: {
 
 function buildVerifyCommand(options: {
   contractAddress: string;
-  contractName: string;
+  contractArtifact: string;
   constructorArgs?: string;
-}): string {
+}): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
   if (!verifierUrl) {
-    throw new Error("VERIFIER_URL is not set in .env");
+    console.log("⚠️  VERIFIER_URL is not set in .env, skipping verification");
+    return null;
   }
 
   const args = [
@@ -142,7 +143,7 @@ function buildVerifyCommand(options: {
     "--verifier",
     "custom",
     options.contractAddress,
-    options.contractName,
+    options.contractArtifact,
   ];
 
   if (options.constructorArgs) {
@@ -200,10 +201,21 @@ function buildConstructorArgs(
       const thresholdArg = BigInt(autoPauseThreshold).toString(16).padStart(64, "0");
       return adminArg2 + thresholdArg;
 
-    case "RegulatoryRegistry":
-      // constructor(address[] memory approvers) - dynamic array encoding is complex
-      // Skip verification for this contract or use manual verification
-      return undefined;
+    case "RegulatoryRegistry": {
+      // constructor(address[] memory initialApprovers) - 3 approvers required
+      // ABI encoding: offset(32) + length(32) + address[0](32) + address[1](32) + address[2](32)
+      const approver1 = process.env.APPROVER_1 || deployerAddress;
+      const approver2 = process.env.APPROVER_2 || deployerAddress;
+      const approver3 = process.env.APPROVER_3 || deployerAddress;
+
+      const offset = "0000000000000000000000000000000000000000000000000000000000000020"; // 32 in hex
+      const length = "0000000000000000000000000000000000000000000000000000000000000003"; // 3 elements
+      const addr1 = approver1.toLowerCase().replace("0x", "").padStart(64, "0");
+      const addr2 = approver2.toLowerCase().replace("0x", "").padStart(64, "0");
+      const addr3 = approver3.toLowerCase().replace("0x", "").padStart(64, "0");
+
+      return offset + length + addr1 + addr2 + addr3;
+    }
 
     default:
       return undefined;
@@ -239,17 +251,15 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
       ? buildConstructorArgs(contract.name, deployerAddress)
       : undefined;
 
-    if (contract.name === "RegulatoryRegistry") {
-      console.log(`${contract.name}: Skipping verification (dynamic array constructor args)`);
-      console.log("  Use manual verification: forge verify-contract --constructor-args-path <file>");
-      continue;
-    }
-
     const verifyCmd = buildVerifyCommand({
       contractAddress: address,
-      contractName: contract.name,
+      contractArtifact: contract.artifact,
       constructorArgs,
     });
+
+    if (!verifyCmd) {
+      return; // VERIFIER_URL not set
+    }
 
     console.log(`Command: ${verifyCmd}\n`);
 
@@ -264,7 +274,7 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
       });
       console.log(`✅ ${contract.name} verified successfully`);
     } catch {
-      console.error(`${contract.name} verification failed (contract may already be verified)`);
+      console.error(`⚠️  ${contract.name} verification failed (contract may already be verified)`);
     }
   }
 }

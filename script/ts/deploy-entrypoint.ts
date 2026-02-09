@@ -93,12 +93,13 @@ function buildDeployCommand(options: {
 
 function buildVerifyCommand(options: {
   contractAddress: string;
-  contractName: string;
-}): string {
+  contractArtifact: string;
+}): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
   if (!verifierUrl) {
-    throw new Error("VERIFIER_URL is not set in .env");
+    console.log("⚠️  VERIFIER_URL is not set in .env, skipping verification");
+    return null;
   }
 
   const args = [
@@ -109,7 +110,7 @@ function buildVerifyCommand(options: {
     "--verifier",
     "custom",
     options.contractAddress,
-    options.contractName,
+    options.contractArtifact,
   ];
 
   return args.join(" ");
@@ -150,7 +151,7 @@ function verifyContracts(chainId: string): void {
   console.log("-".repeat(60));
 
   const contracts = [
-    { name: "EntryPoint", address: addresses.entryPoint },
+    { name: "EntryPoint", artifact: "src/erc4337-entrypoint/EntryPoint.sol:EntryPoint", address: addresses.entryPoint },
   ];
 
   for (const contract of contracts) {
@@ -163,8 +164,12 @@ function verifyContracts(chainId: string): void {
 
     const verifyCmd = buildVerifyCommand({
       contractAddress: contract.address,
-      contractName: contract.name,
+      contractArtifact: contract.artifact,
     });
+
+    if (!verifyCmd) {
+      return; // VERIFIER_URL not set
+    }
 
     console.log(`Command: ${verifyCmd}\n`);
 
@@ -179,7 +184,7 @@ function verifyContracts(chainId: string): void {
       });
       console.log(`✅ ${contract.name} verified successfully`);
     } catch (error) {
-      console.error(`${contract.name} verification failed (contract may already be verified)`);
+      console.error(`⚠️  ${contract.name} verification failed (contract may already be verified)`);
     }
   }
 }

@@ -37,13 +37,13 @@ dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 const FORGE_SCRIPT = "script/deploy-contract/DeployValidators.s.sol:DeployValidatorsScript";
 const FOUNDRY_PROFILE = "validators";
 
-// Contract names and their JSON keys
+// Contract names, artifacts, and their JSON keys
 const CONTRACTS = [
-  { name: "ECDSAValidator", jsonKey: "ecdsaValidator" },
-  { name: "WeightedECDSAValidator", jsonKey: "weightedEcdsaValidator" },
-  { name: "MultiChainValidator", jsonKey: "multiChainValidator" },
-  { name: "MultiSigValidator", jsonKey: "multiSigValidator" },
-  { name: "WebAuthnValidator", jsonKey: "webAuthnValidator" },
+  { name: "ECDSAValidator", artifact: "src/erc7579-validators/ECDSAValidator.sol:ECDSAValidator", jsonKey: "ecdsaValidator" },
+  { name: "WeightedECDSAValidator", artifact: "src/erc7579-validators/WeightedECDSAValidator.sol:WeightedECDSAValidator", jsonKey: "weightedEcdsaValidator" },
+  { name: "MultiChainValidator", artifact: "src/erc7579-validators/MultiChainValidator.sol:MultiChainValidator", jsonKey: "multiChainValidator" },
+  { name: "MultiSigValidator", artifact: "src/erc7579-validators/MultiSigValidator.sol:MultiSigValidator", jsonKey: "multiSigValidator" },
+  { name: "WebAuthnValidator", artifact: "src/erc7579-validators/WebAuthnValidator.sol:WebAuthnValidator", jsonKey: "webAuthnValidator" },
 ];
 
 // ============ Argument Parsing ============
@@ -107,12 +107,13 @@ function buildDeployCommand(options: {
 
 function buildVerifyCommand(options: {
   contractAddress: string;
-  contractName: string;
-}): string {
+  contractArtifact: string;
+}): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
   if (!verifierUrl) {
-    throw new Error("VERIFIER_URL is not set in .env");
+    console.log("VERIFIER_URL is not set in .env, skipping verification");
+    return null;
   }
 
   const args = [
@@ -123,7 +124,7 @@ function buildVerifyCommand(options: {
     "--verifier",
     "custom",
     options.contractAddress,
-    options.contractName,
+    options.contractArtifact,
   ];
 
   return args.join(" ");
@@ -178,8 +179,12 @@ function verifyContracts(chainId: string): void {
 
     const verifyCmd = buildVerifyCommand({
       contractAddress: address,
-      contractName: contract.name,
+      contractArtifact: contract.artifact,
     });
+
+    if (!verifyCmd) {
+      return;
+    }
 
     console.log(`Command: ${verifyCmd}\n`);
 

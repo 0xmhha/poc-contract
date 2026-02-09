@@ -54,11 +54,11 @@ function parseArgs(): Args {
 interface EnvConfig {
   rpcUrl: string;
   privateKeyDeployer: string;
-  privateKeyTestNoNative: string;
+  privateKeyTestNoNative?: string;
   chainId: string;
 }
 
-function validateEnv(): EnvConfig {
+function validateEnv(options: { requireTestKey: boolean }): EnvConfig {
   const rpcUrl = process.env.RPC_URL;
   const privateKeyDeployer = process.env.PRIVATE_KEY_DEPLOYER || process.env.PRIVATE_KEY;
   const privateKeyTestNoNative = process.env.PRIVATE_KEY_TEST_NO_NATIVE;
@@ -72,8 +72,8 @@ function validateEnv(): EnvConfig {
     throw new Error("PRIVATE_KEY_DEPLOYER (or PRIVATE_KEY) is not set in .env");
   }
 
-  if (!privateKeyTestNoNative) {
-    throw new Error("PRIVATE_KEY_TEST_NO_NATIVE is not set in .env");
+  if (options.requireTestKey && !privateKeyTestNoNative) {
+    throw new Error("PRIVATE_KEY_TEST_NO_NATIVE is not set in .env (required when --to is not specified)");
   }
 
   return { rpcUrl, privateKeyDeployer, privateKeyTestNoNative, chainId };
@@ -187,11 +187,13 @@ function main(): void {
   console.log("=".repeat(60));
 
   const { amount, to } = parseArgs();
-  const { rpcUrl, privateKeyDeployer, privateKeyTestNoNative, chainId } = validateEnv();
+  const { rpcUrl, privateKeyDeployer, privateKeyTestNoNative, chainId } = validateEnv({
+    requireTestKey: !to,
+  });
 
   // Get addresses
   const fromAddress = getAddressFromPrivateKey(privateKeyDeployer);
-  const toAddress = to || getAddressFromPrivateKey(privateKeyTestNoNative);
+  const toAddress = to || getAddressFromPrivateKey(privateKeyTestNoNative!);
   const usdcAddress = loadUsdcAddress(chainId);
 
   // Calculate amount with decimals

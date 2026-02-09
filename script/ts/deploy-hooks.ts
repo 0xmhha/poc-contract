@@ -34,10 +34,10 @@ dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 const FORGE_SCRIPT = "script/deploy-contract/DeployHooks.s.sol:DeployHooksScript";
 const FOUNDRY_PROFILE = "hooks";
 
-// Contract names and their JSON keys
+// Contract names, artifacts, and their JSON keys
 const CONTRACTS = [
-  { name: "SpendingLimitHook", jsonKey: "spendingLimitHook" },
-  { name: "AuditHook", jsonKey: "auditHook" },
+  { name: "SpendingLimitHook", artifact: "src/erc7579-hooks/SpendingLimitHook.sol:SpendingLimitHook", jsonKey: "spendingLimitHook" },
+  { name: "AuditHook", artifact: "src/erc7579-hooks/AuditHook.sol:AuditHook", jsonKey: "auditHook" },
 ];
 
 // ============ Argument Parsing ============
@@ -101,12 +101,13 @@ function buildDeployCommand(options: {
 
 function buildVerifyCommand(options: {
   contractAddress: string;
-  contractName: string;
-}): string {
+  contractArtifact: string;
+}): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
   if (!verifierUrl) {
-    throw new Error("VERIFIER_URL is not set in .env");
+    console.log("VERIFIER_URL is not set in .env, skipping verification");
+    return null;
   }
 
   const args = [
@@ -117,7 +118,7 @@ function buildVerifyCommand(options: {
     "--verifier",
     "custom",
     options.contractAddress,
-    options.contractName,
+    options.contractArtifact,
   ];
 
   return args.join(" ");
@@ -172,8 +173,12 @@ function verifyContracts(chainId: string): void {
 
     const verifyCmd = buildVerifyCommand({
       contractAddress: address,
-      contractName: contract.name,
+      contractArtifact: contract.artifact,
     });
+
+    if (!verifyCmd) {
+      return;
+    }
 
     console.log(`Command: ${verifyCmd}\n`);
 

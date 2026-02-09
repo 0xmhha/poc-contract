@@ -35,11 +35,11 @@ dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 const FORGE_SCRIPT = "script/deploy-contract/DeployPrivacy.s.sol:DeployPrivacyScript";
 const FOUNDRY_PROFILE = "privacy";
 
-// Contract names and their JSON keys
+// Contract names, artifacts, and their JSON keys
 const CONTRACTS = [
-  { name: "ERC5564Announcer", jsonKey: "erc5564Announcer", hasConstructorArgs: false },
-  { name: "ERC6538Registry", jsonKey: "erc6538Registry", hasConstructorArgs: false },
-  { name: "PrivateBank", jsonKey: "privateBank", hasConstructorArgs: true },
+  { name: "ERC5564Announcer", artifact: "src/privacy/ERC5564Announcer.sol:ERC5564Announcer", jsonKey: "erc5564Announcer", hasConstructorArgs: false },
+  { name: "ERC6538Registry", artifact: "src/privacy/ERC6538Registry.sol:ERC6538Registry", jsonKey: "erc6538Registry", hasConstructorArgs: false },
+  { name: "PrivateBank", artifact: "src/privacy/PrivateBank.sol:PrivateBank", jsonKey: "privateBank", hasConstructorArgs: true },
 ];
 
 // ============ Argument Parsing ============
@@ -103,13 +103,14 @@ function buildDeployCommand(options: {
 
 function buildVerifyCommand(options: {
   contractAddress: string;
-  contractName: string;
+  contractArtifact: string;
   constructorArgs?: string;
-}): string {
+}): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
   if (!verifierUrl) {
-    throw new Error("VERIFIER_URL is not set in .env");
+    console.log("⚠️  VERIFIER_URL is not set in .env, skipping verification");
+    return null;
   }
 
   const args = [
@@ -120,7 +121,7 @@ function buildVerifyCommand(options: {
     "--verifier",
     "custom",
     options.contractAddress,
-    options.contractName,
+    options.contractArtifact,
   ];
 
   if (options.constructorArgs) {
@@ -208,9 +209,13 @@ function verifyContracts(chainId: string): void {
 
     const verifyCmd = buildVerifyCommand({
       contractAddress: address,
-      contractName: contract.name,
+      contractArtifact: contract.artifact,
       constructorArgs,
     });
+
+    if (!verifyCmd) {
+      return; // VERIFIER_URL not set
+    }
 
     console.log(`Command: ${verifyCmd}\n`);
 
@@ -225,7 +230,7 @@ function verifyContracts(chainId: string): void {
       });
       console.log(`✅ ${contract.name} verified successfully`);
     } catch {
-      console.error(`${contract.name} verification failed (contract may already be verified)`);
+      console.error(`⚠️  ${contract.name} verification failed (contract may already be verified)`);
     }
   }
 }

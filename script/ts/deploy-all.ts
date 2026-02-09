@@ -41,7 +41,7 @@ const WHITELIST_ADDRESSES = [
 ];
 
 // Paymaster deposit amount in ETH
-const PAYMASTER_DEPOSIT = "1000";
+const PAYMASTER_DEPOSIT = "10";
 
 // ============ Deployment Steps ============
 

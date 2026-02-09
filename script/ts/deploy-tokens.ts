@@ -97,15 +97,14 @@ function buildVerifyCommand(options: {
   contractAddress: string;
   contractName: string;
   constructorArgs?: string;
-}): string {
+}): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
   if (!verifierUrl) {
-    throw new Error("VERIFIER_URL is not set in .env");
+    console.log("⚠️  VERIFIER_URL is not set in .env, skipping verification");
+    return null;
   }
 
-  // forge verify-contract usage for custom verifier:
-  // forge verify-contract --verifier-url <URL>/api --verifier custom <ADDRESS> <CONTRACT_NAME>
   const args = [
     "forge",
     "verify-contract",
@@ -117,7 +116,6 @@ function buildVerifyCommand(options: {
     options.contractName,
   ];
 
-  // Add constructor args if provided
   if (options.constructorArgs) {
     args.push("--constructor-args", options.constructorArgs);
   }
@@ -165,8 +163,8 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
   const usdcConstructorArgs = deployerAddress.toLowerCase().padStart(64, "0");
 
   const contracts = [
-    { name: "wKRC", address: addresses.wkrc, constructorArgs: undefined },
-    { name: "USDC", address: addresses.usdc, constructorArgs: usdcConstructorArgs },
+    { name: "wKRC", artifact: "src/tokens/wKRC.sol:wKRC", address: addresses.wkrc, constructorArgs: undefined },
+    { name: "USDC", artifact: "src/tokens/USDC.sol:USDC", address: addresses.usdc, constructorArgs: usdcConstructorArgs },
   ];
 
   for (const contract of contracts) {
@@ -179,9 +177,13 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
 
     const verifyCmd = buildVerifyCommand({
       contractAddress: contract.address,
-      contractName: contract.name,
+      contractName: contract.artifact,
       constructorArgs: contract.constructorArgs,
     });
+
+    if (!verifyCmd) {
+      return; // VERIFIER_URL not set
+    }
 
     console.log(`Command: ${verifyCmd}\n`);
 
