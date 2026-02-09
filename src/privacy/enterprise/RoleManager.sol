@@ -41,47 +41,19 @@ interface IRoleManager {
                                  EVENTS
     ////////////////////////////////////////////////////////////// */
 
-    event RoleCreated(
-        bytes32 indexed roleId,
-        string name,
-        address indexed creator
-    );
+    event RoleCreated(bytes32 indexed roleId, string name, address indexed creator);
 
-    event RoleUpdated(
-        bytes32 indexed roleId,
-        string name,
-        address indexed updater
-    );
+    event RoleUpdated(bytes32 indexed roleId, string name, address indexed updater);
 
-    event RoleDeactivated(
-        bytes32 indexed roleId,
-        address indexed deactivator
-    );
+    event RoleDeactivated(bytes32 indexed roleId, address indexed deactivator);
 
-    event RoleAssigned(
-        bytes32 indexed roleId,
-        address indexed account,
-        address indexed assigner,
-        uint256 expiresAt
-    );
+    event RoleAssigned(bytes32 indexed roleId, address indexed account, address indexed assigner, uint256 expiresAt);
 
-    event CustomRoleRevoked(
-        bytes32 indexed roleId,
-        address indexed account,
-        address indexed revoker
-    );
+    event CustomRoleRevoked(bytes32 indexed roleId, address indexed account, address indexed revoker);
 
-    event PermissionGranted(
-        bytes32 indexed roleId,
-        bytes4 indexed selector,
-        address indexed target
-    );
+    event PermissionGranted(bytes32 indexed roleId, bytes4 indexed selector, address indexed target);
 
-    event PermissionRevoked(
-        bytes32 indexed roleId,
-        bytes4 indexed selector,
-        address indexed target
-    );
+    event PermissionRevoked(bytes32 indexed roleId, bytes4 indexed selector, address indexed target);
 
     /* //////////////////////////////////////////////////////////////
                                  ERRORS
@@ -171,11 +143,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
      * @param name The role name
      * @param description The role description
      */
-    function createRole(
-        bytes32 roleId,
-        string calldata name,
-        string calldata description
-    )
+    function createRole(bytes32 roleId, string calldata name, string calldata description)
         external
         onlyRole(ROLE_ADMIN)
         whenNotPaused
@@ -205,11 +173,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
      * @param name The new role name
      * @param description The new role description
      */
-    function updateRole(
-        bytes32 roleId,
-        string calldata name,
-        string calldata description
-    )
+    function updateRole(bytes32 roleId, string calldata name, string calldata description)
         external
         onlyRole(ROLE_ADMIN)
         whenNotPaused
@@ -227,11 +191,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
      * @notice Deactivate a role
      * @param roleId The role ID to deactivate
      */
-    function deactivateRole(bytes32 roleId)
-        external
-        onlyRole(ROLE_ADMIN)
-        whenNotPaused
-    {
+    function deactivateRole(bytes32 roleId) external onlyRole(ROLE_ADMIN) whenNotPaused {
         if (roles[roleId].createdAt == 0) revert RoleNotFound();
 
         roles[roleId].active = false;
@@ -244,10 +204,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
      * @param roleId The role ID
      * @param adminRoleId The admin role ID
      */
-    function setRoleAdmin(bytes32 roleId, bytes32 adminRoleId)
-        external
-        onlyRole(ROLE_ADMIN)
-    {
+    function setRoleAdmin(bytes32 roleId, bytes32 adminRoleId) external onlyRole(ROLE_ADMIN) {
         if (roles[roleId].createdAt == 0) revert RoleNotFound();
 
         roleAdmins[roleId] = adminRoleId;
@@ -281,11 +238,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
      * @param account The account address
      * @param expiresAt The expiration timestamp (0 for no expiration)
      */
-    function assignRole(
-        bytes32 roleId,
-        address account,
-        uint256 expiresAt
-    )
+    function assignRole(bytes32 roleId, address account, uint256 expiresAt)
         external
         onlyRole(ROLE_ASSIGNER)
         whenNotPaused
@@ -319,11 +272,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
      * @param roleId The role ID
      * @param account The account address
      */
-    function revokeRoleAssignment(bytes32 roleId, address account)
-        external
-        onlyRole(ROLE_ASSIGNER)
-        whenNotPaused
-    {
+    function revokeRoleAssignment(bytes32 roleId, address account) external onlyRole(ROLE_ASSIGNER) whenNotPaused {
         RoleAssignment storage assignment = assignments[account][roleId];
 
         if (!assignment.active) revert NotAssigned();
@@ -382,11 +331,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
      * @param selector The function selector
      * @param target The target contract address
      */
-    function grantPermission(
-        bytes32 roleId,
-        bytes4 selector,
-        address target
-    )
+    function grantPermission(bytes32 roleId, bytes4 selector, address target)
         external
         onlyRole(PERMISSION_ADMIN)
         whenNotPaused
@@ -405,11 +350,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
      * @param selector The function selector
      * @param target The target contract address
      */
-    function revokePermission(
-        bytes32 roleId,
-        bytes4 selector,
-        address target
-    )
+    function revokePermission(bytes32 roleId, bytes4 selector, address target)
         external
         onlyRole(PERMISSION_ADMIN)
         whenNotPaused
@@ -426,11 +367,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
      * @param target The target contract address
      * @return hasPermission True if the account has permission
      */
-    function checkPermission(
-        address account,
-        bytes4 selector,
-        address target
-    ) external view returns (bool) {
+    function checkPermission(address account, bytes4 selector, address target) external view returns (bool) {
         // Check all roles assigned to the account
         for (uint256 i = 0; i < allRoles.length; i++) {
             bytes32 roleId = allRoles[i];
@@ -462,11 +399,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
      * @param roleId The role ID
      * @return assignment The role assignment
      */
-    function getAssignment(address account, bytes32 roleId)
-        external
-        view
-        returns (RoleAssignment memory)
-    {
+    function getAssignment(address account, bytes32 roleId) external view returns (RoleAssignment memory) {
         return assignments[account][roleId];
     }
 

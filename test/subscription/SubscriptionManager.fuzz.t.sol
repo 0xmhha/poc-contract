@@ -68,18 +68,9 @@ contract SubscriptionManagerFuzzTest is Test {
         amount = bound(amount, 1, 1_000_000_000 ether);
 
         vm.prank(merchant);
-        uint256 planId = subManager.createPlan(
-            amount,
-            30 days,
-            address(token),
-            0,
-            0,
-            0,
-            "Test Plan",
-            "Description"
-        );
+        uint256 planId = subManager.createPlan(amount, 30 days, address(token), 0, 0, 0, "Test Plan", "Description");
 
-        (,uint256 storedAmount,,,,,,,,,) = subManager.plans(planId);
+        (, uint256 storedAmount,,,,,,,,,) = subManager.plans(planId);
         assertEq(storedAmount, amount, "Amount not stored correctly");
     }
 
@@ -92,18 +83,9 @@ contract SubscriptionManagerFuzzTest is Test {
         period = bound(period, MIN_PERIOD, MAX_PERIOD);
 
         vm.prank(merchant);
-        uint256 planId = subManager.createPlan(
-            10 ether,
-            period,
-            address(token),
-            0,
-            0,
-            0,
-            "Test Plan",
-            "Description"
-        );
+        uint256 planId = subManager.createPlan(10 ether, period, address(token), 0, 0, 0, "Test Plan", "Description");
 
-        (,,uint256 storedPeriod,,,,,,,,) = subManager.plans(planId);
+        (,, uint256 storedPeriod,,,,,,,,) = subManager.plans(planId);
         assertEq(storedPeriod, period, "Period not stored correctly");
     }
 
@@ -117,16 +99,7 @@ contract SubscriptionManagerFuzzTest is Test {
 
         vm.prank(merchant);
         vm.expectRevert(ISubscriptionManager.InvalidPeriod.selector);
-        subManager.createPlan(
-            10 ether,
-            period,
-            address(token),
-            0,
-            0,
-            0,
-            "Test Plan",
-            "Description"
-        );
+        subManager.createPlan(10 ether, period, address(token), 0, 0, 0, "Test Plan", "Description");
     }
 
     /**
@@ -139,16 +112,7 @@ contract SubscriptionManagerFuzzTest is Test {
 
         vm.prank(merchant);
         vm.expectRevert(ISubscriptionManager.InvalidPeriod.selector);
-        subManager.createPlan(
-            10 ether,
-            period,
-            address(token),
-            0,
-            0,
-            0,
-            "Test Plan",
-            "Description"
-        );
+        subManager.createPlan(10 ether, period, address(token), 0, 0, 0, "Test Plan", "Description");
     }
 
     /**
@@ -160,18 +124,10 @@ contract SubscriptionManagerFuzzTest is Test {
         trialPeriod = bound(trialPeriod, 0, 90 days);
 
         vm.prank(merchant);
-        uint256 planId = subManager.createPlan(
-            10 ether,
-            30 days,
-            address(token),
-            trialPeriod,
-            0,
-            0,
-            "Test Plan",
-            "Description"
-        );
+        uint256 planId =
+            subManager.createPlan(10 ether, 30 days, address(token), trialPeriod, 0, 0, "Test Plan", "Description");
 
-        (,,,,uint256 storedTrialPeriod,,,,,,) = subManager.plans(planId);
+        (,,,, uint256 storedTrialPeriod,,,,,,) = subManager.plans(planId);
         assertEq(storedTrialPeriod, trialPeriod, "Trial period not stored correctly");
     }
 
@@ -184,18 +140,10 @@ contract SubscriptionManagerFuzzTest is Test {
         gracePeriod = bound(gracePeriod, 0, 30 days);
 
         vm.prank(merchant);
-        uint256 planId = subManager.createPlan(
-            10 ether,
-            30 days,
-            address(token),
-            0,
-            gracePeriod,
-            0,
-            "Test Plan",
-            "Description"
-        );
+        uint256 planId =
+            subManager.createPlan(10 ether, 30 days, address(token), 0, gracePeriod, 0, "Test Plan", "Description");
 
-        (,,,,,uint256 storedGracePeriod,,,,,) = subManager.plans(planId);
+        (,,,,, uint256 storedGracePeriod,,,,,) = subManager.plans(planId);
         assertEq(storedGracePeriod, gracePeriod, "Grace period not stored correctly");
     }
 
@@ -247,16 +195,7 @@ contract SubscriptionManagerFuzzTest is Test {
 
         // Create plan
         vm.prank(merchant);
-        uint256 planId = subManager.createPlan(
-            10 ether,
-            30 days,
-            address(token),
-            0,
-            0,
-            0,
-            "Test Plan",
-            "Description"
-        );
+        uint256 planId = subManager.createPlan(10 ether, 30 days, address(token), 0, 0, 0, "Test Plan", "Description");
 
         // Fund subscriber
         vm.prank(owner);
@@ -265,9 +204,7 @@ contract SubscriptionManagerFuzzTest is Test {
         // Grant permission
         vm.startPrank(subscriber);
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(1000 ether))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(1000 ether))
         });
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
         bytes32 permissionId = permManager.grantPermission(address(subManager), address(subManager), permission, rules);
@@ -280,7 +217,7 @@ contract SubscriptionManagerFuzzTest is Test {
         vm.stopPrank();
 
         // Verify subscription
-        (,address storedSubscriber,,,,,,,,) = subManager.subscriptions(subscriptionId);
+        (, address storedSubscriber,,,,,,,,) = subManager.subscriptions(subscriptionId);
         assertEq(storedSubscriber, subscriber, "Subscriber not stored correctly");
     }
 
@@ -348,9 +285,7 @@ contract SubscriptionManagerFuzzTest is Test {
         // Grant permission and subscribe
         vm.startPrank(subscriber);
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(1000 ether))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(1000 ether))
         });
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
         bytes32 permissionId = permManager.grantPermission(address(subManager), address(subManager), permission, rules);
@@ -360,7 +295,7 @@ contract SubscriptionManagerFuzzTest is Test {
         vm.stopPrank();
 
         // Verify timestamps
-        (,,,uint256 startTime,,,,,, ) = subManager.subscriptions(subscriptionId);
+        (,,, uint256 startTime,,,,,,) = subManager.subscriptions(subscriptionId);
         assertEq(startTime, timestamp, "Start time should match block timestamp");
     }
 
@@ -379,14 +314,7 @@ contract SubscriptionManagerFuzzTest is Test {
         for (uint256 i = 0; i < planCount; i++) {
             vm.prank(merchant);
             uint256 planId = subManager.createPlan(
-                (i + 1) * 1 ether,
-                30 days,
-                address(token),
-                0,
-                0,
-                0,
-                string(abi.encodePacked("Plan ", i)),
-                "Description"
+                (i + 1) * 1 ether, 30 days, address(token), 0, 0, 0, string(abi.encodePacked("Plan ", i)), "Description"
             );
 
             assertEq(planId, i + 1, "Plan ID should be sequential starting from 1");
@@ -415,7 +343,7 @@ contract SubscriptionManagerFuzzTest is Test {
             "Description"
         );
 
-        (,uint256 amount,,,,,,,,,) = subManager.plans(planId);
+        (, uint256 amount,,,,,,,,,) = subManager.plans(planId);
         assertEq(amount, 1, "Minimum amount should be accepted");
     }
 
@@ -453,7 +381,7 @@ contract SubscriptionManagerFuzzTest is Test {
             "Description"
         );
 
-        (,,uint256 period,,,,,,,,) = subManager.plans(planId);
+        (,, uint256 period,,,,,,,,) = subManager.plans(planId);
         assertEq(period, MIN_PERIOD, "Minimum period should be accepted");
     }
 
@@ -473,7 +401,7 @@ contract SubscriptionManagerFuzzTest is Test {
             "Description"
         );
 
-        (,,uint256 period,,,,,,,,) = subManager.plans(planId);
+        (,, uint256 period,,,,,,,,) = subManager.plans(planId);
         assertEq(period, MAX_PERIOD, "Maximum period should be accepted");
     }
 }

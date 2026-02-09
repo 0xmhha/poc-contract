@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title MerchantRegistry
@@ -89,7 +89,7 @@ contract MerchantRegistry is Ownable {
 
     // ============ Constructor ============
 
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable(msg.sender) { }
 
     // ============ Registration Functions ============
 
@@ -99,11 +99,7 @@ contract MerchantRegistry is Ownable {
      * @param website Business website URL
      * @param email Contact email
      */
-    function registerMerchant(
-        string calldata name,
-        string calldata website,
-        string calldata email
-    ) external {
+    function registerMerchant(string calldata name, string calldata website, string calldata email) external {
         if (merchants[msg.sender].isRegistered) {
             revert AlreadyRegistered();
         }
@@ -136,11 +132,7 @@ contract MerchantRegistry is Ownable {
      * @param website New website URL
      * @param email New contact email
      */
-    function updateMerchantInfo(
-        string calldata name,
-        string calldata website,
-        string calldata email
-    ) external {
+    function updateMerchantInfo(string calldata name, string calldata website, string calldata email) external {
         Merchant storage merchant = merchants[msg.sender];
 
         if (!merchant.isRegistered) {
@@ -366,23 +358,20 @@ contract MerchantRegistry is Ownable {
      * @return isSuspended Suspension status
      * @return registeredAt Registration timestamp
      */
-    function getMerchantInfo(address merchant) external view returns (
-        string memory name,
-        string memory website,
-        string memory email,
-        bool isVerified,
-        bool isSuspended,
-        uint256 registeredAt
-    ) {
+    function getMerchantInfo(address merchant)
+        external
+        view
+        returns (
+            string memory name,
+            string memory website,
+            string memory email,
+            bool isVerified,
+            bool isSuspended,
+            uint256 registeredAt
+        )
+    {
         Merchant storage m = merchants[merchant];
-        return (
-            m.name,
-            m.website,
-            m.email,
-            m.isVerified,
-            m.isSuspended,
-            m.registeredAt
-        );
+        return (m.name, m.website, m.email, m.isVerified, m.isSuspended, m.registeredAt);
     }
 
     /**

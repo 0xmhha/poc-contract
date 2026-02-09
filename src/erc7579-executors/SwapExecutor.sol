@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IExecutor, IModule} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {IERC7579Account} from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
-import {MODULE_TYPE_EXECUTOR} from "../erc7579-smartaccount/types/Constants.sol";
-import {ExecMode} from "../erc7579-smartaccount/types/Types.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IExecutor, IModule } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { IERC7579Account } from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
+import { MODULE_TYPE_EXECUTOR } from "../erc7579-smartaccount/types/Constants.sol";
+import { ExecMode } from "../erc7579-smartaccount/types/Types.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title SwapExecutor
@@ -102,11 +102,7 @@ contract SwapExecutor is IExecutor {
     // =========================================================================
 
     event SwapExecuted(
-        address indexed account,
-        address indexed tokenIn,
-        address indexed tokenOut,
-        uint256 amountIn,
-        uint256 amountOut
+        address indexed account, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut
     );
 
     event TokenWhitelisted(address indexed account, address indexed token);
@@ -485,10 +481,13 @@ contract SwapExecutor is IExecutor {
     /**
      * @dev Validate swap parameters
      */
-    function _validateSwap(AccountStorage storage store, address tokenIn, address tokenOut, uint256 amountIn, uint256 deadline)
-        internal
-        view
-    {
+    function _validateSwap(
+        AccountStorage storage store,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 deadline
+    ) internal view {
         _validateSwapBasic(store, amountIn, deadline);
 
         // Validate tokens are whitelisted
@@ -592,8 +591,7 @@ contract SwapExecutor is IExecutor {
         returns (uint256 amountOut)
     {
         // First, approve SwapRouter to spend tokens
-        bytes memory approveCall =
-            abi.encodeWithSelector(IERC20.approve.selector, SWAP_ROUTER, params.amountIn);
+        bytes memory approveCall = abi.encodeWithSelector(IERC20.approve.selector, SWAP_ROUTER, params.amountIn);
 
         bytes memory approveExecData = abi.encodePacked(params.tokenIn, uint256(0), approveCall);
 
@@ -602,8 +600,7 @@ contract SwapExecutor is IExecutor {
 
         // Then execute swap
         bytes memory swapCall = abi.encodeWithSignature(
-            "exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))",
-            params
+            "exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))", params
         );
 
         bytes memory swapExecData = abi.encodePacked(SWAP_ROUTER, uint256(0), swapCall);
@@ -618,16 +615,12 @@ contract SwapExecutor is IExecutor {
     /**
      * @dev Execute multi-hop swap via Smart Account
      */
-    function _executeSwapMulti(address account, ExactInputParams memory params)
-        internal
-        returns (uint256 amountOut)
-    {
+    function _executeSwapMulti(address account, ExactInputParams memory params) internal returns (uint256 amountOut) {
         // Extract first token from path for approval
         address tokenIn = _extractFirstToken(params.path);
 
         // First, approve SwapRouter to spend tokens
-        bytes memory approveCall =
-            abi.encodeWithSelector(IERC20.approve.selector, SWAP_ROUTER, params.amountIn);
+        bytes memory approveCall = abi.encodeWithSelector(IERC20.approve.selector, SWAP_ROUTER, params.amountIn);
 
         bytes memory approveExecData = abi.encodePacked(tokenIn, uint256(0), approveCall);
 
@@ -635,10 +628,7 @@ contract SwapExecutor is IExecutor {
         IERC7579Account(account).executeFromExecutor(execMode, approveExecData);
 
         // Then execute swap
-        bytes memory swapCall = abi.encodeWithSignature(
-            "exactInput((bytes,address,uint256,uint256,uint256))",
-            params
-        );
+        bytes memory swapCall = abi.encodeWithSignature("exactInput((bytes,address,uint256,uint256,uint256))", params);
 
         bytes memory swapExecData = abi.encodePacked(SWAP_ROUTER, uint256(0), swapCall);
 

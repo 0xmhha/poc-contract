@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IExecutor, IModule} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {MODULE_TYPE_EXECUTOR} from "../erc7579-smartaccount/types/Constants.sol";
-import {IERC7579Account} from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
-import {ExecMode} from "../erc7579-smartaccount/types/Types.sol";
+import { IExecutor, IModule } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { MODULE_TYPE_EXECUTOR } from "../erc7579-smartaccount/types/Constants.sol";
+import { IERC7579Account } from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
+import { ExecMode } from "../erc7579-smartaccount/types/Types.sol";
 
 /**
  * @title IStakingPool
@@ -306,11 +306,7 @@ contract StakingExecutor is IExecutor {
         }
 
         // Execute stake with lock via smart account
-        bytes memory callData = abi.encodeWithSelector(
-            IStakingPool.stakeWithLock.selector,
-            amount,
-            lockDuration
-        );
+        bytes memory callData = abi.encodeWithSelector(IStakingPool.stakeWithLock.selector, amount, lockDuration);
         _executeFromAccount(msg.sender, pool, 0, callData);
 
         // Update cached stake amount
@@ -399,21 +395,13 @@ contract StakingExecutor is IExecutor {
      * @return isActive Whether executor is active
      * @return isPaused Whether executor is paused
      */
-    function getAccountConfig(address account) external view returns (
-        uint256 maxStakePerPool,
-        uint256 dailyStakeLimit,
-        uint256 dailyUsed,
-        bool isActive,
-        bool isPaused
-    ) {
+    function getAccountConfig(address account)
+        external
+        view
+        returns (uint256 maxStakePerPool, uint256 dailyStakeLimit, uint256 dailyUsed, bool isActive, bool isPaused)
+    {
         AccountConfig storage config = accountConfigs[account];
-        return (
-            config.maxStakePerPool,
-            config.dailyStakeLimit,
-            config.dailyUsed,
-            config.isActive,
-            config.isPaused
-        );
+        return (config.maxStakePerPool, config.dailyStakeLimit, config.dailyUsed, config.isActive, config.isPaused);
     }
 
     /**
@@ -501,12 +489,7 @@ contract StakingExecutor is IExecutor {
     /**
      * @notice Execute a call from the smart account
      */
-    function _executeFromAccount(
-        address account,
-        address target,
-        uint256 value,
-        bytes memory data
-    ) internal {
+    function _executeFromAccount(address account, address target, uint256 value, bytes memory data) internal {
         bytes memory executionCalldata = abi.encode(target, value, data);
         ExecMode execMode = _encodeExecMode();
 

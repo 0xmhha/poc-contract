@@ -89,7 +89,9 @@ abstract contract StakeManager is IStakeManager {
         // casting to 'uint112' is safe because we check stake <= type(uint112).max above
         // forge-lint: disable-next-line(unsafe-typecast)
         uint112 stakeValue = uint112(stake);
-        deposits[msg.sender] = DepositInfo({ deposit: info.deposit, staked: true, stake: stakeValue, unstakeDelaySec: unstakeDelaySec, withdrawTime: 0 });
+        deposits[msg.sender] = DepositInfo({
+            deposit: info.deposit, staked: true, stake: stakeValue, unstakeDelaySec: unstakeDelaySec, withdrawTime: 0
+        });
         emit StakeLocked(msg.sender, stake, unstakeDelaySec);
     }
 

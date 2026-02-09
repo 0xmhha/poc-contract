@@ -126,10 +126,7 @@ contract TokenReceiverFallback is IFallback {
      * @param data Additional data with no specified format
      * @return bytes4 `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`
      */
-    function onERC721Received(address, address from, uint256 tokenId, bytes calldata data)
-        external
-        returns (bytes4)
-    {
+    function onERC721Received(address, address from, uint256 tokenId, bytes calldata data) external returns (bytes4) {
         (address token, address smartAccount) = _extractContext();
 
         _validateAndLogTransfer(smartAccount, token, from, tokenId, 1, data, "ERC721");
@@ -208,14 +205,9 @@ contract TokenReceiverFallback is IFallback {
      * @param amount The amount of tokens transferred
      * @param userData Data provided by the user
      */
-    function tokensReceived(
-        address,
-        address from,
-        address,
-        uint256 amount,
-        bytes calldata userData,
-        bytes calldata
-    ) external {
+    function tokensReceived(address, address from, address, uint256 amount, bytes calldata userData, bytes calldata)
+        external
+    {
         (address token, address smartAccount) = _extractContext();
 
         _validateAndLogTransfer(smartAccount, token, from, 0, amount, userData, "ERC777");

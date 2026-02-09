@@ -4,7 +4,8 @@ pragma solidity ^0.8.26;
 /**
  * @title EchidnaSubscription
  * @notice Echidna fuzzing tests for SubscriptionManager
- * @dev Run with: echidna test/echidna/EchidnaSubscription.sol --contract EchidnaSubscription --config security/echidna.yaml
+ * @dev Run with: echidna test/echidna/EchidnaSubscription.sol --contract EchidnaSubscription --config
+ * security/echidna.yaml
  *
  * Key invariants to test:
  * 1. Plan prices should never be negative
@@ -142,25 +143,14 @@ contract EchidnaSubscription {
     /**
      * @notice Create a new subscription plan
      */
-    function fuzz_createPlan(
-        address merchant,
-        address token,
-        uint256 price,
-        uint256 period
-    ) external {
+    function fuzz_createPlan(address merchant, address token, uint256 price, uint256 period) external {
         // Bound inputs to reasonable ranges
         if (merchant == address(0)) return;
         if (token == address(0)) return;
         if (price == 0 || price > MAX_PRICE) return;
         if (period < MIN_PERIOD || period > MAX_PERIOD) return;
 
-        plans[planCount] = Plan({
-            merchant: merchant,
-            token: token,
-            price: price,
-            period: period,
-            active: true
-        });
+        plans[planCount] = Plan({ merchant: merchant, token: token, price: price, period: period, active: true });
 
         planCount++;
     }

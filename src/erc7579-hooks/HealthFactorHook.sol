@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IHook, IModule} from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {MODULE_TYPE_HOOK} from "../erc7579-smartaccount/types/Constants.sol";
+import { IHook, IModule } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { MODULE_TYPE_HOOK } from "../erc7579-smartaccount/types/Constants.sol";
 
 /**
  * @title ILendingPool
@@ -106,11 +106,7 @@ contract HealthFactorHook is IHook {
             }
         }
 
-        accountConfigs[msg.sender] = AccountConfig({
-            minHealthFactor: threshold,
-            enabled: enabled,
-            initialized: true
-        });
+        accountConfigs[msg.sender] = AccountConfig({ minHealthFactor: threshold, enabled: enabled, initialized: true });
 
         emit MinHealthFactorSet(msg.sender, threshold);
         emit EnabledChanged(msg.sender, enabled);
@@ -159,11 +155,12 @@ contract HealthFactorHook is IHook {
      * @param msgData Calldata (unused)
      * @return hookData Encoded pre-tx health factor, or empty if skipped
      */
-    function preCheck(
-        address msgSender,
-        uint256 msgValue,
-        bytes calldata msgData
-    ) external payable override returns (bytes memory hookData) {
+    function preCheck(address msgSender, uint256 msgValue, bytes calldata msgData)
+        external
+        payable
+        override
+        returns (bytes memory hookData)
+    {
         (msgValue, msgData); // Silence unused warnings
 
         AccountConfig storage config = accountConfigs[msg.sender];
@@ -338,11 +335,7 @@ contract HealthFactorHook is IHook {
      * @return enabled Whether hook is enabled
      * @return initialized Whether hook is installed
      */
-    function getAccountConfig(address account) external view returns (
-        uint256 minHf,
-        bool enabled,
-        bool initialized
-    ) {
+    function getAccountConfig(address account) external view returns (uint256 minHf, bool enabled, bool initialized) {
         AccountConfig storage config = accountConfigs[account];
         return (config.minHealthFactor, config.enabled, config.initialized);
     }

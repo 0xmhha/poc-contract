@@ -390,11 +390,7 @@ contract PolicyHook is IHook {
         AccountStorage storage store = accountStorage[msg.sender];
 
         store.txCountLimit = TxCountLimit({
-            limit: limit,
-            count: 0,
-            periodLength: periodLength,
-            periodStart: block.timestamp,
-            isEnabled: true
+            limit: limit, count: 0, periodLength: periodLength, periodStart: block.timestamp, isEnabled: true
         });
 
         emit TxCountLimitSet(msg.sender, limit, periodLength);
@@ -488,12 +484,10 @@ contract PolicyHook is IHook {
 
     // ============ Internal Functions ============
 
-    function _checkAllowlistPolicy(
-        AccountStorage storage store,
-        address target,
-        uint256 value,
-        bytes calldata msgData
-    ) internal view {
+    function _checkAllowlistPolicy(AccountStorage storage store, address target, uint256 value, bytes calldata msgData)
+        internal
+        view
+    {
         TargetConfig storage config = store.targets[target];
 
         // Check target is allowed
@@ -517,12 +511,10 @@ contract PolicyHook is IHook {
         }
     }
 
-    function _checkBlocklistPolicy(
-        AccountStorage storage store,
-        address target,
-        uint256 value,
-        bytes calldata msgData
-    ) internal view {
+    function _checkBlocklistPolicy(AccountStorage storage store, address target, uint256 value, bytes calldata msgData)
+        internal
+        view
+    {
         TargetConfig storage config = store.targets[target];
 
         // Check target is not blocked

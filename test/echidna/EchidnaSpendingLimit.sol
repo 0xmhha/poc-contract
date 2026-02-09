@@ -4,7 +4,8 @@ pragma solidity ^0.8.26;
 /**
  * @title EchidnaSpendingLimit
  * @notice Echidna fuzzing tests for SpendingLimitHook
- * @dev Run with: echidna test/echidna/EchidnaSpendingLimit.sol --contract EchidnaSpendingLimit --config security/echidna.yaml
+ * @dev Run with: echidna test/echidna/EchidnaSpendingLimit.sol --contract EchidnaSpendingLimit --config
+ * security/echidna.yaml
  *
  * Key invariants to test:
  * 1. Spending cannot exceed configured limits
@@ -134,12 +135,7 @@ contract EchidnaSpendingLimit {
     /**
      * @notice Configure a spending limit
      */
-    function fuzz_setLimit(
-        address account,
-        address token,
-        uint256 limit,
-        uint256 period
-    ) external {
+    function fuzz_setLimit(address account, address token, uint256 limit, uint256 period) external {
         // Bound inputs
         if (account == address(0)) return;
         if (limit == 0 || limit > MAX_LIMIT) return;
@@ -160,23 +156,14 @@ contract EchidnaSpendingLimit {
             totalLimitConfigured++;
         }
 
-        limits[account][token] = SpendingConfig({
-            limit: limit,
-            period: period,
-            spent: 0,
-            lastReset: block.timestamp,
-            configured: true
-        });
+        limits[account][token] =
+            SpendingConfig({ limit: limit, period: period, spent: 0, lastReset: block.timestamp, configured: true });
     }
 
     /**
      * @notice Update an existing limit
      */
-    function fuzz_updateLimit(
-        address account,
-        address token,
-        uint256 newLimit
-    ) external {
+    function fuzz_updateLimit(address account, address token, uint256 newLimit) external {
         if (!limits[account][token].configured) return;
         if (newLimit == 0 || newLimit > MAX_LIMIT) return;
 
@@ -193,11 +180,7 @@ contract EchidnaSpendingLimit {
     /**
      * @notice Record a spend
      */
-    function fuzz_spend(
-        address account,
-        address token,
-        uint256 amount
-    ) external {
+    function fuzz_spend(address account, address token, uint256 amount) external {
         SpendingConfig storage config = limits[account][token];
         if (!config.configured) return;
         if (amount == 0) return;
@@ -235,11 +218,11 @@ contract EchidnaSpendingLimit {
     // View Functions
     // ========================================================================
 
-    function getLimit(address account, address token) external view returns (
-        uint256 limit,
-        uint256 spent,
-        uint256 remaining
-    ) {
+    function getLimit(address account, address token)
+        external
+        view
+        returns (uint256 limit, uint256 spent, uint256 remaining)
+    {
         SpendingConfig storage config = limits[account][token];
         limit = config.limit;
         spent = config.spent;

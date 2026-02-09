@@ -42,33 +42,16 @@ interface IWithdrawalManager {
     ////////////////////////////////////////////////////////////// */
 
     event WithdrawalRequested(
-        bytes32 indexed requestId,
-        bytes32 indexed depositId,
-        address indexed requester,
-        uint256 amount
+        bytes32 indexed requestId, bytes32 indexed depositId, address indexed requester, uint256 amount
     );
 
-    event WithdrawalApproved(
-        bytes32 indexed requestId,
-        address indexed approver
-    );
+    event WithdrawalApproved(bytes32 indexed requestId, address indexed approver);
 
-    event WithdrawalExecuted(
-        bytes32 indexed requestId,
-        address indexed recipient,
-        uint256 amount
-    );
+    event WithdrawalExecuted(bytes32 indexed requestId, address indexed recipient, uint256 amount);
 
-    event WithdrawalRejected(
-        bytes32 indexed requestId,
-        address indexed rejector,
-        string reason
-    );
+    event WithdrawalRejected(bytes32 indexed requestId, address indexed rejector, string reason);
 
-    event WithdrawalCancelled(
-        bytes32 indexed requestId,
-        address indexed canceller
-    );
+    event WithdrawalCancelled(bytes32 indexed requestId, address indexed canceller);
 
     event CooldownUpdated(uint256 oldCooldown, uint256 newCooldown);
     event ThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
@@ -177,12 +160,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
      * @param amount The amount to withdraw
      * @return requestId The unique request ID
      */
-    function requestWithdrawal(
-        bytes32 depositId,
-        address recipient,
-        address token,
-        uint256 amount
-    )
+    function requestWithdrawal(bytes32 depositId, address recipient, address token, uint256 amount)
         external
         whenNotPaused
         nonReentrant
@@ -192,9 +170,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
         if (recipient == address(0)) revert InvalidRecipient();
         if (amount == 0) revert InvalidAmount();
 
-        requestId = keccak256(
-            abi.encodePacked(depositId, msg.sender, recipient, amount, block.timestamp, requestCount)
-        );
+        requestId = keccak256(abi.encodePacked(depositId, msg.sender, recipient, amount, block.timestamp, requestCount));
 
         uint256 cooldownEnd = block.timestamp + cooldownPeriod;
 
@@ -221,11 +197,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
      * @notice Approve a withdrawal request (required for amounts above threshold)
      * @param requestId The request ID to approve
      */
-    function approveWithdrawal(bytes32 requestId)
-        external
-        onlyRole(APPROVER_ROLE)
-        whenNotPaused
-    {
+    function approveWithdrawal(bytes32 requestId) external onlyRole(APPROVER_ROLE) whenNotPaused {
         WithdrawalRequest storage request = requests[requestId];
 
         if (request.requester == address(0)) revert RequestNotFound();
@@ -248,12 +220,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
      * @notice Execute a withdrawal request
      * @param requestId The request ID to execute
      */
-    function executeWithdrawal(bytes32 requestId)
-        external
-        onlyRole(EXECUTOR_ROLE)
-        whenNotPaused
-        nonReentrant
-    {
+    function executeWithdrawal(bytes32 requestId) external onlyRole(EXECUTOR_ROLE) whenNotPaused nonReentrant {
         WithdrawalRequest storage request = requests[requestId];
 
         if (request.requester == address(0)) revert RequestNotFound();
@@ -315,10 +282,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
      * @notice Cancel a withdrawal request (by requester)
      * @param requestId The request ID to cancel
      */
-    function cancelWithdrawal(bytes32 requestId)
-        external
-        whenNotPaused
-    {
+    function cancelWithdrawal(bytes32 requestId) external whenNotPaused {
         WithdrawalRequest storage request = requests[requestId];
 
         if (request.requester == address(0)) revert RequestNotFound();
@@ -411,10 +375,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
      * @notice Update the cooldown period
      * @param _cooldownPeriod The new cooldown period
      */
-    function setCooldownPeriod(uint256 _cooldownPeriod)
-        external
-        onlyRole(WITHDRAWAL_ADMIN_ROLE)
-    {
+    function setCooldownPeriod(uint256 _cooldownPeriod) external onlyRole(WITHDRAWAL_ADMIN_ROLE) {
         require(_cooldownPeriod <= MAX_COOLDOWN, "Cooldown too long");
 
         uint256 oldCooldown = cooldownPeriod;
@@ -427,10 +388,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
      * @notice Update the approval threshold
      * @param _approvalThreshold The new approval threshold
      */
-    function setApprovalThreshold(uint256 _approvalThreshold)
-        external
-        onlyRole(WITHDRAWAL_ADMIN_ROLE)
-    {
+    function setApprovalThreshold(uint256 _approvalThreshold) external onlyRole(WITHDRAWAL_ADMIN_ROLE) {
         uint256 oldThreshold = approvalThreshold;
         approvalThreshold = _approvalThreshold;
 
@@ -441,10 +399,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
      * @notice Set the stealth vault address
      * @param _stealthVault The stealth vault address
      */
-    function setStealthVault(address _stealthVault)
-        external
-        onlyRole(WITHDRAWAL_ADMIN_ROLE)
-    {
+    function setStealthVault(address _stealthVault) external onlyRole(WITHDRAWAL_ADMIN_ROLE) {
         stealthVault = _stealthVault;
     }
 

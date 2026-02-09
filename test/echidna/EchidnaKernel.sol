@@ -119,10 +119,7 @@ contract EchidnaKernel {
     /**
      * @notice Install a module
      */
-    function fuzz_installModule(
-        uint256 moduleType,
-        address module
-    ) external {
+    function fuzz_installModule(uint256 moduleType, address module) external {
         // Validate inputs
         if (!initialized) return;
         if (module == address(0)) return;
@@ -141,10 +138,7 @@ contract EchidnaKernel {
     /**
      * @notice Uninstall a module
      */
-    function fuzz_uninstallModule(
-        uint256 moduleType,
-        address module
-    ) external {
+    function fuzz_uninstallModule(uint256 moduleType, address module) external {
         if (!initialized) return;
         if (!installedModules[moduleType][module]) return;
 

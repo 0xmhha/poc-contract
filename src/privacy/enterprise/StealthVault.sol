@@ -37,17 +37,10 @@ interface IStealthVault {
         bytes32 stealthAddressHash
     );
 
-    event StealthWithdrawal(
-        bytes32 indexed depositId,
-        address indexed recipient,
-        uint256 amount
-    );
+    event StealthWithdrawal(bytes32 indexed depositId, address indexed recipient, uint256 amount);
 
     event EmergencyWithdrawal(
-        bytes32 indexed depositId,
-        address indexed admin,
-        address indexed recipient,
-        uint256 amount
+        bytes32 indexed depositId, address indexed admin, address indexed recipient, uint256 amount
     );
 
     /* //////////////////////////////////////////////////////////////
@@ -182,12 +175,10 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
     /**
      * @notice Internal function to create a deposit record
      */
-    function _createDeposit(
-        address depositor,
-        address token,
-        uint256 amount,
-        bytes32 stealthAddressHash
-    ) internal returns (bytes32 depositId) {
+    function _createDeposit(address depositor, address token, uint256 amount, bytes32 stealthAddressHash)
+        internal
+        returns (bytes32 depositId)
+    {
         depositId = keccak256(
             abi.encodePacked(depositor, token, amount, stealthAddressHash, block.timestamp, depositCount)
         );
@@ -217,11 +208,7 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
      * @param recipient The recipient address
      * @param proof The stealth proof (signature proving ownership of stealth address)
      */
-    function withdraw(bytes32 depositId, address recipient, bytes calldata proof)
-        external
-        whenNotPaused
-        nonReentrant
-    {
+    function withdraw(bytes32 depositId, address recipient, bytes calldata proof) external whenNotPaused nonReentrant {
         Deposit storage deposit = deposits[depositId];
 
         if (deposit.depositor == address(0)) revert DepositNotFound();
@@ -272,11 +259,7 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
      * @param depositId The deposit ID
      * @param recipient The recipient address
      */
-    function emergencyWithdraw(bytes32 depositId, address recipient)
-        external
-        onlyRole(EMERGENCY_ROLE)
-        nonReentrant
-    {
+    function emergencyWithdraw(bytes32 depositId, address recipient) external onlyRole(EMERGENCY_ROLE) nonReentrant {
         Deposit storage deposit = deposits[depositId];
 
         if (deposit.depositor == address(0)) revert DepositNotFound();

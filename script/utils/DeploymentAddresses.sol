@@ -432,7 +432,9 @@ abstract contract DeploymentHelper is Script {
         }
         if (_addresses[DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER] != address(0)) {
             vm.serializeAddress(
-                obj, DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER, _addresses[DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER]
+                obj,
+                DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER,
+                _addresses[DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER]
             );
         }
         if (_addresses[DeploymentAddresses.KEY_UNISWAP_QUOTER] != address(0)) {

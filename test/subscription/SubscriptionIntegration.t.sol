@@ -94,12 +94,12 @@ contract SubscriptionIntegrationTest is Test {
         // Step 1: Merchant creates plan
         vm.prank(merchant);
         planId = subManager.createPlan(
-            10 ether,       // 10 tokens per period
-            30 days,        // Monthly
+            10 ether, // 10 tokens per period
+            30 days, // Monthly
             address(token), // ERC20 token
-            7 days,         // 7 day trial
-            3 days,         // 3 day grace period
-            0,              // No minimum subscription time
+            7 days, // 7 day trial
+            3 days, // 3 day grace period
+            0, // No minimum subscription time
             "Premium Plan",
             "Monthly premium access"
         );
@@ -115,12 +115,7 @@ contract SubscriptionIntegrationTest is Test {
         });
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
 
-        permissionId = permManager.grantPermission(
-            address(subManager),
-            address(subManager),
-            permission,
-            rules
-        );
+        permissionId = permManager.grantPermission(address(subManager), address(subManager), permission, rules);
         assertTrue(permissionId != bytes32(0), "Permission should be granted");
 
         // Step 3: Subscriber approves tokens for SubscriptionManager
@@ -136,11 +131,8 @@ contract SubscriptionIntegrationTest is Test {
             uint256 storedPlanId,
             address storedSubscriber,
             bytes32 storedPermissionId,
-            uint256 startTime,
-            ,
-            uint256 nextPayment,
-            ,
-            ,
+            uint256 startTime,,
+            uint256 nextPayment,,,
             bool active,
         ) = subManager.subscriptions(subscriptionId);
 
@@ -170,15 +162,9 @@ contract SubscriptionIntegrationTest is Test {
         uint256 merchantAmount = 10 ether - fee;
 
         assertEq(
-            merchantBalanceAfter - merchantBalanceBefore,
-            merchantAmount,
-            "Merchant should receive payment minus fee"
+            merchantBalanceAfter - merchantBalanceBefore, merchantAmount, "Merchant should receive payment minus fee"
         );
-        assertEq(
-            subscriberBalanceBefore - subscriberBalanceAfter,
-            10 ether,
-            "Subscriber should pay full amount"
-        );
+        assertEq(subscriberBalanceBefore - subscriberBalanceAfter, 10 ether, "Subscriber should pay full amount");
     }
 
     /**
@@ -191,8 +177,8 @@ contract SubscriptionIntegrationTest is Test {
             10 ether,
             30 days,
             address(token),
-            0,              // No trial
-            3 days,         // 3 day grace period
+            0, // No trial
+            3 days, // 3 day grace period
             0,
             "Test Plan",
             "Description"
@@ -203,16 +189,11 @@ contract SubscriptionIntegrationTest is Test {
         token.approve(address(subManager), type(uint256).max);
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(1000 ether))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(1000 ether))
         });
 
         permissionId = permManager.grantPermission(
-            address(subManager),
-            address(subManager),
-            permission,
-            new IERC7715PermissionManager.Rule[](0)
+            address(subManager), address(subManager), permission, new IERC7715PermissionManager.Rule[](0)
         );
 
         subscriptionId = subManager.subscribe(planId, permissionId);
@@ -238,12 +219,8 @@ contract SubscriptionIntegrationTest is Test {
     function test_MultipleSubscriptions_SeparatePermissions() public {
         // Create two plans
         vm.startPrank(merchant);
-        uint256 planId1 = subManager.createPlan(
-            10 ether, 30 days, address(token), 0, 0, 0, "Basic", "Basic plan"
-        );
-        uint256 planId2 = subManager.createPlan(
-            50 ether, 30 days, address(token), 0, 0, 0, "Premium", "Premium plan"
-        );
+        uint256 planId1 = subManager.createPlan(10 ether, 30 days, address(token), 0, 0, 0, "Basic", "Basic plan");
+        uint256 planId2 = subManager.createPlan(50 ether, 30 days, address(token), 0, 0, 0, "Premium", "Premium plan");
         vm.stopPrank();
 
         // Subscriber creates two separate permissions
@@ -252,9 +229,7 @@ contract SubscriptionIntegrationTest is Test {
 
         // Permission 1 for basic plan (lower limit)
         IERC7715PermissionManager.Permission memory perm1 = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(100 ether))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(100 ether))
         });
         bytes32 permId1 = permManager.grantPermission(
             address(subManager), address(subManager), perm1, new IERC7715PermissionManager.Rule[](0)
@@ -262,9 +237,7 @@ contract SubscriptionIntegrationTest is Test {
 
         // Permission 2 for premium plan (higher limit)
         IERC7715PermissionManager.Permission memory perm2 = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(500 ether))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(500 ether))
         });
         bytes32 permId2 = permManager.grantPermission(
             address(subManager), address(subManager), perm2, new IERC7715PermissionManager.Rule[](0)
@@ -276,8 +249,8 @@ contract SubscriptionIntegrationTest is Test {
         vm.stopPrank();
 
         // Both subscriptions should be active
-        (,,,,,,,,bool active1,) = subManager.subscriptions(subId1);
-        (,,,,,,,,bool active2,) = subManager.subscriptions(subId2);
+        (,,,,,,,, bool active1,) = subManager.subscriptions(subId1);
+        (,,,,,,,, bool active2,) = subManager.subscriptions(subId2);
 
         assertTrue(active1, "First subscription should be active");
         assertTrue(active2, "Second subscription should be active");
@@ -316,10 +289,12 @@ contract SubscriptionIntegrationTest is Test {
         // Create plan with amount close to spending limit
         vm.prank(merchant);
         planId = subManager.createPlan(
-            100 ether,      // 100 tokens per period
-            1 hours,        // Very short period for testing
+            100 ether, // 100 tokens per period
+            1 hours, // Very short period for testing
             address(token),
-            0, 0, 0,
+            0,
+            0,
+            0,
             "Expensive Plan",
             "Test spending limits"
         );
@@ -335,10 +310,7 @@ contract SubscriptionIntegrationTest is Test {
         });
 
         permissionId = permManager.grantPermission(
-            address(subManager),
-            address(subManager),
-            permission,
-            new IERC7715PermissionManager.Rule[](0)
+            address(subManager), address(subManager), permission, new IERC7715PermissionManager.Rule[](0)
         );
 
         subscriptionId = subManager.subscribe(planId, permissionId);
@@ -372,8 +344,8 @@ contract SubscriptionIntegrationTest is Test {
             10 ether,
             30 days,
             address(token),
-            0,              // No trial
-            3 days,         // 3 day grace period
+            0, // No trial
+            3 days, // 3 day grace period
             0,
             "Grace Plan",
             "Test grace period"
@@ -384,16 +356,11 @@ contract SubscriptionIntegrationTest is Test {
         token.approve(address(subManager), type(uint256).max);
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(1000 ether))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(1000 ether))
         });
 
         permissionId = permManager.grantPermission(
-            address(subManager),
-            address(subManager),
-            permission,
-            new IERC7715PermissionManager.Rule[](0)
+            address(subManager), address(subManager), permission, new IERC7715PermissionManager.Rule[](0)
         );
 
         subscriptionId = subManager.subscribe(planId, permissionId);
@@ -415,7 +382,7 @@ contract SubscriptionIntegrationTest is Test {
         subManager.processPayment(subscriptionId);
 
         // Verify subscription is still active
-        (,,,,,,,,bool active,) = subManager.subscriptions(subscriptionId);
+        (,,,,,,,, bool active,) = subManager.subscriptions(subscriptionId);
         assertTrue(active, "Subscription should still be active within grace period");
     }
 
@@ -431,7 +398,7 @@ contract SubscriptionIntegrationTest is Test {
         subManager.cancelSubscription(subscriptionId);
 
         // Verify subscription is cancelled
-        (,,,,,,,,bool active,) = subManager.subscriptions(subscriptionId);
+        (,,,,,,,, bool active,) = subManager.subscriptions(subscriptionId);
         assertFalse(active, "Subscription should be cancelled");
 
         // Attempt to process payment should fail
@@ -447,9 +414,7 @@ contract SubscriptionIntegrationTest is Test {
     function test_PlanDeactivation_BlocksNewSubscriptions() public {
         // Create and deactivate plan
         vm.startPrank(merchant);
-        planId = subManager.createPlan(
-            10 ether, 30 days, address(token), 0, 0, 0, "Test Plan", "Description"
-        );
+        planId = subManager.createPlan(10 ether, 30 days, address(token), 0, 0, 0, "Test Plan", "Description");
         subManager.updatePlan(planId, 10 ether, 30 days, false);
         vm.stopPrank();
 
@@ -458,16 +423,11 @@ contract SubscriptionIntegrationTest is Test {
         token.approve(address(subManager), type(uint256).max);
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(1000 ether))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(1000 ether))
         });
 
         permissionId = permManager.grantPermission(
-            address(subManager),
-            address(subManager),
-            permission,
-            new IERC7715PermissionManager.Rule[](0)
+            address(subManager), address(subManager), permission, new IERC7715PermissionManager.Rule[](0)
         );
 
         // Attempt to subscribe should fail
@@ -482,9 +442,7 @@ contract SubscriptionIntegrationTest is Test {
     function test_PermissionAdjustment_IncreasedLimit() public {
         // Setup with low limit
         vm.prank(merchant);
-        planId = subManager.createPlan(
-            50 ether, 30 days, address(token), 0, 0, 0, "Test Plan", "Description"
-        );
+        planId = subManager.createPlan(50 ether, 30 days, address(token), 0, 0, 0, "Test Plan", "Description");
 
         vm.startPrank(subscriber);
         token.approve(address(subManager), type(uint256).max);
@@ -497,10 +455,7 @@ contract SubscriptionIntegrationTest is Test {
         });
 
         permissionId = permManager.grantPermission(
-            address(subManager),
-            address(subManager),
-            permission,
-            new IERC7715PermissionManager.Rule[](0)
+            address(subManager), address(subManager), permission, new IERC7715PermissionManager.Rule[](0)
         );
 
         subscriptionId = subManager.subscribe(planId, permissionId);
@@ -530,32 +485,18 @@ contract SubscriptionIntegrationTest is Test {
     function _setupBasicSubscription() internal {
         // Create plan
         vm.prank(merchant);
-        planId = subManager.createPlan(
-            10 ether,
-            30 days,
-            address(token),
-            0,
-            0,
-            0,
-            "Basic Plan",
-            "Description"
-        );
+        planId = subManager.createPlan(10 ether, 30 days, address(token), 0, 0, 0, "Basic Plan", "Description");
 
         // Setup subscription
         vm.startPrank(subscriber);
         token.approve(address(subManager), type(uint256).max);
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(1000 ether))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(1000 ether))
         });
 
         permissionId = permManager.grantPermission(
-            address(subManager),
-            address(subManager),
-            permission,
-            new IERC7715PermissionManager.Rule[](0)
+            address(subManager), address(subManager), permission, new IERC7715PermissionManager.Rule[](0)
         );
 
         subscriptionId = subManager.subscribe(planId, permissionId);

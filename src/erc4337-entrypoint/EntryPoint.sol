@@ -673,8 +673,8 @@ contract EntryPoint is IEntryPointSimulations, StakeManager, NonceManager, ERC16
                 revert FailedOpWithRevert(opIndex, "AA33 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));
             }
             // for a given 'contextLength', calculate the only valid 'returndatasize' value
-            // This pattern rounds contextLength up to nearest 32-byte boundary, division before multiplication is intentional
-            // forge-lint: disable-next-line(divide-before-multiply)
+            // This pattern rounds contextLength up to nearest 32-byte boundary, division before multiplication is
+            // intentional forge-lint: disable-next-line(divide-before-multiply)
             uint256 expectedReturnDataSize = 96 + ((contextLength + 31) / 32) * 32;
             if (contextOffset != 64 || len != expectedReturnDataSize) {
                 revert FailedOpWithRevert(

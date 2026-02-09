@@ -414,9 +414,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
 
         // Call BridgeValidator to verify signatures
         // If verification returns false, fraud is proven (signatures are invalid)
-        try BridgeValidator(bridgeValidator).verifySignaturesView(message, signatures) returns (
-            bool valid, uint256
-        ) {
+        try BridgeValidator(bridgeValidator).verifySignaturesView(message, signatures) returns (bool valid, uint256) {
             // Fraud is proven if signatures are NOT valid
             // validCount helps understand how many signatures were actually valid
             if (!valid) {

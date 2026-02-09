@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {MerchantRegistry} from "../../src/subscription/MerchantRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { MerchantRegistry } from "../../src/subscription/MerchantRegistry.sol";
 
 /**
  * @title MerchantRegistry Test
@@ -76,7 +76,7 @@ contract MerchantRegistryTest is Test {
         vm.prank(merchant1);
         registry.updateMerchantInfo("Updated Merchant", "https://updated.test", "updated@test.com");
 
-        (string memory name, , , , , ) = registry.getMerchantInfo(merchant1);
+        (string memory name,,,,,) = registry.getMerchantInfo(merchant1);
         assertEq(name, "Updated Merchant");
     }
 

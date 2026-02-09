@@ -240,8 +240,7 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
         // Calculate current pending rewards
         if (userStake.amount > 0) {
             uint256 accRewardPerShare = _calculateAccRewardPerShare();
-            uint256 pending =
-                (userStake.amount * accRewardPerShare) / ACC_REWARD_PRECISION - userStake.rewardDebt;
+            uint256 pending = (userStake.amount * accRewardPerShare) / ACC_REWARD_PRECISION - userStake.rewardDebt;
             userStake.pendingRewards += pending;
         }
 

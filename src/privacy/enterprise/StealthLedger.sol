@@ -41,18 +41,10 @@ interface IStealthLedger {
                                  EVENTS
     ////////////////////////////////////////////////////////////// */
 
-    event BalanceUpdated(
-        bytes32 indexed stealthAddressHash,
-        address indexed token,
-        uint256 newBalance,
-        int256 delta
-    );
+    event BalanceUpdated(bytes32 indexed stealthAddressHash, address indexed token, uint256 newBalance, int256 delta);
 
     event TransactionRecorded(
-        bytes32 indexed txId,
-        bytes32 indexed stealthAddressHash,
-        TransactionType txType,
-        uint256 amount
+        bytes32 indexed txId, bytes32 indexed stealthAddressHash, TransactionType txType, uint256 amount
     );
 
     event VaultAuthorized(address indexed vault, bool authorized);
@@ -142,11 +134,7 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
      * @param amount The amount to credit
      * @return txId The transaction ID
      */
-    function creditBalance(
-        bytes32 stealthAddressHash,
-        address token,
-        uint256 amount
-    )
+    function creditBalance(bytes32 stealthAddressHash, address token, uint256 amount)
         external
         onlyAuthorizedVault
         whenNotPaused
@@ -165,13 +153,7 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
 
         totalBalances[token] += amount;
 
-        txId = _recordTransaction(
-            stealthAddressHash,
-            token,
-            amount,
-            TransactionType.DEPOSIT,
-            bytes32(0)
-        );
+        txId = _recordTransaction(stealthAddressHash, token, amount, TransactionType.DEPOSIT, bytes32(0));
 
         // casting to 'int256' is safe because amount is bounded by token supply which fits in int256
         // forge-lint: disable-next-line(unsafe-typecast)
@@ -185,11 +167,7 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
      * @param amount The amount to debit
      * @return txId The transaction ID
      */
-    function debitBalance(
-        bytes32 stealthAddressHash,
-        address token,
-        uint256 amount
-    )
+    function debitBalance(bytes32 stealthAddressHash, address token, uint256 amount)
         external
         onlyAuthorizedVault
         whenNotPaused
@@ -208,13 +186,7 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
 
         totalBalances[token] -= amount;
 
-        txId = _recordTransaction(
-            stealthAddressHash,
-            token,
-            amount,
-            TransactionType.WITHDRAWAL,
-            bytes32(0)
-        );
+        txId = _recordTransaction(stealthAddressHash, token, amount, TransactionType.WITHDRAWAL, bytes32(0));
 
         // casting to 'int256' is safe because amount is bounded by token supply which fits in int256
         // forge-lint: disable-next-line(unsafe-typecast)
@@ -230,12 +202,7 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
      * @return fromTxId The source transaction ID
      * @return toTxId The destination transaction ID
      */
-    function transferBalance(
-        bytes32 fromHash,
-        bytes32 toHash,
-        address token,
-        uint256 amount
-    )
+    function transferBalance(bytes32 fromHash, bytes32 toHash, address token, uint256 amount)
         external
         onlyAuthorizedVault
         whenNotPaused
@@ -281,11 +248,7 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
      * @param amount The fee amount
      * @return txId The transaction ID
      */
-    function recordFee(
-        bytes32 stealthAddressHash,
-        address token,
-        uint256 amount
-    )
+    function recordFee(bytes32 stealthAddressHash, address token, uint256 amount)
         external
         onlyAuthorizedVault
         whenNotPaused
@@ -303,13 +266,7 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
 
         totalBalances[token] -= amount;
 
-        txId = _recordTransaction(
-            stealthAddressHash,
-            token,
-            amount,
-            TransactionType.FEE,
-            bytes32(0)
-        );
+        txId = _recordTransaction(stealthAddressHash, token, amount, TransactionType.FEE, bytes32(0));
 
         // casting to 'int256' is safe because amount is bounded by token supply which fits in int256
         // forge-lint: disable-next-line(unsafe-typecast)
@@ -326,9 +283,7 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
         TransactionType txType,
         bytes32 relatedTxId
     ) internal returns (bytes32 txId) {
-        txId = keccak256(
-            abi.encodePacked(stealthAddressHash, token, amount, txType, block.timestamp, transactionCount)
-        );
+        txId = keccak256(abi.encodePacked(stealthAddressHash, token, amount, txType, block.timestamp, transactionCount));
 
         transactions[txId] = Transaction({
             stealthAddressHash: stealthAddressHash,
@@ -355,11 +310,7 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
      * @param token The token address
      * @return balance The balance details
      */
-    function getBalance(bytes32 stealthAddressHash, address token)
-        external
-        view
-        returns (Balance memory)
-    {
+    function getBalance(bytes32 stealthAddressHash, address token) external view returns (Balance memory) {
         return balances[stealthAddressHash][token];
     }
 
@@ -377,11 +328,7 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
      * @param stealthAddressHash The stealth address hash
      * @return txIds Array of transaction IDs
      */
-    function getStealthTransactions(bytes32 stealthAddressHash)
-        external
-        view
-        returns (bytes32[] memory)
-    {
+    function getStealthTransactions(bytes32 stealthAddressHash) external view returns (bytes32[] memory) {
         return stealthTransactions[stealthAddressHash];
     }
 
@@ -401,11 +348,11 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
      * @param limit The maximum number of transactions to return
      * @return txIds Array of transaction IDs
      */
-    function getTransactionsPaginated(
-        bytes32 stealthAddressHash,
-        uint256 offset,
-        uint256 limit
-    ) external view returns (bytes32[] memory txIds) {
+    function getTransactionsPaginated(bytes32 stealthAddressHash, uint256 offset, uint256 limit)
+        external
+        view
+        returns (bytes32[] memory txIds)
+    {
         bytes32[] storage allTxIds = stealthTransactions[stealthAddressHash];
         uint256 total = allTxIds.length;
 
@@ -433,10 +380,7 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
      * @param vault The vault address
      * @param authorized Whether the vault is authorized
      */
-    function setVaultAuthorization(address vault, bool authorized)
-        external
-        onlyRole(LEDGER_ADMIN_ROLE)
-    {
+    function setVaultAuthorization(address vault, bool authorized) external onlyRole(LEDGER_ADMIN_ROLE) {
         authorizedVaults[vault] = authorized;
         emit VaultAuthorized(vault, authorized);
     }

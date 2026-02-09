@@ -333,8 +333,7 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         // Calculate collateral to seize
         AssetConfig memory collateralConfig = assetConfigs[collateralAsset];
         uint256 debtValue = _getAssetValue(debtAsset, debtAmount);
-        uint256 collateralToSeize =
-            (debtValue * (BASIS_POINTS + collateralConfig.liquidationBonus)) / BASIS_POINTS;
+        uint256 collateralToSeize = (debtValue * (BASIS_POINTS + collateralConfig.liquidationBonus)) / BASIS_POINTS;
         uint256 collateralAmount = _getAmountFromValue(collateralAsset, collateralToSeize);
 
         // Ensure borrower has enough collateral
@@ -371,7 +370,11 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
     /**
      * @inheritdoc ILendingPool
      */
-    function flashLoan(address asset, uint256 amount, address receiver, bytes calldata data) external nonReentrant whenNotPaused {
+    function flashLoan(address asset, uint256 amount, address receiver, bytes calldata data)
+        external
+        nonReentrant
+        whenNotPaused
+    {
         if (_flashLoanInProgress) revert ReentrantFlashLoan();
         _flashLoanInProgress = true;
 

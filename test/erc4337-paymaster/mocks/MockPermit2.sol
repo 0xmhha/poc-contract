@@ -191,7 +191,9 @@ contract MockPermit2 is IPermit2 {
         _useUnorderedNonce(owner, permitBatch.nonce);
 
         for (uint256 i = 0; i < permitBatch.permitted.length; i++) {
-            require(transferDetails[i].requestedAmount <= permitBatch.permitted[i].amount, "MockPermit2: invalid amount");
+            require(
+                transferDetails[i].requestedAmount <= permitBatch.permitted[i].amount, "MockPermit2: invalid amount"
+            );
             if (transferDetails[i].requestedAmount > 0) {
                 IERC20(permitBatch.permitted[i].token)
                     .safeTransferFrom(owner, transferDetails[i].to, transferDetails[i].requestedAmount);
@@ -219,7 +221,9 @@ contract MockPermit2 is IPermit2 {
         _useUnorderedNonce(owner, permitBatch.nonce);
 
         for (uint256 i = 0; i < permitBatch.permitted.length; i++) {
-            require(transferDetails[i].requestedAmount <= permitBatch.permitted[i].amount, "MockPermit2: invalid amount");
+            require(
+                transferDetails[i].requestedAmount <= permitBatch.permitted[i].amount, "MockPermit2: invalid amount"
+            );
             if (transferDetails[i].requestedAmount > 0) {
                 IERC20(permitBatch.permitted[i].token)
                     .safeTransferFrom(owner, transferDetails[i].to, transferDetails[i].requestedAmount);

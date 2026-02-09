@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {LendingExecutor} from "../../src/erc7579-executors/LendingExecutor.sol";
-import {IModule} from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {ExecMode} from "../../src/erc7579-smartaccount/types/Types.sol";
-import {MODULE_TYPE_EXECUTOR} from "../../src/erc7579-smartaccount/types/Constants.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { LendingExecutor } from "../../src/erc7579-executors/LendingExecutor.sol";
+import { IModule } from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { ExecMode } from "../../src/erc7579-smartaccount/types/Types.sol";
+import { MODULE_TYPE_EXECUTOR } from "../../src/erc7579-smartaccount/types/Constants.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
  * @title LendingExecutor Test
@@ -220,12 +220,8 @@ contract LendingExecutorTest is Test {
     function test_getAccountConfig_ReturnsCorrectConfig() public {
         _installExecutor();
 
-        (
-            uint256 minHealthFactor,
-            uint256 maxBorrowLimit,
-            uint256 totalBorrowed,
-            bool isActive
-        ) = executor.getAccountConfig(account);
+        (uint256 minHealthFactor, uint256 maxBorrowLimit, uint256 totalBorrowed, bool isActive) =
+            executor.getAccountConfig(account);
 
         assertEq(minHealthFactor, 1.5e18);
         assertEq(maxBorrowLimit, 1000 ether);
@@ -637,10 +633,7 @@ contract MockSmartAccount {
         executor = _executor;
     }
 
-    function executeFromExecutor(ExecMode, bytes calldata executionData)
-        external
-        returns (bytes[] memory returnData)
-    {
+    function executeFromExecutor(ExecMode, bytes calldata executionData) external returns (bytes[] memory returnData) {
         require(msg.sender == executor, "Only executor");
 
         // Decode execution data: target (20 bytes) + value (32 bytes) + calldata
@@ -649,12 +642,12 @@ contract MockSmartAccount {
         bytes memory data = executionData[52:];
 
         // Execute the call
-        (bool success, bytes memory result) = target.call{value: value}(data);
+        (bool success, bytes memory result) = target.call{ value: value }(data);
         require(success, "Execution failed");
 
         returnData = new bytes[](1);
         returnData[0] = result;
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }

@@ -381,7 +381,9 @@ contract PolicyHookTest is Test {
         bytes memory msgData = abi.encodePacked(restrictedTarget, uint256(0), callData);
 
         vm.prank(address(account));
-        vm.expectRevert(abi.encodeWithSelector(PolicyHook.SelectorIsBlocked.selector, restrictedTarget, MALICIOUS_SELECTOR));
+        vm.expectRevert(
+            abi.encodeWithSelector(PolicyHook.SelectorIsBlocked.selector, restrictedTarget, MALICIOUS_SELECTOR)
+        );
         hook.preCheck(user, 0, msgData);
     }
 

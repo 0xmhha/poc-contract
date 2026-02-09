@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {StakingExecutor} from "../../src/erc7579-executors/StakingExecutor.sol";
-import {IModule} from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {MODULE_TYPE_EXECUTOR} from "../../src/erc7579-smartaccount/types/Constants.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { StakingExecutor } from "../../src/erc7579-executors/StakingExecutor.sol";
+import { IModule } from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { MODULE_TYPE_EXECUTOR } from "../../src/erc7579-smartaccount/types/Constants.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title StakingExecutor Test
@@ -81,7 +81,7 @@ contract StakingExecutorTest is Test {
         vm.prank(address(smartAccount));
         executor.onInstall(installData);
 
-        (uint256 maxStake, uint256 dailyLimit, , , ) = executor.getAccountConfig(address(smartAccount));
+        (uint256 maxStake, uint256 dailyLimit,,,) = executor.getAccountConfig(address(smartAccount));
         assertEq(maxStake, DEFAULT_MAX_STAKE);
         assertEq(dailyLimit, DEFAULT_DAILY_LIMIT);
     }
@@ -185,7 +185,7 @@ contract StakingExecutorTest is Test {
         vm.prank(address(smartAccount));
         executor.setMaxStakePerPool(newMax);
 
-        (uint256 maxStake, , , , ) = executor.getAccountConfig(address(smartAccount));
+        (uint256 maxStake,,,,) = executor.getAccountConfig(address(smartAccount));
         assertEq(maxStake, newMax);
     }
 
@@ -197,7 +197,7 @@ contract StakingExecutorTest is Test {
         vm.prank(address(smartAccount));
         executor.setDailyStakeLimit(newLimit);
 
-        (, uint256 dailyLimit, , , ) = executor.getAccountConfig(address(smartAccount));
+        (, uint256 dailyLimit,,,) = executor.getAccountConfig(address(smartAccount));
         assertEq(dailyLimit, newLimit);
     }
 
@@ -207,7 +207,7 @@ contract StakingExecutorTest is Test {
         vm.prank(address(smartAccount));
         executor.setPaused(true);
 
-        (, , , , bool isPaused) = executor.getAccountConfig(address(smartAccount));
+        (,,,, bool isPaused) = executor.getAccountConfig(address(smartAccount));
         assertTrue(isPaused);
     }
 
@@ -541,10 +541,10 @@ contract MockSmartAccount {
         executor = _executor;
     }
 
-    function executeFromExecutor(
-        bytes32 mode,
-        bytes calldata executionCalldata
-    ) external returns (bytes[] memory returnData) {
+    function executeFromExecutor(bytes32 mode, bytes calldata executionCalldata)
+        external
+        returns (bytes[] memory returnData)
+    {
         require(msg.sender == executor, "Not executor");
         (mode); // Silence unused
 
@@ -552,7 +552,7 @@ contract MockSmartAccount {
         (address target, uint256 value, bytes memory data) = abi.decode(executionCalldata, (address, uint256, bytes));
 
         returnData = new bytes[](1);
-        (bool success, bytes memory result) = target.call{value: value}(data);
+        (bool success, bytes memory result) = target.call{ value: value }(data);
         require(success, "Execution failed");
         returnData[0] = result;
     }
@@ -561,7 +561,7 @@ contract MockSmartAccount {
         IERC20(token).approve(spender, amount);
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }
 
 contract MockStakingPool {

@@ -42,11 +42,7 @@ contract StealthVaultTest is Test {
         bytes32 stealthAddressHash
     );
 
-    event StealthWithdrawal(
-        bytes32 indexed depositId,
-        address indexed recipient,
-        uint256 amount
-    );
+    event StealthWithdrawal(bytes32 indexed depositId, address indexed recipient, uint256 amount);
 
     function setUp() public {
         admin = makeAddr("admin");

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {SwapExecutor} from "../../src/erc7579-executors/SwapExecutor.sol";
-import {IModule} from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {ExecMode} from "../../src/erc7579-smartaccount/types/Types.sol";
-import {MODULE_TYPE_EXECUTOR} from "../../src/erc7579-smartaccount/types/Constants.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { SwapExecutor } from "../../src/erc7579-executors/SwapExecutor.sol";
+import { IModule } from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { ExecMode } from "../../src/erc7579-smartaccount/types/Types.sol";
+import { MODULE_TYPE_EXECUTOR } from "../../src/erc7579-smartaccount/types/Constants.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
  * @title SwapExecutor Test
@@ -252,12 +252,7 @@ contract SwapExecutorTest is Test {
 
         vm.prank(account);
         uint256 amountOut = executor.swapExactInputSingle(
-            address(tokenA),
-            address(tokenB),
-            FEE_MEDIUM,
-            amountIn,
-            minAmountOut,
-            block.timestamp + 1 hours
+            address(tokenA), address(tokenB), FEE_MEDIUM, amountIn, minAmountOut, block.timestamp + 1 hours
         );
 
         assertGt(amountOut, 0);
@@ -320,12 +315,7 @@ contract SwapExecutorTest is Test {
         vm.prank(account);
         vm.expectRevert(SwapExecutor.ExceedsDailyLimit.selector);
         executor.swapExactInputSingle(
-            address(tokenA),
-            address(tokenB),
-            FEE_MEDIUM,
-            1 ether,
-            0.9 ether,
-            block.timestamp + 1 hours
+            address(tokenA), address(tokenB), FEE_MEDIUM, 1 ether, 0.9 ether, block.timestamp + 1 hours
         );
     }
 
@@ -384,12 +374,7 @@ contract SwapExecutorTest is Test {
         );
 
         executor.swapExactInputSingle(
-            address(tokenA),
-            address(tokenB),
-            FEE_MEDIUM,
-            1 ether,
-            0.9 ether,
-            block.timestamp + 1 hours
+            address(tokenA), address(tokenB), FEE_MEDIUM, 1 ether, 0.9 ether, block.timestamp + 1 hours
         );
     }
 
@@ -401,24 +386,13 @@ contract SwapExecutorTest is Test {
         _installExecutorWithMockSwapRouterMultiHop();
 
         // Path: tokenA -> tokenB -> tokenC
-        bytes memory path = abi.encodePacked(
-            address(tokenA),
-            FEE_MEDIUM,
-            address(tokenB),
-            FEE_MEDIUM,
-            address(tokenC)
-        );
+        bytes memory path = abi.encodePacked(address(tokenA), FEE_MEDIUM, address(tokenB), FEE_MEDIUM, address(tokenC));
 
         uint256 amountIn = 1 ether;
         uint256 minAmountOut = 0.8 ether;
 
         vm.prank(account);
-        uint256 amountOut = executor.swapExactInput(
-            path,
-            amountIn,
-            minAmountOut,
-            block.timestamp + 1 hours
-        );
+        uint256 amountOut = executor.swapExactInput(path, amountIn, minAmountOut, block.timestamp + 1 hours);
 
         assertGt(amountOut, 0);
     }
@@ -439,12 +413,7 @@ contract SwapExecutorTest is Test {
 
         vm.prank(account);
         vm.expectRevert(SwapExecutor.TokenNotWhitelisted.selector);
-        executor.swapExactInput(
-            path,
-            1 ether,
-            0.8 ether,
-            block.timestamp + 1 hours
-        );
+        executor.swapExactInput(path, 1 ether, 0.8 ether, block.timestamp + 1 hours);
     }
 
     function test_swapExactInput_RevertsIf_InvalidPath() public {
@@ -454,12 +423,7 @@ contract SwapExecutorTest is Test {
 
         vm.prank(account);
         vm.expectRevert(SwapExecutor.InvalidPath.selector);
-        executor.swapExactInput(
-            invalidPath,
-            1 ether,
-            0.8 ether,
-            block.timestamp + 1 hours
-        );
+        executor.swapExactInput(invalidPath, 1 ether, 0.8 ether, block.timestamp + 1 hours);
     }
 
     // =========================================================================
@@ -477,13 +441,8 @@ contract SwapExecutorTest is Test {
     function test_getAccountConfig_ReturnsCorrectConfig() public {
         _installExecutor();
 
-        (
-            uint256 dailyLimit,
-            uint256 perSwapLimit,
-            uint256 dailyUsed,
-            uint256 lastResetTime,
-            bool isActive
-        ) = executor.getAccountConfig(account);
+        (uint256 dailyLimit, uint256 perSwapLimit, uint256 dailyUsed, uint256 lastResetTime, bool isActive) =
+            executor.getAccountConfig(account);
 
         assertEq(dailyLimit, 100 ether);
         assertEq(perSwapLimit, 10 ether);
@@ -548,12 +507,7 @@ contract SwapExecutorTest is Test {
         vm.prank(account);
         vm.expectRevert(SwapExecutor.SwapsPaused.selector);
         executor.swapExactInputSingle(
-            address(tokenA),
-            address(tokenB),
-            FEE_MEDIUM,
-            1 ether,
-            0.9 ether,
-            block.timestamp + 1 hours
+            address(tokenA), address(tokenB), FEE_MEDIUM, 1 ether, 0.9 ether, block.timestamp + 1 hours
         );
     }
 
@@ -679,7 +633,7 @@ contract SwapExecutorTest is Test {
 // =========================================================================
 
 contract MockERC20 is ERC20 {
-    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) { }
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
@@ -687,9 +641,10 @@ contract MockERC20 is ERC20 {
 }
 
 contract MockSwapRouter {
-    function exactInputSingle(
-        ISwapRouterMock.ExactInputSingleParams calldata params
-    ) external returns (uint256 amountOut) {
+    function exactInputSingle(ISwapRouterMock.ExactInputSingleParams calldata params)
+        external
+        returns (uint256 amountOut)
+    {
         // Mock: return 95% of input as output
         amountOut = params.amountIn * 95 / 100;
 
@@ -700,9 +655,7 @@ contract MockSwapRouter {
         return amountOut;
     }
 
-    function exactInput(
-        ISwapRouterMock.ExactInputParams calldata params
-    ) external returns (uint256 amountOut) {
+    function exactInput(ISwapRouterMock.ExactInputParams calldata params) external returns (uint256 amountOut) {
         // Mock: return 90% of input as output (multi-hop has more slippage)
         amountOut = params.amountIn * 90 / 100;
 
@@ -754,10 +707,7 @@ contract MockSmartAccount {
      * @notice Execute a call from an installed executor module
      * @dev Simplified version that just executes the call directly
      */
-    function executeFromExecutor(ExecMode, bytes calldata executionData)
-        external
-        returns (bytes[] memory returnData)
-    {
+    function executeFromExecutor(ExecMode, bytes calldata executionData) external returns (bytes[] memory returnData) {
         require(msg.sender == executor, "Only executor");
 
         // Decode execution data: target (20 bytes) + value (32 bytes) + calldata
@@ -766,12 +716,12 @@ contract MockSmartAccount {
         bytes memory data = executionData[52:];
 
         // Execute the call
-        (bool success, bytes memory result) = target.call{value: value}(data);
+        (bool success, bytes memory result) = target.call{ value: value }(data);
         require(success, "Execution failed");
 
         returnData = new bytes[](1);
         returnData[0] = result;
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }

@@ -40,9 +40,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         address granter = makeAddr("granter");
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(spendingLimit)
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(spendingLimit)
         });
 
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
@@ -68,9 +66,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         vm.assume(granter != executor);
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: false,
-            data: abi.encode(uint256(1000 ether))
+            permissionType: "subscription", isAdjustmentAllowed: false, data: abi.encode(uint256(1000 ether))
         });
 
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
@@ -90,14 +86,17 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         address granter = makeAddr("granter");
 
         // Use only valid permission types registered in the contract
-        string[5] memory types =
-            ["subscription", "native-token-recurring-allowance", "erc20-recurring-allowance", "session-key", "spending-limit"];
+        string[5] memory types = [
+            "subscription",
+            "native-token-recurring-allowance",
+            "erc20-recurring-allowance",
+            "session-key",
+            "spending-limit"
+        ];
         string memory permType = types[permissionTypeSeed % 5];
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: permType,
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(1000 ether))
+            permissionType: permType, isAdjustmentAllowed: true, data: abi.encode(uint256(1000 ether))
         });
 
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
@@ -125,9 +124,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         address granter = makeAddr("granter");
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(limit)
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(limit)
         });
 
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
@@ -156,9 +153,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         address granter = makeAddr("granter");
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(limit)
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(limit)
         });
 
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
@@ -192,9 +187,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         vm.warp(grantTime);
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(1000 ether))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(1000 ether))
         });
 
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
@@ -230,9 +223,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
 
         for (uint8 i = 0; i < permissionCount; i++) {
             IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-                permissionType: "subscription",
-                isAdjustmentAllowed: true,
-                data: abi.encode(uint256(i + 1) * 100 ether)
+                permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(i + 1) * 100 ether)
             });
 
             IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
@@ -264,18 +255,14 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         address granter = makeAddr("granter");
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(1000 ether))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(1000 ether))
         });
 
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](ruleCount);
 
         for (uint8 i = 0; i < ruleCount; i++) {
-            rules[i] = IERC7715PermissionManager.Rule({
-                ruleType: "maxAmount",
-                data: abi.encode(uint256(100 ether + i))
-            });
+            rules[i] =
+                IERC7715PermissionManager.Rule({ ruleType: "maxAmount", data: abi.encode(uint256(100 ether + i)) });
         }
 
         vm.prank(granter);
@@ -295,9 +282,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         address granter = makeAddr("granter");
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(0))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(0))
         });
 
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
@@ -316,9 +301,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         address granter = makeAddr("granter");
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(type(uint256).max)
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(type(uint256).max)
         });
 
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
@@ -349,9 +332,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         address granter = makeAddr("granter");
 
         IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
-            permissionType: "subscription",
-            isAdjustmentAllowed: true,
-            data: abi.encode(uint256(1000 ether))
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(1000 ether))
         });
 
         IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](0);
