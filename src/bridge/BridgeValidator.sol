@@ -191,13 +191,13 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
         for (uint256 i = 0; i < signatures.length; i++) {
             address recoveredSigner = ethSignedHash.recover(signatures[i]);
 
-            // Check if signer is valid
-            if (!isSigner[recoveredSigner]) continue;
-
-            // Check for duplicate signatures
+            // Check for duplicate signatures BEFORE signer validation
             for (uint256 j = 0; j < validSignatures; j++) {
                 if (signersCounted[j] == recoveredSigner) revert DuplicateSignature();
             }
+
+            // Check if signer is valid
+            if (!isSigner[recoveredSigner]) continue;
 
             signersCounted[validSignatures] = recoveredSigner;
             validSignatures++;

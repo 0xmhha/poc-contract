@@ -52,6 +52,7 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
     event AddressWhitelisted(address indexed account);
     event BridgeTargetUpdated(address indexed oldTarget, address indexed newTarget);
     event RecoveryExecuted(uint256 indexed proposalId, address indexed target, bytes data);
+    event BridgePauseCallFailed(address indexed bridgeTarget);
 
     // ============ Enums ============
 
@@ -207,7 +208,7 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
             (bool success,) = bridgeTarget.call(abi.encodeWithSignature("pause()"));
             // Don't revert if call fails - guardian pause state is still set
             if (!success) {
-                // Log but continue
+                emit BridgePauseCallFailed(bridgeTarget);
             }
         }
 

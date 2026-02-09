@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { ILendingPool, IFlashLoanReceiver } from "./interfaces/ILendingPool.sol";
 import { IPriceOracle } from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
@@ -17,7 +18,7 @@ import { IPriceOracle } from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
  *      - Liquidation mechanism with bonus for liquidators
  *      - Flash loans with fee
  */
-contract LendingPool is ILendingPool, Ownable, ReentrancyGuard {
+contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // ============ Constants ============
@@ -77,8 +78,14 @@ contract LendingPool is ILendingPool, Ownable, ReentrancyGuard {
     /// @notice List of supported assets
     address[] public supportedAssets;
 
-    /// @notice Flash loan in progress flag
+    /// @notice Flash loan in progress flag (defense-in-depth with nonReentrant)
     bool private _flashLoanInProgress;
+
+    /// @notice Maximum price staleness (5 minutes)
+    uint256 public constant MAX_PRICE_AGE = 5 minutes;
+
+    /// @notice Minimum deposit amount to prevent dust/rounding exploits
+    uint256 public constant MIN_DEPOSIT_AMOUNT = 1000;
 
     // ============ Errors ============
 
@@ -92,6 +99,10 @@ contract LendingPool is ILendingPool, Ownable, ReentrancyGuard {
     error InvalidAmount();
     error FlashLoanFailed();
     error ReentrantFlashLoan();
+    error StalePriceData();
+    error DepositTooSmall();
+
+    event OracleUpdated(address indexed oldOracle, address indexed newOracle);
 
     // ============ Constructor ============
 
@@ -128,7 +139,9 @@ contract LendingPool is ILendingPool, Ownable, ReentrancyGuard {
      * @param _oracle New oracle address
      */
     function setOracle(address _oracle) external onlyOwner {
+        address oldOracle = address(oracle);
         oracle = IPriceOracle(_oracle);
+        emit OracleUpdated(oldOracle, _oracle);
     }
 
     /**
@@ -145,14 +158,29 @@ contract LendingPool is ILendingPool, Ownable, ReentrancyGuard {
         IERC20(asset).safeTransfer(to, amount);
     }
 
+    /**
+     * @notice Pause the lending pool
+     */
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @notice Unpause the lending pool
+     */
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     // ============ Core Functions ============
 
     /**
      * @inheritdoc ILendingPool
      */
-    function deposit(address asset, uint256 amount) external nonReentrant {
+    function deposit(address asset, uint256 amount) external nonReentrant whenNotPaused {
         _validateAsset(asset, true, false, false);
         if (amount == 0) revert InvalidAmount();
+        if (amount < MIN_DEPOSIT_AMOUNT) revert DepositTooSmall();
 
         // Update interest rates
         _updateReserve(asset);
@@ -180,7 +208,7 @@ contract LendingPool is ILendingPool, Ownable, ReentrancyGuard {
     /**
      * @inheritdoc ILendingPool
      */
-    function withdraw(address asset, uint256 amount) external nonReentrant {
+    function withdraw(address asset, uint256 amount) external nonReentrant whenNotPaused {
         _validateAsset(asset, true, false, false);
 
         _updateReserve(asset);
@@ -221,7 +249,7 @@ contract LendingPool is ILendingPool, Ownable, ReentrancyGuard {
     /**
      * @inheritdoc ILendingPool
      */
-    function borrow(address asset, uint256 amount) external nonReentrant {
+    function borrow(address asset, uint256 amount) external nonReentrant whenNotPaused {
         _validateAsset(asset, true, true, false);
         if (amount == 0) revert InvalidAmount();
 
@@ -343,7 +371,7 @@ contract LendingPool is ILendingPool, Ownable, ReentrancyGuard {
     /**
      * @inheritdoc ILendingPool
      */
-    function flashLoan(address asset, uint256 amount, address receiver, bytes calldata data) external nonReentrant {
+    function flashLoan(address asset, uint256 amount, address receiver, bytes calldata data) external nonReentrant whenNotPaused {
         if (_flashLoanInProgress) revert ReentrantFlashLoan();
         _flashLoanInProgress = true;
 
@@ -590,12 +618,14 @@ contract LendingPool is ILendingPool, Ownable, ReentrancyGuard {
     }
 
     function _getAssetValue(address asset, uint256 amount) internal view returns (uint256) {
-        (uint256 price,) = oracle.getPriceWithTimestamp(asset);
+        (uint256 price, uint256 timestamp) = oracle.getPriceWithTimestamp(asset);
+        if (block.timestamp - timestamp > MAX_PRICE_AGE) revert StalePriceData();
         return (amount * price) / 1e18;
     }
 
     function _getAmountFromValue(address asset, uint256 value) internal view returns (uint256) {
-        (uint256 price,) = oracle.getPriceWithTimestamp(asset);
+        (uint256 price, uint256 timestamp) = oracle.getPriceWithTimestamp(asset);
+        if (block.timestamp - timestamp > MAX_PRICE_AGE) revert StalePriceData();
         return (value * 1e18) / price;
     }
 

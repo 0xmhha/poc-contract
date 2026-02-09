@@ -20,10 +20,10 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
  *
  * PaymasterData format:
  *   [0:20] - token address
- *   [20:36] - amount (uint128) - maximum amount to permit
- *   [36:42] - expiration (uint48) - permit expiration timestamp
- *   [42:48] - nonce (uint48) - permit2 nonce
- *   [48:113] - signature (65 bytes) - Permit2 signature
+ *   [20:40] - amount (uint160) - maximum amount to permit
+ *   [40:46] - expiration (uint48) - permit expiration timestamp
+ *   [46:52] - nonce (uint48) - permit2 nonce
+ *   [52:117] - signature (65 bytes) - Permit2 signature
  *
  * Flow:
  * 1. User signs Permit2 permit off-chain
@@ -62,8 +62,8 @@ contract Permit2Paymaster is BasePaymaster {
     mapping(address => uint8) public tokenDecimals;
 
     /// @notice Minimum paymaster data length
-    /// 20 (token) + 16 (amount) + 6 (expiration) + 6 (nonce) + 65 (signature) = 113
-    uint256 private constant MIN_PAYMASTER_DATA_LENGTH = 113;
+    /// 20 (token) + 20 (amount/uint160) + 6 (expiration) + 6 (nonce) + 65 (signature) = 117
+    uint256 private constant MIN_PAYMASTER_DATA_LENGTH = 117;
 
     /// @notice PostOp context structure
     struct PostOpContext {
@@ -241,7 +241,11 @@ contract Permit2Paymaster is BasePaymaster {
             PostOpContext({ sender: userOp.sender, token: token, maxTokenCost: maxTokenCost, maxCost: maxCost })
         );
 
-        return (context, 0);
+        // Pack validation data with permit expiration as validUntil
+        // Format: validAfter (6 bytes) | validUntil (6 bytes) | authorizer (20 bytes)
+        // authorizer = 0 means success
+        uint256 packed = uint256(expiration) << 160;
+        return (context, packed);
     }
 
     /**

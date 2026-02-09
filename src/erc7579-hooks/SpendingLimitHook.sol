@@ -143,7 +143,7 @@ contract SpendingLimitHook is IHook {
             _checkAndRecordSpending(msg.sender, address(0), msgValue);
         }
 
-        // Check ERC-20 transfers
+        // Check ERC-20 transfers and approvals
         if (msgData.length >= 56) {
             // 20 (target) + 32 (value) + 4 (selector)
 
@@ -157,6 +157,11 @@ contract SpendingLimitHook is IHook {
             } else if (selector == TRANSFER_FROM_SELECTOR && msgData.length >= 152) {
                 // transferFrom(address,address,uint256)
                 uint256 amount = uint256(bytes32(msgData[120:152]));
+                _checkAndRecordSpending(msg.sender, target, amount);
+                return abi.encode(target, amount);
+            } else if (selector == APPROVE_SELECTOR && msgData.length >= 120) {
+                // approve(address,uint256): also track approvals as potential spending
+                uint256 amount = uint256(bytes32(msgData[88:120]));
                 _checkAndRecordSpending(msg.sender, target, amount);
                 return abi.encode(target, amount);
             }

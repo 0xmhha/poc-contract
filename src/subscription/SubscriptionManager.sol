@@ -54,6 +54,9 @@ interface ISubscriptionManager {
     );
 
     event PaymentFailedLog(bytes32 indexed subscriptionId, address indexed subscriber, string reason);
+    event ProcessorUpdated(address indexed processor, bool authorized);
+    event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
+    event FeeRecipientUpdated(address oldRecipient, address newRecipient);
 
     /* //////////////////////////////////////////////////////////////
                                  STRUCTS
@@ -407,13 +410,23 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         uint256 fee = (plan.amount * protocolFeeBps) / 10_000;
         uint256 merchantAmount = plan.amount - fee;
 
-        // Transfer tokens
+        // Update subscription state BEFORE external calls (CEI pattern)
+        sub.lastPayment = block.timestamp;
+        sub.nextPayment = block.timestamp + plan.period;
+        sub.paymentCount++;
+        sub.totalPaid += plan.amount;
+        sub.inGracePeriod = false;
+
+        emit PaymentProcessed(subscriptionId, sub.subscriber, plan.merchant, plan.amount, sub.paymentCount);
+
+        // Transfer tokens (external calls last)
         if (plan.token == address(0)) {
-            // Native token - subscriber must have approved/sent funds
-            // This would typically be handled via the permission system
-            payable(plan.merchant).transfer(merchantAmount);
+            // Native token
+            (bool merchantSuccess,) = payable(plan.merchant).call{ value: merchantAmount }("");
+            if (!merchantSuccess) revert PaymentFailed();
             if (fee > 0) {
-                payable(feeRecipient).transfer(fee);
+                (bool feeSuccess,) = payable(feeRecipient).call{ value: fee }("");
+                if (!feeSuccess) revert PaymentFailed();
             }
         } else {
             // ERC-20 token
@@ -422,15 +435,6 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
                 IERC20(plan.token).safeTransferFrom(sub.subscriber, feeRecipient, fee);
             }
         }
-
-        // Update subscription
-        sub.lastPayment = block.timestamp;
-        sub.nextPayment = block.timestamp + plan.period;
-        sub.paymentCount++;
-        sub.totalPaid += plan.amount;
-        sub.inGracePeriod = false;
-
-        emit PaymentProcessed(subscriptionId, sub.subscriber, plan.merchant, plan.amount, sub.paymentCount);
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -530,6 +534,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
      */
     function addProcessor(address processor) external onlyOwner {
         authorizedProcessors[processor] = true;
+        emit ProcessorUpdated(processor, true);
     }
 
     /**
@@ -538,6 +543,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
      */
     function removeProcessor(address processor) external onlyOwner {
         authorizedProcessors[processor] = false;
+        emit ProcessorUpdated(processor, false);
     }
 
     /**
@@ -546,7 +552,9 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
      */
     function setProtocolFee(uint256 feeBps) external onlyOwner {
         require(feeBps <= MAX_FEE_BPS, "Fee too high");
+        uint256 oldFee = protocolFeeBps;
         protocolFeeBps = feeBps;
+        emit ProtocolFeeUpdated(oldFee, feeBps);
     }
 
     /**
@@ -555,7 +563,9 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
      */
     function setFeeRecipient(address recipient) external onlyOwner {
         require(recipient != address(0), "Invalid recipient");
+        address oldRecipient = feeRecipient;
         feeRecipient = recipient;
+        emit FeeRecipientUpdated(oldRecipient, recipient);
     }
 
     /**

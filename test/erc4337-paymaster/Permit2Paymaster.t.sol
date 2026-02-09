@@ -175,7 +175,11 @@ contract Permit2PaymasterTest is Test {
             paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
 
         assertTrue(context.length > 0);
-        assertEq(validationData, 0); // Success
+        // validationData packs expiration as validUntil: uint256(expiration) << 160
+        // authorizer = 0 means success
+        uint48 expiration = uint48(block.timestamp + 1 hours);
+        uint256 expectedValidationData = uint256(expiration) << 160;
+        assertEq(validationData, expectedValidationData);
     }
 
     function test_validatePaymasterUserOp_withExistingAllowance() public {
@@ -194,7 +198,10 @@ contract Permit2PaymasterTest is Test {
             paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
 
         assertTrue(context.length > 0);
-        assertEq(validationData, 0);
+        // validationData packs expiration as validUntil: uint256(expiration) << 160
+        uint48 expiration = uint48(block.timestamp + 1 hours);
+        uint256 expectedValidationData = uint256(expiration) << 160;
+        assertEq(validationData, expectedValidationData);
     }
 
     function test_validatePaymasterUserOp_revertIfUnsupportedToken() public {

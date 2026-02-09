@@ -45,6 +45,8 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
     error DeadlineExpired();
     error NativeTransferFailed();
     error InsufficientFee();
+    error ChainIdMismatch();
+    error MaxFeeBpsExceeded();
 
     // ============ Events ============
     event BridgeInitiated(
@@ -127,6 +129,9 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
 
     /// @notice Total fees collected per token
     mapping(address => uint256) public feesCollected;
+
+    /// @notice Maximum bridge fee (5%)
+    uint256 public constant MAX_BRIDGE_FEE_BPS = 500;
 
     // ============ Constructor ============
 
@@ -263,6 +268,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         if (amount == 0) revert InvalidAmount();
         if (recipient == address(0)) revert InvalidRecipient();
         if (deadline < block.timestamp) revert DeadlineExpired();
+        if (CHAIN_ID != block.chainid) revert ChainIdMismatch();
 
         // Check guardian pause and blacklist
         if (guardian.guardianPaused()) revert GuardianPaused();
@@ -305,8 +311,8 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
 
         // Release tokens
         if (targetToken == address(0)) {
-            // Native token
-            (bool success,) = payable(recipient).call{ value: amount }("");
+            // Native token (gas stipend to prevent griefing)
+            (bool success,) = payable(recipient).call{ value: amount, gas: 10_000 }("");
             if (!success) revert NativeTransferFailed();
         } else {
             // ERC20 token
@@ -388,6 +394,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
      * @param newFeeBps New fee in basis points
      */
     function setBridgeFee(uint256 newFeeBps) external onlyOwner {
+        if (newFeeBps > MAX_BRIDGE_FEE_BPS) revert MaxFeeBpsExceeded();
         uint256 oldFee = bridgeFeeBps;
         bridgeFeeBps = newFeeBps;
         emit FeeUpdated(oldFee, newFeeBps);

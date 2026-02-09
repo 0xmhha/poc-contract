@@ -193,6 +193,7 @@ contract SessionKeyExecutor is IExecutor {
      * @param target Target contract
      * @param value ETH value to send
      * @param data Call data
+     * @param nonce Session key nonce for replay protection
      * @param signature Session key signature over the execution params
      */
     function executeOnBehalf(
@@ -200,17 +201,25 @@ contract SessionKeyExecutor is IExecutor {
         address target,
         uint256 value,
         bytes calldata data,
+        uint256 nonce,
         bytes calldata signature
     ) external returns (bytes[] memory) {
         AccountStorage storage store = accountStorage[account];
 
-        // Recover signer from signature
-        bytes32 execHash = _getExecutionHash(account, target, value, data, store.sessions[msg.sender].nonce);
+        // Compute hash using the provided nonce, then verify it matches signer's stored nonce
+        bytes32 execHash = _getExecutionHash(account, target, value, data, nonce);
         address signer = execHash.toEthSignedMessageHash().recover(signature);
+
+        // Validate recovered signer
+        if (signer == address(0)) revert InvalidSessionKey();
 
         // Validate session key
         SessionKeyConfig storage session = store.sessions[signer];
+        if (!session.isActive) revert InvalidSessionKey();
         _validateSession(session);
+
+        // Verify nonce matches to prevent replay attacks
+        if (session.nonce != nonce) revert InvalidNonce();
 
         // Validate permission
         bytes4 selector = data.length >= 4 ? bytes4(data[:4]) : bytes4(0);

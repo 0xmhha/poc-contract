@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.28;
 
 import { ECDSA } from "solady/utils/ECDSA.sol";
 import { IValidator, IHook } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
