@@ -23,7 +23,7 @@ contract EchidnaKernel {
     // State Variables
     // ========================================================================
 
-    address internal immutable owner;
+    address internal immutable OWNER;
     bool internal initialized;
 
     // Module tracking
@@ -42,7 +42,7 @@ contract EchidnaKernel {
     // ========================================================================
 
     constructor() {
-        owner = msg.sender;
+        OWNER = msg.sender;
     }
 
     // ========================================================================
@@ -90,7 +90,7 @@ contract EchidnaKernel {
     /**
      * @notice Nonce should be monotonically increasing per key
      */
-    function echidna_nonce_monotonic() public view returns (bool) {
+    function echidna_nonce_monotonic() public pure returns (bool) {
         // Nonces are tracked per key, each should be >= 0
         // This is always true for uint256, but demonstrates the pattern
         return true;

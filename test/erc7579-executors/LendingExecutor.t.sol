@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test, console2} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {LendingExecutor} from "../../src/erc7579-executors/LendingExecutor.sol";
 import {IModule} from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {IERC7579Account} from "../../src/erc7579-smartaccount/interfaces/IERC7579Account.sol";
 import {ExecMode} from "../../src/erc7579-smartaccount/types/Types.sol";
 import {MODULE_TYPE_EXECUTOR} from "../../src/erc7579-smartaccount/types/Constants.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -189,12 +188,12 @@ contract LendingExecutorTest is Test {
     function test_setMinHealthFactor_UpdatesFactor() public {
         _installExecutor();
 
-        uint256 newMinHF = 2e18; // 2.0
+        uint256 newMinHf = 2e18; // 2.0
 
         vm.prank(account);
-        executor.setMinHealthFactor(newMinHF);
+        executor.setMinHealthFactor(newMinHf);
 
-        assertEq(executor.getMinHealthFactor(account), newMinHF);
+        assertEq(executor.getMinHealthFactor(account), newMinHf);
     }
 
     function test_setMinHealthFactor_RevertsIf_BelowThreshold() public {
@@ -594,7 +593,7 @@ contract MockLendingPool {
     mapping(address => mapping(address => uint256)) public borrows;
 
     function deposit(address asset, uint256 amount) external {
-        IERC20(asset).transferFrom(msg.sender, address(this), amount);
+        require(IERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
         deposits[asset][msg.sender] += amount;
     }
 
@@ -603,19 +602,19 @@ contract MockLendingPool {
             amount = deposits[asset][msg.sender];
         }
         deposits[asset][msg.sender] -= amount;
-        IERC20(asset).transfer(msg.sender, amount);
+        require(IERC20(asset).transfer(msg.sender, amount), "transfer failed");
     }
 
     function borrow(address asset, uint256 amount) external {
         borrows[asset][msg.sender] += amount;
-        IERC20(asset).transfer(msg.sender, amount);
+        require(IERC20(asset).transfer(msg.sender, amount), "transfer failed");
     }
 
     function repay(address asset, uint256 amount) external {
         if (amount == type(uint256).max) {
             amount = borrows[asset][msg.sender];
         }
-        IERC20(asset).transferFrom(msg.sender, address(this), amount);
+        require(IERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
         borrows[asset][msg.sender] -= amount;
     }
 

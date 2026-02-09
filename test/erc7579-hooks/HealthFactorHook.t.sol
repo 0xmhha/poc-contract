@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test, console2} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {HealthFactorHook} from "../../src/erc7579-hooks/HealthFactorHook.sol";
 import {IModule} from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import {MODULE_TYPE_HOOK} from "../../src/erc7579-smartaccount/types/Constants.sol";
@@ -151,9 +151,9 @@ contract HealthFactorHookTest is Test {
     function test_getAccountConfig_ReturnsCorrectConfig() public {
         _installHook();
 
-        (uint256 minHF, bool enabled, bool initialized) = hook.getAccountConfig(account);
+        (uint256 minHf, bool enabled, bool initialized) = hook.getAccountConfig(account);
 
-        assertEq(minHF, DEFAULT_THRESHOLD);
+        assertEq(minHf, DEFAULT_THRESHOLD);
         assertTrue(enabled);
         assertTrue(initialized);
     }
@@ -409,24 +409,24 @@ contract HealthFactorHookTest is Test {
         assertEq(hook.getMinHealthFactor(account), threshold);
     }
 
-    function testFuzz_preCheck_postCheck_ValidHealthFactors(uint256 preHF, uint256 postHF) public {
+    function testFuzz_preCheck_postCheck_ValidHealthFactors(uint256 preHf, uint256 postHf) public {
         // Use bound instead of assume to avoid rejecting too many inputs
-        preHF = bound(preHF, DEFAULT_THRESHOLD, 10e18);
-        postHF = bound(postHF, DEFAULT_THRESHOLD, preHF);
+        preHf = bound(preHf, DEFAULT_THRESHOLD, 10e18);
+        postHf = bound(postHf, DEFAULT_THRESHOLD, preHf);
 
         _installHookWithMockPool();
 
         vm.prank(account);
         hook.addMonitoredTarget(targetContract);
 
-        MockLendingPool(lendingPool).setHealthFactor(account, preHF);
+        MockLendingPool(lendingPool).setHealthFactor(account, preHf);
 
         vm.prank(account);
         bytes memory context = hook.preCheck(targetContract, 0, bytes(""));
 
-        MockLendingPool(lendingPool).setHealthFactor(account, postHF);
+        MockLendingPool(lendingPool).setHealthFactor(account, postHf);
 
-        // Should not revert since postHF >= threshold
+        // Should not revert since postHf >= threshold
         vm.prank(account);
         hook.postCheck(context);
     }

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test, console2} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {SwapExecutor} from "../../src/erc7579-executors/SwapExecutor.sol";
 import {IModule} from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import {IERC7579Account} from "../../src/erc7579-smartaccount/interfaces/IERC7579Account.sol";
 import {ExecMode} from "../../src/erc7579-smartaccount/types/Types.sol";
 import {MODULE_TYPE_EXECUTOR} from "../../src/erc7579-smartaccount/types/Constants.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -695,8 +694,8 @@ contract MockSwapRouter {
         amountOut = params.amountIn * 95 / 100;
 
         // Transfer tokens (simplified mock)
-        IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
-        IERC20(params.tokenOut).transfer(params.recipient, amountOut);
+        require(IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn), "transfer failed");
+        require(IERC20(params.tokenOut).transfer(params.recipient, amountOut), "transfer failed");
 
         return amountOut;
     }
@@ -712,8 +711,8 @@ contract MockSwapRouter {
         // Last token is at the end: path.length - 20
         address tokenOut = address(bytes20(params.path[params.path.length - 20:]));
 
-        IERC20(tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
-        IERC20(tokenOut).transfer(params.recipient, amountOut);
+        require(IERC20(tokenIn).transferFrom(msg.sender, address(this), params.amountIn), "transfer failed");
+        require(IERC20(tokenOut).transfer(params.recipient, amountOut), "transfer failed");
 
         return amountOut;
     }

@@ -80,10 +80,10 @@ contract SwapExecutor is IExecutor {
     // =========================================================================
 
     /// @notice Uniswap V3 SwapRouter address
-    address public immutable swapRouter;
+    address public immutable SWAP_ROUTER;
 
     /// @notice Uniswap V3 Quoter address
-    address public immutable quoter;
+    address public immutable QUOTER;
 
     /// @notice Account address => AccountStorage
     mapping(address => AccountStorage) internal accountStorage;
@@ -143,8 +143,8 @@ contract SwapExecutor is IExecutor {
      * @param _quoter Uniswap V3 Quoter address
      */
     constructor(address _swapRouter, address _quoter) {
-        swapRouter = _swapRouter;
-        quoter = _quoter;
+        SWAP_ROUTER = _swapRouter;
+        QUOTER = _quoter;
     }
 
     // =========================================================================
@@ -434,14 +434,14 @@ contract SwapExecutor is IExecutor {
      * @notice Get the SwapRouter address
      */
     function getSwapRouter() external view returns (address) {
-        return swapRouter;
+        return SWAP_ROUTER;
     }
 
     /**
      * @notice Get the Quoter address
      */
     function getQuoter() external view returns (address) {
-        return quoter;
+        return QUOTER;
     }
 
     // =========================================================================
@@ -593,7 +593,7 @@ contract SwapExecutor is IExecutor {
     {
         // First, approve SwapRouter to spend tokens
         bytes memory approveCall =
-            abi.encodeWithSelector(IERC20.approve.selector, swapRouter, params.amountIn);
+            abi.encodeWithSelector(IERC20.approve.selector, SWAP_ROUTER, params.amountIn);
 
         bytes memory approveExecData = abi.encodePacked(params.tokenIn, uint256(0), approveCall);
 
@@ -606,7 +606,7 @@ contract SwapExecutor is IExecutor {
             params
         );
 
-        bytes memory swapExecData = abi.encodePacked(swapRouter, uint256(0), swapCall);
+        bytes memory swapExecData = abi.encodePacked(SWAP_ROUTER, uint256(0), swapCall);
 
         bytes[] memory results = IERC7579Account(account).executeFromExecutor(execMode, swapExecData);
 
@@ -627,7 +627,7 @@ contract SwapExecutor is IExecutor {
 
         // First, approve SwapRouter to spend tokens
         bytes memory approveCall =
-            abi.encodeWithSelector(IERC20.approve.selector, swapRouter, params.amountIn);
+            abi.encodeWithSelector(IERC20.approve.selector, SWAP_ROUTER, params.amountIn);
 
         bytes memory approveExecData = abi.encodePacked(tokenIn, uint256(0), approveCall);
 
@@ -640,7 +640,7 @@ contract SwapExecutor is IExecutor {
             params
         );
 
-        bytes memory swapExecData = abi.encodePacked(swapRouter, uint256(0), swapCall);
+        bytes memory swapExecData = abi.encodePacked(SWAP_ROUTER, uint256(0), swapCall);
 
         bytes[] memory results = IERC7579Account(account).executeFromExecutor(execMode, swapExecData);
 

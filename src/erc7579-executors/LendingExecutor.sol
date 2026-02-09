@@ -61,7 +61,7 @@ contract LendingExecutor is IExecutor {
     // =========================================================================
 
     /// @notice Lending pool address
-    address public immutable lendingPool;
+    address public immutable LENDING_POOL;
 
     /// @notice Account address => AccountStorage
     mapping(address => AccountStorage) internal accountStorage;
@@ -106,7 +106,7 @@ contract LendingExecutor is IExecutor {
      * @param _lendingPool Address of the lending pool (e.g., AAVE, custom pool)
      */
     constructor(address _lendingPool) {
-        lendingPool = _lendingPool;
+        LENDING_POOL = _lendingPool;
     }
 
     // =========================================================================
@@ -470,7 +470,7 @@ contract LendingExecutor is IExecutor {
      * @notice Get the lending pool address
      */
     function getLendingPool() external view returns (address) {
-        return lendingPool;
+        return LENDING_POOL;
     }
 
     // =========================================================================
@@ -492,7 +492,7 @@ contract LendingExecutor is IExecutor {
      */
     function _executeSupply(address account, address asset, uint256 amount) internal {
         // First, approve lending pool
-        bytes memory approveCall = abi.encodeWithSelector(IERC20.approve.selector, lendingPool, amount);
+        bytes memory approveCall = abi.encodeWithSelector(IERC20.approve.selector, LENDING_POOL, amount);
         bytes memory approveExecData = abi.encodePacked(asset, uint256(0), approveCall);
 
         ExecMode execMode = _encodeExecMode();
@@ -500,7 +500,7 @@ contract LendingExecutor is IExecutor {
 
         // Then, deposit to lending pool
         bytes memory depositCall = abi.encodeWithSignature("deposit(address,uint256)", asset, amount);
-        bytes memory depositExecData = abi.encodePacked(lendingPool, uint256(0), depositCall);
+        bytes memory depositExecData = abi.encodePacked(LENDING_POOL, uint256(0), depositCall);
 
         IERC7579Account(account).executeFromExecutor(execMode, depositExecData);
     }
@@ -510,7 +510,7 @@ contract LendingExecutor is IExecutor {
      */
     function _executeWithdraw(address account, address asset, uint256 amount) internal {
         bytes memory withdrawCall = abi.encodeWithSignature("withdraw(address,uint256)", asset, amount);
-        bytes memory execData = abi.encodePacked(lendingPool, uint256(0), withdrawCall);
+        bytes memory execData = abi.encodePacked(LENDING_POOL, uint256(0), withdrawCall);
 
         ExecMode execMode = _encodeExecMode();
         IERC7579Account(account).executeFromExecutor(execMode, execData);
@@ -521,7 +521,7 @@ contract LendingExecutor is IExecutor {
      */
     function _executeBorrow(address account, address asset, uint256 amount) internal {
         bytes memory borrowCall = abi.encodeWithSignature("borrow(address,uint256)", asset, amount);
-        bytes memory execData = abi.encodePacked(lendingPool, uint256(0), borrowCall);
+        bytes memory execData = abi.encodePacked(LENDING_POOL, uint256(0), borrowCall);
 
         ExecMode execMode = _encodeExecMode();
         IERC7579Account(account).executeFromExecutor(execMode, execData);
@@ -532,7 +532,7 @@ contract LendingExecutor is IExecutor {
      */
     function _executeRepay(address account, address asset, uint256 amount) internal {
         // First, approve lending pool
-        bytes memory approveCall = abi.encodeWithSelector(IERC20.approve.selector, lendingPool, amount);
+        bytes memory approveCall = abi.encodeWithSelector(IERC20.approve.selector, LENDING_POOL, amount);
         bytes memory approveExecData = abi.encodePacked(asset, uint256(0), approveCall);
 
         ExecMode execMode = _encodeExecMode();
@@ -540,7 +540,7 @@ contract LendingExecutor is IExecutor {
 
         // Then, repay to lending pool
         bytes memory repayCall = abi.encodeWithSignature("repay(address,uint256)", asset, amount);
-        bytes memory repayExecData = abi.encodePacked(lendingPool, uint256(0), repayCall);
+        bytes memory repayExecData = abi.encodePacked(LENDING_POOL, uint256(0), repayCall);
 
         IERC7579Account(account).executeFromExecutor(execMode, repayExecData);
     }

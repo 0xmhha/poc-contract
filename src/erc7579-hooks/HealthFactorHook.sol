@@ -42,7 +42,7 @@ contract HealthFactorHook is IHook {
     }
 
     /// @notice Lending pool address for health factor queries
-    address public immutable lendingPool;
+    address public immutable LENDING_POOL;
 
     /// @notice Minimum allowed health factor (1.0 = liquidation threshold)
     uint256 public constant MIN_HEALTH_FACTOR = 1e18;
@@ -82,7 +82,7 @@ contract HealthFactorHook is IHook {
      * @param _lendingPool Address of the lending pool for health factor queries
      */
     constructor(address _lendingPool) {
-        lendingPool = _lendingPool;
+        LENDING_POOL = _lendingPool;
     }
 
     // ============ IModule Implementation ============
@@ -179,10 +179,10 @@ contract HealthFactorHook is IHook {
         }
 
         // Get current health factor
-        uint256 currentHF = ILendingPool(lendingPool).calculateHealthFactor(msg.sender);
+        uint256 currentHf = ILendingPool(LENDING_POOL).calculateHealthFactor(msg.sender);
 
         // Encode pre-tx health factor and account for postCheck
-        return abi.encode(msg.sender, currentHF, config.minHealthFactor);
+        return abi.encode(msg.sender, currentHf, config.minHealthFactor);
     }
 
     /**
@@ -200,7 +200,7 @@ contract HealthFactorHook is IHook {
             abi.decode(hookData, (address, uint256, uint256));
 
         // Get post-tx health factor
-        uint256 postHealthFactor = ILendingPool(lendingPool).calculateHealthFactor(account);
+        uint256 postHealthFactor = ILendingPool(LENDING_POOL).calculateHealthFactor(account);
 
         // Check if health factor dropped below threshold
         if (postHealthFactor < minHealthFactor) {
@@ -334,12 +334,12 @@ contract HealthFactorHook is IHook {
     /**
      * @notice Get full account configuration
      * @param account The smart account address
-     * @return minHF Minimum health factor threshold
+     * @return minHf Minimum health factor threshold
      * @return enabled Whether hook is enabled
      * @return initialized Whether hook is installed
      */
     function getAccountConfig(address account) external view returns (
-        uint256 minHF,
+        uint256 minHf,
         bool enabled,
         bool initialized
     ) {
@@ -351,7 +351,7 @@ contract HealthFactorHook is IHook {
      * @notice Get the lending pool address
      */
     function getLendingPool() external view returns (address) {
-        return lendingPool;
+        return LENDING_POOL;
     }
 
     /**
@@ -359,7 +359,7 @@ contract HealthFactorHook is IHook {
      * @param account The account to query
      */
     function getCurrentHealthFactor(address account) external view returns (uint256) {
-        return ILendingPool(lendingPool).calculateHealthFactor(account);
+        return ILendingPool(LENDING_POOL).calculateHealthFactor(account);
     }
 
     // ============ Internal Functions ============

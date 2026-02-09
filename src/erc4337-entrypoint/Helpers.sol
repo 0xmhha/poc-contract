@@ -54,7 +54,7 @@ function _parseValidationData(uint256 validationData) pure returns (ValidationDa
     // casting to 'uint48' is safe because validAfter is packed in bits 208-255
     // forge-lint: disable-next-line(unsafe-typecast)
     uint48 validAfter = uint48(validationData >> (48 + 160));
-    return ValidationData(aggregator, validAfter, validUntil);
+    return ValidationData({ aggregator: aggregator, validAfter: validAfter, validUntil: validUntil });
 }
 
 /**

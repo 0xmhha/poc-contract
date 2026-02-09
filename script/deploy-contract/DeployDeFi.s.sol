@@ -7,7 +7,6 @@ import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddres
 import { PriceOracle } from "../../src/defi/PriceOracle.sol";
 import { LendingPool } from "../../src/defi/LendingPool.sol";
 import { StakingVault, IStakingVault } from "../../src/defi/StakingVault.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title DeployDeFiScript

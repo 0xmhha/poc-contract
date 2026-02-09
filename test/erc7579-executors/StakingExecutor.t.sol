@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test, console2} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {StakingExecutor} from "../../src/erc7579-executors/StakingExecutor.sol";
 import {IModule} from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import {MODULE_TYPE_EXECUTOR} from "../../src/erc7579-smartaccount/types/Constants.sol";
@@ -579,13 +579,13 @@ contract MockStakingPool {
     }
 
     function stake(uint256 amount) external {
-        IERC20(stakingToken).transferFrom(msg.sender, address(this), amount);
+        require(IERC20(stakingToken).transferFrom(msg.sender, address(this), amount), "transfer failed");
         stakedAmounts[msg.sender] += amount;
         lockUntil[msg.sender] = block.timestamp + 7 days;
     }
 
     function stakeWithLock(uint256 amount, uint256 lockDuration) external {
-        IERC20(stakingToken).transferFrom(msg.sender, address(this), amount);
+        require(IERC20(stakingToken).transferFrom(msg.sender, address(this), amount), "transfer failed");
         stakedAmounts[msg.sender] += amount;
         lockUntil[msg.sender] = block.timestamp + lockDuration;
     }
@@ -593,13 +593,13 @@ contract MockStakingPool {
     function unstake(uint256 amount) external {
         require(stakedAmounts[msg.sender] >= amount, "Insufficient stake");
         stakedAmounts[msg.sender] -= amount;
-        IERC20(stakingToken).transfer(msg.sender, amount);
+        require(IERC20(stakingToken).transfer(msg.sender, amount), "transfer failed");
     }
 
     function claim() external {
         uint256 rewards = pendingRewardsMap[msg.sender];
         pendingRewardsMap[msg.sender] = 0;
-        IERC20(rewardToken).transfer(msg.sender, rewards);
+        require(IERC20(rewardToken).transfer(msg.sender, rewards), "transfer failed");
     }
 
     function compound() external {
