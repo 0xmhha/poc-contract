@@ -34,13 +34,7 @@ import * as dotenv from "dotenv";
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
-// Whitelist addresses for SponsorPaymaster
-const WHITELIST_ADDRESSES = [
-  "0x056DB290F8Ba3250ca64a45D16284D04Bc6f5FBf",
-  "0x1D828C255Fa0E158371155e08BAdd836412b8e69",
-];
-
-// Paymaster deposit amount in ETH
+// Paymaster deposit amount in ETH (passed to setup-paymaster.sh)
 const PAYMASTER_DEPOSIT = "10";
 
 // ============ Deployment Steps ============
@@ -147,29 +141,11 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
     phase: "deploy",
   },
 
-  // Configuration
+  // Configuration (uses setup-paymaster.sh for all post-deployment tasks)
   {
-    name: "stake-paymaster",
-    description: `Deposit ${PAYMASTER_DEPOSIT} ETH to all paymasters`,
-    command: `./script/stake-paymaster.sh --deposit=${PAYMASTER_DEPOSIT} --paymaster=all`,
-    phase: "config",
-  },
-  {
-    name: "add-token",
-    description: "Add USDC as supported token for ERC20Paymaster",
-    command: "__DYNAMIC_USDC__", // Will be replaced with actual USDC address
-    phase: "config",
-  },
-  {
-    name: "whitelist",
-    description: "Add addresses to SponsorPaymaster whitelist",
-    command: "__DYNAMIC_WHITELIST__", // Will be replaced with actual commands
-    phase: "config",
-  },
-  {
-    name: "info",
-    description: "Show final configuration",
-    command: "./script/configure-paymaster.sh info",
+    name: "setup-paymaster",
+    description: "Run all paymaster post-deployment setup (deposit, token, whitelist, budget, bundler, factory)",
+    command: `./script/setup-paymaster.sh --deposit=${PAYMASTER_DEPOSIT}`,
     phase: "config",
   },
 ];
@@ -647,27 +623,6 @@ function main(): void {
   for (const step of steps) {
     let command = step.command;
 
-    // Handle dynamic commands
-    if (command === "__DYNAMIC_USDC__") {
-      const addresses = loadDeployedAddresses(chainId);
-      const usdcAddress = addresses["usdc"];
-      if (!usdcAddress) {
-        console.log(`\n⚠️  USDC address not found, skipping add-token`);
-        continue;
-      }
-      command = `./script/configure-paymaster.sh add-token ${usdcAddress}`;
-    } else if (command === "__DYNAMIC_WHITELIST__") {
-      // Execute whitelist for each address
-      for (const addr of WHITELIST_ADDRESSES) {
-        const whitelistCmd = `./script/configure-paymaster.sh whitelist ${addr}`;
-        const success = runCommand(whitelistCmd, `Whitelist ${addr}`, args.dryRun);
-        if (!success) {
-          failedSteps.push(`whitelist-${addr}`);
-        }
-      }
-      continue;
-    }
-
     // Add verify flag if requested
     command = addVerifyFlag(command, args.verify);
 
@@ -696,8 +651,7 @@ function main(): void {
 
   if (!args.dryRun && !args.skipConfig) {
     console.log("\n📊 Final Configuration:");
-    console.log("   Run: ./script/configure-paymaster.sh info");
-    console.log("   Run: ./script/stake-paymaster.sh --info");
+    console.log("   Run: ./script/setup-paymaster.sh --info");
   }
 
   console.log("\n" + "═".repeat(60));

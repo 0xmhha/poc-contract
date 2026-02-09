@@ -10,7 +10,7 @@
 #   Phase 2: Modules (Validators, Hooks, Fallbacks, Executors)
 #   Phase 3: Features (Compliance, Privacy, Permit2)
 #   Phase 4: DeFi (UniswapV3, DeFi, Paymasters)
-#   Config:  Paymaster staking, token support, whitelist
+#   Config:  Paymaster setup (deposit, token, whitelist, budget, bundler, factory)
 #
 # Usage:
 #   ./script/deploy-all.sh [options]
@@ -37,7 +37,7 @@
 #   validators, hooks, fallbacks, executors,
 #   compliance, privacy, permit2,
 #   uniswap, defi, paymasters,
-#   stake-paymaster, add-token, whitelist, info
+#   setup-paymaster
 # =============================================================================
 
 set -e
