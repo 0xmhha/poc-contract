@@ -238,10 +238,10 @@ src/
 ├── erc7579-hooks/          # Hook modules
 ├── erc7579-fallbacks/      # Fallback modules
 ├── erc7579-plugins/        # Plugin modules (AutoSwap, MicroLoan, OnRamp)
-├── privacy/                # Stealth addresses (ERC-5564/6538)
+├── privacy/                # Stealth addresses (ERC-5564/6538) + Enterprise vault
 ├── compliance/             # Regulatory compliance
 ├── tokens/                 # Token contracts (wKRC, USDC)
-├── defi/                   # DeFi components (PriceOracle, DEXIntegration)
+├── defi/                   # DeFi components (PriceOracle, LendingPool, StakingVault)
 ├── permit2/                # Permit2 token approvals
 ├── subscription/           # Subscription management (ERC-7715)
 └── bridge/                 # Cross-chain bridge
@@ -252,13 +252,13 @@ src/
 Deploy all contracts at once using the unified deployment script:
 
 ```bash
-forge script script/DeployAll.s.sol:DeployAllScript \
+forge script script/deploy-contract/DeployAll.s.sol:DeployAllScript \
   --rpc-url <RPC_URL> \
   --private-key <PRIVATE_KEY> \
   --broadcast
 ```
 
-This deploys all 44 contracts in dependency order across 6 phases.
+This deploys 43 contracts in dependency order across 7 phases (Phase 0-6).
 
 ## Deployment by Category
 
@@ -286,15 +286,11 @@ FOUNDRY_PROFILE=paymaster forge script script/deploy-contract/DeployPaymasters.s
 
 ### ERC-7579 Modular Smart Account
 
-Modular smart account and plugin modules.
+Modular smart account core and factory.
 
 ```bash
 # Kernel + Factory
 FOUNDRY_PROFILE=smartaccount forge script script/deploy-contract/DeployKernel.s.sol:DeployKernelScript \
-  --rpc-url <RPC_URL> --broadcast
-
-# Validators
-FOUNDRY_PROFILE=validators forge script script/deploy-contract/DeployValidators.s.sol:DeployValidatorsScript \
   --rpc-url <RPC_URL> --broadcast
 ```
 
@@ -302,13 +298,100 @@ FOUNDRY_PROFILE=validators forge script script/deploy-contract/DeployValidators.
 |----------|-------------|
 | Kernel | Modular smart account implementation |
 | KernelFactory | Kernel account creation factory |
+| FactoryStaker | Factory staking for EntryPoint |
+
+### ERC-7579 Validators
+
+Signature validation modules.
+
+```bash
+FOUNDRY_PROFILE=validators forge script script/deploy-contract/DeployValidators.s.sol:DeployValidatorsScript \
+  --rpc-url <RPC_URL> --broadcast
+```
+
+| Contract | Description |
+|----------|-------------|
 | ECDSAValidator | ECDSA signature validation |
 | WeightedECDSAValidator | Weighted multisig validation |
 | MultiChainValidator | Multi-chain signature validation |
 | MultiSigValidator | Multi-signature validation |
 | WebAuthnValidator | WebAuthn/Passkey validation |
+
+### ERC-7579 Hooks
+
+Hook modules for pre/post execution checks.
+
+```bash
+FOUNDRY_PROFILE=hooks forge script script/deploy-contract/DeployHooks.s.sol:DeployHooksScript \
+  --rpc-url <RPC_URL> --broadcast
+```
+
+| Contract | Description |
+|----------|-------------|
+| AuditHook | Audit trail recording hook |
+| SpendingLimitHook | Spending limit enforcement |
+| PolicyHook | Policy-based access control |
+| HealthFactorHook | Health factor monitoring for DeFi |
+
+### ERC-7579 Fallbacks
+
+Fallback handler modules.
+
+```bash
+FOUNDRY_PROFILE=fallbacks forge script script/deploy-contract/DeployFallbacks.s.sol:DeployFallbacksScript \
+  --rpc-url <RPC_URL> --broadcast
+```
+
+| Contract | Description |
+|----------|-------------|
+| TokenReceiverFallback | ERC-721/1155 token receiver |
+| FlashLoanFallback | Flash loan callback handler |
+
+### ERC-7579 Executors
+
+Execution modules for automated operations.
+
+```bash
+FOUNDRY_PROFILE=executors forge script script/deploy-contract/DeployExecutors.s.sol:DeployExecutorsScript \
+  --rpc-url <RPC_URL> --broadcast
+```
+
+| Contract | Description |
+|----------|-------------|
 | SessionKeyExecutor | Session key execution module |
-| SpendingLimitHook | Spending limit hook |
+| RecurringPaymentExecutor | Recurring payment automation |
+| SwapExecutor | Token swap execution |
+| LendingExecutor | Lending protocol interaction |
+| StakingExecutor | Staking operation execution |
+
+### ERC-7579 Plugins
+
+Plugin modules for extended functionality.
+
+```bash
+FOUNDRY_PROFILE=plugins forge script script/deploy-contract/DeployPlugins.s.sol:DeployPluginsScript \
+  --rpc-url <RPC_URL> --broadcast
+```
+
+| Contract | Description |
+|----------|-------------|
+| AutoSwapPlugin | Automated token swaps |
+| MicroLoanPlugin | Micro lending operations |
+| OnRampPlugin | Fiat on-ramp integration |
+
+### Tokens
+
+Token contracts for the StableNet ecosystem.
+
+```bash
+FOUNDRY_PROFILE=tokens forge script script/deploy-contract/DeployTokens.s.sol:DeployTokensScript \
+  --rpc-url <RPC_URL> --broadcast
+```
+
+| Contract | Description |
+|----------|-------------|
+| USDC | USD stablecoin |
+| wKRC | Wrapped KRC token |
 
 ### Privacy (ERC-5564/6538)
 
@@ -324,6 +407,10 @@ FOUNDRY_PROFILE=privacy forge script script/deploy-contract/DeployPrivacy.s.sol:
 | ERC5564Announcer | Stealth address announcements |
 | ERC6538Registry | Stealth meta-address registry |
 | PrivateBank | Private deposits and withdrawals |
+| StealthVault | Enterprise stealth vault |
+| StealthLedger | Stealth transaction ledger |
+| RoleManager | Role-based access control |
+| WithdrawalManager | Withdrawal request management |
 
 ### Compliance
 
@@ -359,15 +446,73 @@ FOUNDRY_PROFILE=bridge forge script script/deploy-contract/DeployBridge.s.sol:De
 | BridgeRateLimiter | Volume and rate controls |
 | BridgeGuardian | Emergency response system |
 
+### Permit2
+
+Universal token approval mechanism.
+
+```bash
+FOUNDRY_PROFILE=permit2 forge script script/deploy-contract/DeployPermit2.s.sol:DeployPermit2Script \
+  --rpc-url <RPC_URL> --broadcast
+```
+
+| Contract | Description |
+|----------|-------------|
+| Permit2 | Universal token approval and transfer |
+
+### DeFi
+
+DeFi components for lending, staking, and price feeds.
+
+```bash
+FOUNDRY_PROFILE=defi forge script script/deploy-contract/DeployDeFi.s.sol:DeployDeFiScript \
+  --rpc-url <RPC_URL> --broadcast
+```
+
+| Contract | Description |
+|----------|-------------|
+| PriceOracle | On-chain price feed oracle |
+| LendingPool | Lending and borrowing pool |
+| StakingVault | Token staking vault with rewards |
+
+### Subscription (ERC-7715)
+
+Subscription and permission management.
+
+```bash
+FOUNDRY_PROFILE=subscription forge script script/deploy-contract/DeploySubscription.s.sol:DeploySubscriptionScript \
+  --rpc-url <RPC_URL> --broadcast
+```
+
+| Contract | Description |
+|----------|-------------|
+| ERC7715PermissionManager | ERC-7715 permission management |
+| SubscriptionManager | Subscription lifecycle management |
+| MerchantRegistry | Merchant registration and management |
+
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ADMIN_ADDRESS` | Admin address | Deployer |
-| `VERIFYING_SIGNER` | Paymaster signer | Admin |
-| `SKIP_EXISTING` | Skip existing deployments | true |
-| `RPC_URL_LOCAL` | Local RPC URL | - |
-| `RPC_URL_SEPOLIA` | Sepolia RPC URL | - |
+| `CHAIN_ID` | Target chain ID | 8283 |
+| `RPC_URL` | RPC endpoint URL | `http://127.0.0.1:8501` |
+| `PRIVATE_KEY_DEPLOYER` | Deployer private key | - |
+| `PRIVATE_KEY_BUNDLER` | Bundler private key | - |
+| `PRIVATE_KEY_PAYMASTER` | Paymaster owner private key | - |
+| `ADMIN_ADDRESS` | Admin/owner address | Deployer |
+| `OWNER_ADDRESS` | Paymaster owner address | Deployer |
+| `VERIFYING_SIGNER` | Paymaster signer address | Admin |
+| `FEE_RECIPIENT` | Fee recipient address | - |
+| `BUNDLER_RPC_URL` | Bundler RPC endpoint | `http://127.0.0.1:4337` |
+| `BRIDGE_SIGNERS` | Bridge signer addresses (comma-separated) | - |
+| `BRIDGE_GUARDIANS` | Bridge guardian addresses (comma-separated) | - |
+| `BRIDGE_SIGNER_THRESHOLD` | Bridge signer threshold | 3 |
+| `BRIDGE_GUARDIAN_THRESHOLD` | Bridge guardian threshold | 2 |
+| `SWAP_ROUTER` | Uniswap V3 SwapRouter address | - |
+| `QUOTER` | Uniswap V3 Quoter address | - |
+| `EXPLORER_API_KEY` | Block explorer API key | - |
+| `VERIFIER_URL` | Contract verifier API URL | - |
+
+See `.env.example` for the full list of configuration options.
 
 ## Documentation
 
