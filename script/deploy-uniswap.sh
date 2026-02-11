@@ -45,6 +45,14 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
+# Ensure remappings.txt is restored on any exit (success, error, or signal)
+cleanup_remappings() {
+    if [ -f "remappings.txt.bak" ]; then
+        mv remappings.txt.bak remappings.txt
+    fi
+}
+trap cleanup_remappings EXIT
+
 # Build UniswapV3 contracts with isolated uniswap profile
 # Temporarily hide remappings.txt to use profile-specific remappings (OZ v3 for UniswapV3)
 echo "Building UniswapV3 contracts..."
@@ -53,11 +61,6 @@ if [ -f "remappings.txt" ]; then
 fi
 
 FOUNDRY_PROFILE=uniswap forge build
-
-# Restore remappings.txt
-if [ -f "remappings.txt.bak" ]; then
-    mv remappings.txt.bak remappings.txt
-fi
 
 # Execute TypeScript script
 npx ts-node script/ts/deploy-uniswap.ts "$@"

@@ -45,7 +45,7 @@ const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
 // Default deposit amount per paymaster (in ETH/KRC)
-const DEFAULT_DEPOSIT = "10";
+const DEFAULT_DEPOSIT = "10000";
 
 // Default SponsorPaymaster budget
 const DEFAULT_BUDGET_LIMIT = "1"; // 1 ETH per user
@@ -82,6 +82,7 @@ interface SetupStep {
 }
 
 const SETUP_STEPS: SetupStep[] = [
+  { name: "transfer-ownership", description: "Transfer paymaster ownership from deployer to paymaster account", category: "paymaster" },
   { name: "deposit", description: "Deposit native token to EntryPoint for all paymasters", category: "paymaster" },
   { name: "token", description: "Add USDC as supported token for ERC20Paymaster", category: "erc20" },
   { name: "whitelist", description: "Whitelist addresses for SponsorPaymaster", category: "sponsor" },
@@ -161,6 +162,13 @@ function validateEnv(requireKeys: boolean): EnvConfig {
   if (requireKeys) {
     if (!privateKeyDeployer) {
       throw new Error("PRIVATE_KEY_DEPLOYER is not set in .env");
+    }
+    if (!privateKeyPaymaster) {
+      throw new Error(
+        "PRIVATE_KEY_PAYMASTER is not set in .env\n" +
+        "  This key is used for paymaster deposit and owner operations (Steps 1-4).\n" +
+        "  The corresponding address must be the owner of the deployed paymasters."
+      );
     }
   }
 
@@ -285,6 +293,34 @@ function getDeposit(entryPoint: string, account: string, rpcUrl: string): string
   return cleanCastResult(result);
 }
 
+interface StakeInfo {
+  deposit: string;
+  staked: boolean;
+  stake: string;
+  unstakeDelaySec: number;
+  withdrawTime: string;
+}
+
+function getStakeInfo(entryPoint: string, account: string, rpcUrl: string): StakeInfo {
+  try {
+    const result = execCast(
+      ["call", entryPoint, "getDepositInfo(address)((uint256,bool,uint112,uint32,uint48))", account],
+      { rpcUrl }
+    );
+    const cleaned = result.trim().replace(/[\[\]()]/g, "");
+    const parts = cleaned.split(",").map((p: string) => p.trim());
+    return {
+      deposit: cleanCastResult(parts[0] || "0"),
+      staked: parts[1] === "true",
+      stake: cleanCastResult(parts[2] || "0"),
+      unstakeDelaySec: parseInt(parts[3] || "0", 10),
+      withdrawTime: cleanCastResult(parts[4] || "0"),
+    };
+  } catch {
+    return { deposit: "0", staked: false, stake: "0", unstakeDelaySec: 0, withdrawTime: "0" };
+  }
+}
+
 function getWalletAddress(privateKey: string): string {
   const result = execSync(`cast wallet address ${privateKey}`, { encoding: "utf8" });
   return result.trim();
@@ -315,6 +351,92 @@ function runShellCommand(command: string, description: string, dryRun: boolean):
     console.error(`  ❌ Failed`);
     return false;
   }
+}
+
+// ============ Step: Transfer Ownership ============
+
+function stepTransferOwnership(
+  addresses: DeployedAddresses,
+  rpcUrl: string,
+  privateKeyDeployer: string,
+  privateKeyPaymaster: string,
+  dryRun: boolean
+): boolean {
+  console.log(`\n${"─".repeat(60)}`);
+  console.log(`  Step 0: Transfer paymaster ownership to paymaster account`);
+  console.log(`${"─".repeat(60)}`);
+
+  if (!privateKeyPaymaster) {
+    console.log("  ⚠️  PRIVATE_KEY_PAYMASTER not set, skipping...");
+    return true;
+  }
+
+  const paymasterAddress = getWalletAddress(privateKeyPaymaster);
+  console.log(`  Target owner: ${paymasterAddress}`);
+
+  if (dryRun) {
+    console.log(`  [DRY RUN] Would transfer ownership of all paymasters to ${paymasterAddress}`);
+    return true;
+  }
+
+  let allSuccess = true;
+
+  for (const [name, key] of Object.entries(PAYMASTER_KEYS)) {
+    const contractAddr = addresses[key];
+    if (!contractAddr) {
+      console.log(`  ⚠️  ${name}: NOT DEPLOYED (skipping)`);
+      continue;
+    }
+
+    try {
+      // Check current owner
+      const currentOwner = execCast(
+        ["call", contractAddr, "owner()(address)"],
+        { rpcUrl }
+      ).trim();
+
+      console.log(`\n  ${name} (${contractAddr})`);
+      console.log(`    Current owner: ${currentOwner}`);
+
+      if (currentOwner.toLowerCase() === paymasterAddress.toLowerCase()) {
+        console.log(`    Already owned by paymaster account, skipping...`);
+        continue;
+      }
+
+      // Transfer ownership (deployer must be current owner)
+      console.log(`    Transferring ownership to ${paymasterAddress}...`);
+      const cmd = [
+        "cast", "send", contractAddr,
+        `"transferOwnership(address)"`, paymasterAddress,
+        "--rpc-url", rpcUrl,
+        "--private-key", privateKeyDeployer,
+      ];
+
+      execSync(cmd.join(" "), {
+        cwd: PROJECT_ROOT,
+        stdio: "inherit",
+        shell: "/bin/bash",
+      });
+
+      // Verify new owner
+      const newOwner = execCast(
+        ["call", contractAddr, "owner()(address)"],
+        { rpcUrl }
+      ).trim();
+
+      if (newOwner.toLowerCase() === paymasterAddress.toLowerCase()) {
+        console.log(`    ✅ Ownership transferred`);
+      } else {
+        console.log(`    ❌ Ownership transfer may have failed (owner: ${newOwner})`);
+        allSuccess = false;
+      }
+    } catch (error) {
+      console.error(`    ❌ Failed to transfer ownership for ${name}`);
+      allSuccess = false;
+    }
+  }
+
+  return allSuccess;
 }
 
 // ============ Step: Deposit to EntryPoint ============
@@ -816,17 +938,23 @@ function stepInfo(
     }
   }
 
-  // Bundler info
+  // Bundler info (Step 5 does depositTo + addStake)
   console.log("\n[Bundler]");
   console.log("-".repeat(60));
   const privateKeyBundler = process.env.PRIVATE_KEY_BUNDLER || "";
   if (privateKeyBundler) {
     try {
       const bundlerAddress = getWalletAddress(privateKeyBundler);
-      const bundlerDeposit = getDeposit(entryPoint, bundlerAddress, rpcUrl);
-      const status = BigInt(bundlerDeposit) > BigInt(0) ? "✅" : "❌";
+      const info = getStakeInfo(entryPoint, bundlerAddress, rpcUrl);
+      const depositOk = BigInt(info.deposit) > BigInt(0);
+      const stakeOk = info.staked && BigInt(info.stake) > BigInt(0);
+      const status = depositOk && stakeOk ? "✅" : "❌";
       console.log(`  ${status} Address: ${bundlerAddress}`);
-      console.log(`    Deposit: ${formatEther(bundlerDeposit)} KRC`);
+      console.log(`    Deposit: ${formatEther(info.deposit)} KRC ${depositOk ? "✅" : "❌"}`);
+      console.log(`    Staked:  ${info.staked ? "Yes" : "No"} | Stake: ${formatEther(info.stake)} KRC ${stakeOk ? "✅" : "❌"}`);
+      if (info.staked) {
+        console.log(`    Unstake Delay: ${info.unstakeDelaySec}s`);
+      }
     } catch {
       console.log(`  Error reading bundler info`);
     }
@@ -834,16 +962,31 @@ function stepInfo(
     console.log("  PRIVATE_KEY_BUNDLER not set");
   }
 
-  // Factory info
+  // Factory info (Step 6 does addStake + approveFactory)
   const factoryStaker = addresses["factoryStaker"];
   if (factoryStaker) {
     console.log("\n[FactoryStaker]");
     console.log("-".repeat(60));
     try {
-      const factoryDeposit = getDeposit(entryPoint, factoryStaker, rpcUrl);
-      const status = BigInt(factoryDeposit) > BigInt(0) ? "✅" : "❌";
+      const info = getStakeInfo(entryPoint, factoryStaker, rpcUrl);
+      const stakeOk = info.staked && BigInt(info.stake) > BigInt(0);
+      const status = stakeOk ? "✅" : "❌";
       console.log(`  ${status} Address: ${factoryStaker}`);
-      console.log(`    Deposit: ${formatEther(factoryDeposit)} KRC`);
+      console.log(`    Staked: ${info.staked ? "Yes" : "No"} | Stake: ${formatEther(info.stake)} KRC ${stakeOk ? "✅" : "❌"}`);
+      if (info.staked) {
+        console.log(`    Unstake Delay: ${info.unstakeDelaySec}s`);
+      }
+
+      // Check KernelFactory approval
+      const kernelFactory = addresses["kernelFactory"];
+      if (kernelFactory) {
+        const approvedResult = execCast(
+          ["call", factoryStaker, "approved(address)(bool)", kernelFactory],
+          { rpcUrl }
+        );
+        const approved = approvedResult.trim().includes("true");
+        console.log(`    KernelFactory Approved: ${approved ? "Yes ✅" : "No ❌"}`);
+      }
     } catch {
       console.log(`  Error reading factory info`);
     }
@@ -880,11 +1023,23 @@ function main(): void {
   console.log(`RPC URL: ${env.rpcUrl}`);
   console.log(`EntryPoint: ${entryPoint}`);
   console.log(`Dry Run: ${args.dryRun ? "YES" : "NO"}`);
+
+  // Show key assignment
+  const paymasterAddr = env.privateKeyPaymaster ? getWalletAddress(env.privateKeyPaymaster) : "(not set)";
+  const deployerAddr = env.privateKeyDeployer ? getWalletAddress(env.privateKeyDeployer) : "(not set)";
+  console.log("─".repeat(60));
+  console.log(`Paymaster Owner: ${paymasterAddr} (Steps 1-4: deposit, token, whitelist, budget)`);
+  console.log(`Deployer:        ${deployerAddr} (Step 6: factory stake)`);
+  if (env.privateKeyBundler) {
+    console.log(`Bundler:         ${getWalletAddress(env.privateKeyBundler)} (Step 5: bundler stake)`);
+  }
+
   if (args.from) console.log(`Starting from: ${args.from}`);
   console.log("═".repeat(60));
 
   // Determine which steps to run
   const skipMap: { [key: string]: boolean } = {
+    "transfer-ownership": false,
     deposit: args.skipDeposit,
     token: args.skipToken,
     whitelist: args.skipWhitelist,
@@ -927,17 +1082,25 @@ function main(): void {
     let success = true;
 
     switch (step.name) {
+      case "transfer-ownership":
+        // Deployer transfers ownership to paymaster account (runs once)
+        success = stepTransferOwnership(addresses, env.rpcUrl, env.privateKeyDeployer, env.privateKeyPaymaster, args.dryRun);
+        break;
       case "deposit":
-        success = stepDeposit(entryPoint, addresses, args.deposit, env.rpcUrl, env.privateKeyDeployer, args.dryRun);
+        // Paymaster account funds the EntryPoint deposit
+        success = stepDeposit(entryPoint, addresses, args.deposit, env.rpcUrl, env.privateKeyPaymaster, args.dryRun);
         break;
       case "token":
-        success = stepAddToken(addresses, env.rpcUrl, env.privateKeyDeployer, args.dryRun);
+        // Paymaster owner configures supported tokens
+        success = stepAddToken(addresses, env.rpcUrl, env.privateKeyPaymaster, args.dryRun);
         break;
       case "whitelist":
-        success = stepWhitelist(addresses, env.rpcUrl, env.privateKeyDeployer, args.dryRun);
+        // Paymaster owner manages whitelist
+        success = stepWhitelist(addresses, env.rpcUrl, env.privateKeyPaymaster, args.dryRun);
         break;
       case "budget":
-        success = stepDefaultBudget(addresses, env.rpcUrl, env.privateKeyDeployer, args.dryRun);
+        // Paymaster owner sets budget limits
+        success = stepDefaultBudget(addresses, env.rpcUrl, env.privateKeyPaymaster, args.dryRun);
         break;
       case "bundler":
         success = stepBundlerStake(entryPoint, env.rpcUrl, env.privateKeyBundler, args.dryRun);

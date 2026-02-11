@@ -1,8 +1,9 @@
 #!/usr/bin/env npx ts-node
 /**
- * EntryPoint Deployment Script
+ * EntryPoint Deployment Script (CREATE2)
  *
- * Deploys ERC-4337 EntryPoint contract using forge script
+ * Deploys ERC-4337 EntryPoint contract via CREATE2 for deterministic cross-chain addresses.
+ * Requires Nick's Deterministic Deployer (0x4e59b44847b379578588920cA78FbF26c0B4956C).
  *
  * Usage:
  *   npx ts-node script/ts/deploy-entrypoint.ts [--broadcast] [--verify] [--force]
@@ -23,6 +24,7 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
+import { ensureCREATE2Deployer } from "./ensure-create2-deployer";
 
 // ============ Configuration ============
 
@@ -98,7 +100,7 @@ function buildVerifyCommand(options: {
   const verifierUrl = process.env.VERIFIER_URL;
 
   if (!verifierUrl) {
-    console.log("⚠️  VERIFIER_URL is not set in .env, skipping verification");
+    console.log("VERIFIER_URL is not set in .env, skipping verification");
     return null;
   }
 
@@ -182,9 +184,9 @@ function verifyContracts(chainId: string): void {
           FOUNDRY_PROFILE: FOUNDRY_PROFILE,
         },
       });
-      console.log(`✅ ${contract.name} verified successfully`);
+      console.log(`${contract.name} verified successfully`);
     } catch (error) {
-      console.error(`⚠️  ${contract.name} verification failed (contract may already be verified)`);
+      console.error(`${contract.name} verification failed (contract may already be verified)`);
     }
   }
 }
@@ -198,7 +200,7 @@ function main(): void {
   const verifyOnly = verify && !broadcast && !force;
 
   console.log("=".repeat(60));
-  console.log("  EntryPoint Deployment (ERC-4337)");
+  console.log("  EntryPoint Deployment (ERC-4337 via CREATE2)");
   console.log("=".repeat(60));
 
   if (verifyOnly) {
@@ -222,8 +224,21 @@ function main(): void {
   console.log(`Broadcast: ${broadcast ? "YES" : "NO (dry run)"}`);
   console.log(`Verify: ${verify ? "YES (after deployment)" : "NO"}`);
   console.log(`Force Redeploy: ${force ? "YES" : "NO"}`);
+  console.log(`Deploy Salt: ${process.env.ENTRYPOINT_DEPLOY_SALT || "(default: stable-net-entrypoint-v1)"}`);
   console.log(`Profile: FOUNDRY_PROFILE=${FOUNDRY_PROFILE}`);
   console.log("=".repeat(60));
+
+  // Step 0: Check CREATE2 deployer availability (fallback to regular CREATE)
+  let useCreate2 = false;
+  if (broadcast) {
+    console.log("\n[Step 0] Checking CREATE2 deployer on chain...");
+    useCreate2 = ensureCREATE2Deployer();
+    if (useCreate2) {
+      console.log("  CREATE2 deployer available - using deterministic deployment");
+    } else {
+      console.log("  CREATE2 deployer unavailable - falling back to regular CREATE");
+    }
+  }
 
   // Step 1: Deploy contracts
   const deployCmd = buildDeployCommand({
@@ -242,12 +257,13 @@ function main(): void {
         ...process.env,
         FOUNDRY_PROFILE: FOUNDRY_PROFILE,
         FORCE_REDEPLOY: force ? "true" : "",
+        USE_CREATE2: useCreate2 ? "true" : "",
       },
     });
 
     console.log("\n" + "=".repeat(60));
     if (broadcast) {
-      console.log("✅ EntryPoint deployment completed!");
+      console.log("EntryPoint deployment completed!");
       console.log("\nDeployed addresses saved to: deployments/" + chainId + "/addresses.json");
 
       // Step 2: Verify contracts (if requested and deployment was broadcast)
@@ -255,11 +271,11 @@ function main(): void {
         verifyContracts(chainId);
       }
     } else {
-      console.log("✅ Dry run completed. Use --broadcast to deploy.");
+      console.log("Dry run completed. Use --broadcast to deploy.");
     }
     console.log("=".repeat(60));
   } catch (error) {
-    console.error("\n❌ Deployment failed");
+    console.error("\nDeployment failed");
     process.exit(1);
   }
 }

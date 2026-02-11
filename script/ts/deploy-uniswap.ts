@@ -201,7 +201,7 @@ function getAddressFromBroadcast(
     const deployTx = data.transactions.find(
       (tx) =>
         tx.contractName === contractName &&
-        tx.transactionType === "CREATE" &&
+        (tx.transactionType === "CREATE" || tx.transactionType === "CREATE2") &&
         tx.contractAddress
     );
 
@@ -319,16 +319,50 @@ async function createPool(
   const existingPool = await factory.getPool(sortedToken0, sortedToken1, fee);
   if (existingPool !== ethers.ZeroAddress) {
     console.log(`Pool already exists at: ${existingPool}`);
+
+    // Check if pool needs initialization (may have been created but not initialized)
+    const poolCheckAbi = [
+      "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
+    ];
+    const existingPoolContract = new ethers.Contract(existingPool, poolCheckAbi, provider);
+    const slot0 = await existingPoolContract.slot0();
+    if (BigInt(slot0.sqrtPriceX96.toString()) === BigInt(0)) {
+      console.log("Pool exists but is not initialized, initializing now...");
+      const defaultSqrtPriceX96 = "79228162514264337593543950336";
+      const sqrtPriceX96 = process.env.INITIAL_PRICE || defaultSqrtPriceX96;
+      const poolInitAbi = ["function initialize(uint160 sqrtPriceX96) external"];
+      const poolContractToInit = new ethers.Contract(existingPool, poolInitAbi, wallet);
+      const initTx = await poolContractToInit.initialize(sqrtPriceX96);
+      await initTx.wait();
+      console.log("Pool initialized successfully");
+    } else {
+      console.log("Pool is already initialized");
+    }
+
     return existingPool;
   }
 
   // Create pool
   const tx = await factory.createPool(sortedToken0, sortedToken1, fee);
-  const receipt = await tx.wait();
+  await tx.wait();
 
   // Get pool address from event
   const poolAddress = await factory.getPool(sortedToken0, sortedToken1, fee);
   console.log(`Pool created at: ${poolAddress}`);
+
+  // Initialize the pool with sqrtPriceX96
+  // Default: 2^96 = 79228162514264337593543950336 (raw-unit 1:1 ratio)
+  // NOTE: For tokens with different decimals (e.g., wKRC=18, USDC=6), the
+  // human-readable price will NOT be 1:1. Override via INITIAL_PRICE env var.
+  const defaultSqrtPriceX96 = "79228162514264337593543950336";
+  const sqrtPriceX96 = process.env.INITIAL_PRICE || defaultSqrtPriceX96;
+
+  console.log(`Initializing pool with sqrtPriceX96: ${sqrtPriceX96}`);
+  const poolAbi = ["function initialize(uint160 sqrtPriceX96) external"];
+  const poolContract = new ethers.Contract(poolAddress, poolAbi, wallet);
+  const initTx = await poolContract.initialize(sqrtPriceX96);
+  await initTx.wait();
+  console.log("Pool initialized successfully");
 
   return poolAddress;
 }
@@ -467,8 +501,15 @@ async function main(): Promise<void> {
   // Note: Uniswap contracts are built by the shell wrapper (deploy-uniswap.sh)
   // which handles remappings.txt correctly before calling this script.
 
-  // Load existing addresses
-  const addresses = force ? {} : loadDeployedAddresses(chainId);
+  // Load existing addresses (always load to preserve non-Uniswap addresses)
+  const addresses = loadDeployedAddresses(chainId);
+  if (force) {
+    // Clear only Uniswap-specific addresses to force redeploy
+    for (const contract of Object.values(CONTRACTS)) {
+      delete addresses[contract.jsonKey];
+    }
+    delete addresses["uniswapV3WkrcUsdcPool"];
+  }
 
   // Get USDC address from multiple sources
   const usdcAddress = getUsdcAddress(chainId, addresses);
@@ -505,7 +546,7 @@ async function main(): Promise<void> {
   console.log("-".repeat(60));
 
   let swapRouterAddress = addresses[CONTRACTS.swapRouter.jsonKey];
-  if (!swapRouterAddress && factoryAddress !== ethers.ZeroAddress) {
+  if (!swapRouterAddress && (factoryAddress !== ethers.ZeroAddress || !broadcast)) {
     swapRouterAddress = await deployContract(
       provider,
       wallet,
@@ -523,7 +564,7 @@ async function main(): Promise<void> {
   console.log("-".repeat(60));
 
   let quoterAddress = addresses[CONTRACTS.quoter.jsonKey];
-  if (!quoterAddress && factoryAddress !== ethers.ZeroAddress) {
+  if (!quoterAddress && (factoryAddress !== ethers.ZeroAddress || !broadcast)) {
     quoterAddress = await deployContract(
       provider,
       wallet,
@@ -541,8 +582,9 @@ async function main(): Promise<void> {
   console.log("-".repeat(60));
 
   let nftPositionManagerAddress = addresses[CONTRACTS.nftPositionManager.jsonKey];
-  if (!nftPositionManagerAddress && factoryAddress !== ethers.ZeroAddress) {
-    // NonfungiblePositionManager needs tokenDescriptor, but we can use address(0) for now
+  if (!nftPositionManagerAddress && (factoryAddress !== ethers.ZeroAddress || !broadcast)) {
+    // NonfungibleTokenPositionDescriptor is not deployed in this PoC (requires NFTDescriptor
+    // library linking). Passing address(0) disables tokenURI() metadata rendering for LP NFTs.
     const tokenDescriptor = addresses[CONTRACTS.nftDescriptor.jsonKey] || ethers.ZeroAddress;
 
     nftPositionManagerAddress = await deployContract(
@@ -559,7 +601,7 @@ async function main(): Promise<void> {
 
   // ============ Create Pool ============
 
-  if (shouldCreatePool && factoryAddress && factoryAddress !== ethers.ZeroAddress && usdcAddress) {
+  if (shouldCreatePool && factoryAddress && (factoryAddress !== ethers.ZeroAddress || !broadcast) && usdcAddress) {
     console.log("\n" + "-".repeat(60));
     console.log("Step 5: Create WKRC/USDC Pool");
     console.log("-".repeat(60));

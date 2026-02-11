@@ -266,7 +266,7 @@ function getAddressFromBroadcast(
     const deployTx = data.transactions.find(
       (tx) =>
         tx.contractName === contractName &&
-        tx.transactionType === "CREATE" &&
+        (tx.transactionType === "CREATE" || tx.transactionType === "CREATE2") &&
         tx.contractAddress
     );
 

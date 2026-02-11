@@ -35,7 +35,7 @@ const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
 // Paymaster deposit amount in ETH (passed to setup-paymaster.sh)
-const PAYMASTER_DEPOSIT = "10";
+const PAYMASTER_DEPOSIT = "10000";
 
 // ============ Deployment Steps ============
 
@@ -317,7 +317,7 @@ function loadDeployedAddresses(chainId: string): DeployedAddresses {
           const broadcast: BroadcastFile = JSON.parse(content);
 
           for (const tx of broadcast.transactions) {
-            if (tx.transactionType === "CREATE" && tx.contractName && tx.contractAddress) {
+            if ((tx.transactionType === "CREATE" || tx.transactionType === "CREATE2") && tx.contractName && tx.contractAddress) {
               const key = CONTRACT_NAME_TO_KEY[tx.contractName];
               if (key) {
                 addresses[key] = tx.contractAddress;

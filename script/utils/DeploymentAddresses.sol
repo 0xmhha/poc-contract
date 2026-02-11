@@ -127,22 +127,29 @@ abstract contract DeploymentHelper is Script {
     // Chain ID for deployment file naming
     uint256 public chainId;
 
+    // Force redeploy flag - when true, scripts should deploy fresh regardless of existing addresses
+    bool public forceRedeploy;
+
     // Cached addresses
     mapping(string => address) internal _addresses;
 
     /**
      * @notice Initialize the deployment helper
-     * @dev Call this at the start of run() function
+     * @dev Call this at the start of run() function.
+     *      Always loads existing addresses to preserve the full address map across scripts.
+     *      The forceRedeploy flag controls whether individual scripts skip existing contracts,
+     *      NOT whether addresses are loaded.
      */
     function _initDeployment() internal {
         chainId = block.chainid;
 
-        // Check for force redeploy flag
-        bool forceRedeploy = vm.envOr("FORCE_REDEPLOY", false);
+        // Always load existing addresses first to preserve them in _saveAddresses()
+        _loadAddresses();
+
+        // Store force redeploy flag for individual scripts to check
+        forceRedeploy = vm.envOr("FORCE_REDEPLOY", false);
         if (forceRedeploy) {
-            console.log("FORCE_REDEPLOY=true: Skipping existing addresses, will deploy fresh");
-        } else {
-            _loadAddresses();
+            console.log("FORCE_REDEPLOY=true: Will deploy fresh contracts (existing addresses preserved for other contracts)");
         }
     }
 
@@ -588,9 +595,13 @@ abstract contract DeploymentHelper is Script {
     /**
      * @notice Get a previously deployed address
      * @param key The address key from DeploymentAddresses
-     * @return The address, or address(0) if not found
+     * @return The address, or address(0) if not found or if forceRedeploy is true
+     * @dev Returns address(0) when forceRedeploy is true so deploy scripts
+     *      will redeploy contracts. Dependencies should use _getAddressOrEnv
+     *      or _requireDependency which access _addresses directly.
      */
     function _getAddress(string memory key) internal view returns (address) {
+        if (forceRedeploy) return address(0);
         return _addresses[key];
     }
 

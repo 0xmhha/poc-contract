@@ -140,6 +140,7 @@ evm_version = "prague"
 fs_permissions = [{ access = "read-write", path = "deployments" }]
 remappings = [
     "forge-std/=lib/forge-std/src/",
+    "solady/=lib/solady/src/",
 ]
 
 # Profile for ERC-4337 Paymaster build and test
@@ -202,6 +203,7 @@ evm_version = "prague"
 fs_permissions = [{ access = "read-write", path = "deployments" }]
 remappings = [
     "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "solady/=lib/solady/src/",
 ]
 
@@ -351,6 +353,7 @@ remappings = [
     "forge-std/=lib/forge-std/src/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "solady/=lib/solady/src/",
+    "solmate/=lib/solmate/",
 ]
 
 # Profile for DeFi contracts build and test (PriceOracle, DEXIntegration)
@@ -488,7 +491,18 @@ fail_on_revert = false
 [lint]
 # asm-keccak256: Using assembly for keccak256 is intentional for gas optimization
 # unwrapped-modifier-logic: Kernel.sol modifier requires local variable to pass data from pre to post hook
-exclude_lints = ["asm-keccak256", "unwrapped-modifier-logic"]
+# unsafe-typecast: Triggered only in vendored OpenZeppelin SafeCast/Math/Strings (safe by design)
+# incorrect-shift: False positives in vendored OpenZeppelin Math.sol/Strings.sol (standard patterns)
+# screaming-snake-case-immutable: Vendored OpenZeppelin EIP712.sol follows OZ naming conventions
+# mixed-case-function: Vendored OpenZeppelin + Echidna test conventions (echidna_*, fuzz_* prefixes required)
+exclude_lints = [
+    "asm-keccak256",
+    "unwrapped-modifier-logic",
+    "unsafe-typecast",
+    "incorrect-shift",
+    "screaming-snake-case-immutable",
+    "mixed-case-function",
+]
 
 # Documentation
 [doc]
