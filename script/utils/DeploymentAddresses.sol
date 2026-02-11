@@ -149,7 +149,9 @@ abstract contract DeploymentHelper is Script {
         // Store force redeploy flag for individual scripts to check
         forceRedeploy = vm.envOr("FORCE_REDEPLOY", false);
         if (forceRedeploy) {
-            console.log("FORCE_REDEPLOY=true: Will deploy fresh contracts (existing addresses preserved for other contracts)");
+            console.log(
+                "FORCE_REDEPLOY=true: Will deploy fresh contracts (existing addresses preserved for other contracts)"
+            );
         }
     }
 
