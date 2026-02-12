@@ -431,6 +431,7 @@ remappings = [
 [profile.uniswap]
 src = "script/uniswap"
 out = "out/uniswap"
+cache_path = "cache/uniswap"
 libs = ["lib"]
 solc = "0.7.6"
 optimizer = true

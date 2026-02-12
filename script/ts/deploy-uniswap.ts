@@ -418,9 +418,28 @@ function verifyContracts(addresses: DeployedAddresses, wkrcAddress: string): voi
   console.log("\n" + "-".repeat(60));
   console.log("Contract Verification");
   console.log("-".repeat(60));
-  console.log("\nNote: You may see ERROR messages about missing OpenZeppelin files.");
-  console.log("These are harmless warnings from forge scanning unrelated project files.");
-  console.log("Verification will still succeed if the contract bytecode matches.");
+  console.log("\nPreparing isolated Uniswap verify environment...");
+  try {
+    execSync("forge clean", {
+      cwd: PROJECT_ROOT,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        FOUNDRY_PROFILE: "uniswap",
+      },
+    });
+    execSync("forge build", {
+      cwd: PROJECT_ROOT,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        FOUNDRY_PROFILE: "uniswap",
+      },
+    });
+  } catch {
+    console.error("Failed to prepare Uniswap profile build for verification");
+    return;
+  }
 
   const factoryAddr = addresses[CONTRACTS.factory.jsonKey];
   const swapRouterAddr = addresses[CONTRACTS.swapRouter.jsonKey];
