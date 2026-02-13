@@ -464,8 +464,10 @@ stablenet = "${RPC_URL_STABLENET}"
 
 [etherscan]
 sepolia = { key = "${EXPLORER_API_KEY}" }
-stablenet-testnet = { key = "${EXPLORER_API_KEY}", url = "${VERIFIER_URL}", chain = 8283 }
-stablenet = { key = "${EXPLORER_API_KEY}", url = "${VERIFIER_URL}", chain = 8283 }
+# NOTE: chain 8283 is not in Foundry's built-in chain registry.
+# Verification is handled by TS scripts with --verifier custom --chain-id flags.
+# stablenet-testnet = { key = "${EXPLORER_API_KEY}", url = "${VERIFIER_URL}", chain = 8283 }
+# stablenet = { key = "${EXPLORER_API_KEY}", url = "${VERIFIER_URL}", chain = 8283 }
 
 # Formatter
 [fmt]

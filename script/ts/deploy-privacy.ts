@@ -120,6 +120,8 @@ function buildVerifyCommand(options: {
     verifierUrl,
     "--verifier",
     "custom",
+    "--chain-id",
+    process.env.CHAIN_ID || "8283",
     options.contractAddress,
     options.contractArtifact,
   ];

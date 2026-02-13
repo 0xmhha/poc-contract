@@ -388,6 +388,8 @@ function verifyContract(
     verifierUrl,
     "--verifier",
     "custom",
+    "--chain-id",
+    process.env.CHAIN_ID || "8283",
     contractAddress,
     contractPath,
   ];
