@@ -17,6 +17,23 @@ contract MockERC20 is ERC20 {
     }
 }
 
+/// @notice MockERC20 with configurable decimals for testing cross-decimal normalization
+contract MockERC20WithDecimals is ERC20 {
+    uint8 private _decimals;
+
+    constructor(string memory name, string memory symbol, uint8 decimals_) ERC20(name, symbol) {
+        _decimals = decimals_;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
+}
+
 contract MockPriceOracle is IPriceOracle {
     mapping(address => uint256) public prices;
 
@@ -525,5 +542,302 @@ contract MicroLoanPluginTest is Test {
         vm.expectEmit(true, false, false, true);
         emit CreditScoreUpdated(borrower, 0, 1);
         plugin.liquidate(loanId);
+    }
+
+    // ============ 6-Decimal Token Normalization Tests ============
+
+    /**
+     * @notice Helper to set up a mixed-decimal loan config and plugin instance.
+     *         Returns (plugin, configId, borrowTkn, collateralTkn).
+     */
+    function _setupMixedDecimalPlugin(
+        uint8 borrowDecimals,
+        uint8 collateralDecimals,
+        uint256 borrowPrice,
+        uint256 collateralPrice
+    )
+        internal
+        returns (
+            MicroLoanPlugin mixedPlugin,
+            uint256 mixedConfigId,
+            MockERC20WithDecimals borrowTkn,
+            MockERC20WithDecimals collateralTkn
+        )
+    {
+        borrowTkn = new MockERC20WithDecimals("Borrow", "BRW", borrowDecimals);
+        collateralTkn = new MockERC20WithDecimals("Collateral", "COL", collateralDecimals);
+
+        oracle.setPrice(address(borrowTkn), borrowPrice);
+        oracle.setPrice(address(collateralTkn), collateralPrice);
+
+        vm.startPrank(owner);
+        mixedPlugin = new MicroLoanPlugin(oracle, feeRecipient, 500, 500);
+
+        mixedConfigId = mixedPlugin.createLoanConfig(
+            address(borrowTkn),
+            address(collateralTkn),
+            15_000, // 150% collateral ratio
+            1000, // 10% annual interest
+            type(uint256).max, // high max for testing
+            1, // min = 1 raw unit
+            30 days
+        );
+        vm.stopPrank();
+    }
+
+    /**
+     * @notice Test _calculateRequiredCollateral with borrow=18 dec, collateral=6 dec.
+     *
+     * Both tokens priced at $1. Borrow 100e18 (100 tokens).
+     * Required collateral = 100 * ($1/$1) * 150% = 150 tokens = 150e6 raw units.
+     *
+     * Formula from contract:
+     *   rawRequired = borrowAmount * borrowPrice * 10^collateralDec / (collateralPrice * 10^borrowDec)
+     *   = 100e18 * 1e18 * 1e6 / (1e18 * 1e18)
+     *   = 100e6
+     *   requiredCollateral = 100e6 * 15_000 / 10_000 = 150e6
+     */
+    function test_RequiredCollateral_Borrow18_Collateral6_EqualPrices() public {
+        (
+            MicroLoanPlugin mixedPlugin,
+            uint256 mixedConfigId,
+            ,
+        ) = _setupMixedDecimalPlugin(18, 6, 1e18, 1e18);
+
+        uint256 borrowAmount = 100e18; // 100 tokens, 18 decimals
+        uint256 required = mixedPlugin.getRequiredCollateral(mixedConfigId, borrowAmount);
+
+        // Expected: 150 collateral tokens in 6-decimal representation = 150e6
+        assertEq(required, 150e6, "150 collateral tokens at 6 decimals = 150e6 raw");
+    }
+
+    /**
+     * @notice Test _calculateRequiredCollateral with borrow=6 dec, collateral=18 dec.
+     *
+     * Both tokens priced at $1. Borrow 100e6 (100 tokens).
+     * Required collateral = 100 * ($1/$1) * 150% = 150 tokens = 150e18 raw units.
+     *
+     * Formula:
+     *   rawRequired = 100e6 * 1e18 * 1e18 / (1e18 * 1e6) = 100e18
+     *   requiredCollateral = 100e18 * 15_000 / 10_000 = 150e18
+     */
+    function test_RequiredCollateral_Borrow6_Collateral18_EqualPrices() public {
+        (
+            MicroLoanPlugin mixedPlugin,
+            uint256 mixedConfigId,
+            ,
+        ) = _setupMixedDecimalPlugin(6, 18, 1e18, 1e18);
+
+        uint256 borrowAmount = 100e6; // 100 tokens, 6 decimals
+        uint256 required = mixedPlugin.getRequiredCollateral(mixedConfigId, borrowAmount);
+
+        // Expected: 150 collateral tokens in 18-decimal representation = 150e18
+        assertEq(required, 150e18, "150 collateral tokens at 18 decimals = 150e18 raw");
+    }
+
+    /**
+     * @notice Test _calculateRequiredCollateral with borrow=18 dec ($1), collateral=6 dec ($2000).
+     *
+     * Scenario: Borrow 4000 USDC (18 dec, $1), collateral is WBTC-like (6 dec, $2000).
+     * Required value = 4000 * $1 * 150% = $6000.
+     * Required collateral = $6000 / $2000 = 3 tokens = 3e6 raw.
+     *
+     * Formula:
+     *   rawRequired = 4000e18 * 1e18 * 1e6 / (2000e18 * 1e18) = 2e6
+     *   requiredCollateral = 2e6 * 15_000 / 10_000 = 3e6
+     */
+    function test_RequiredCollateral_Borrow18_Collateral6_DifferentPrices() public {
+        (
+            MicroLoanPlugin mixedPlugin,
+            uint256 mixedConfigId,
+            ,
+        ) = _setupMixedDecimalPlugin(18, 6, 1e18, 2000e18);
+
+        uint256 borrowAmount = 4000e18; // 4000 borrow tokens at 18 decimals
+        uint256 required = mixedPlugin.getRequiredCollateral(mixedConfigId, borrowAmount);
+
+        // rawRequired = 4000e18 * 1e18 * 1e6 / (2000e18 * 1e18) = 2e6
+        // required = 2e6 * 15000 / 10000 = 3e6
+        assertEq(required, 3e6, "3 collateral tokens at 6 decimals = 3e6 raw");
+    }
+
+    /**
+     * @notice Test _calculateRequiredCollateral with borrow=6 dec ($1), collateral=18 dec ($2000).
+     *
+     * Scenario: Borrow 4000 USDC (6 dec, $1), collateral is WETH (18 dec, $2000).
+     * Required value = 4000 * $1 * 150% = $6000.
+     * Required collateral = $6000 / $2000 = 3 tokens = 3e18 raw.
+     *
+     * Formula:
+     *   rawRequired = 4000e6 * 1e18 * 1e18 / (2000e18 * 1e6) = 2e18
+     *   requiredCollateral = 2e18 * 15_000 / 10_000 = 3e18
+     */
+    function test_RequiredCollateral_Borrow6_Collateral18_DifferentPrices() public {
+        (
+            MicroLoanPlugin mixedPlugin,
+            uint256 mixedConfigId,
+            ,
+        ) = _setupMixedDecimalPlugin(6, 18, 1e18, 2000e18);
+
+        uint256 borrowAmount = 4000e6; // 4000 tokens at 6 decimals
+        uint256 required = mixedPlugin.getRequiredCollateral(mixedConfigId, borrowAmount);
+
+        // rawRequired = 4000e6 * 1e18 * 1e18 / (2000e18 * 1e6) = 2e18
+        // required = 2e18 * 15000 / 10000 = 3e18
+        assertEq(required, 3e18, "3 collateral tokens at 18 decimals = 3e18 raw");
+    }
+
+    /**
+     * @notice End-to-end test: borrow with 6-decimal borrow token and 18-decimal collateral,
+     *         then repay successfully.
+     */
+    function test_BorrowAndRepay_Borrow6Dec_Collateral18Dec() public {
+        (
+            MicroLoanPlugin mixedPlugin,
+            uint256 mixedConfigId,
+            MockERC20WithDecimals borrowTkn,
+            MockERC20WithDecimals collateralTkn
+        ) = _setupMixedDecimalPlugin(6, 18, 1e18, 1e18);
+
+        // Fund plugin with borrow token liquidity
+        borrowTkn.mint(owner, 100_000e6);
+        vm.startPrank(owner);
+        borrowTkn.approve(address(mixedPlugin), type(uint256).max);
+        mixedPlugin.depositLiquidity(address(borrowTkn), 100_000e6);
+        vm.stopPrank();
+
+        // Fund borrower with collateral
+        collateralTkn.mint(borrower, 1000e18);
+        vm.prank(borrower);
+        collateralTkn.approve(address(mixedPlugin), type(uint256).max);
+
+        // Borrow 100 tokens (6 dec) => need 150 collateral tokens (18 dec) at 150% ratio
+        uint256 borrowAmount = 100e6;
+        uint256 collateralAmount = 150e18;
+
+        vm.prank(borrower);
+        uint256 loanId = mixedPlugin.borrow(mixedConfigId, borrowAmount, 7 days, collateralAmount);
+
+        // Verify loan state
+        MicroLoanPlugin.Loan memory loan = mixedPlugin.getLoan(loanId);
+        assertEq(loan.borrowAmount, borrowAmount, "Borrow amount should be 100e6");
+        assertEq(loan.collateralAmount, collateralAmount, "Collateral should be 150e18");
+        assertTrue(loan.isActive, "Loan should be active");
+
+        // Verify borrower received borrow tokens
+        assertEq(borrowTkn.balanceOf(borrower), borrowAmount, "Borrower should have received borrow tokens");
+
+        // Repay immediately (no interest accrued at same block)
+        uint256 repaymentAmount = mixedPlugin.getRepaymentAmount(loanId);
+        borrowTkn.mint(borrower, repaymentAmount);
+
+        vm.startPrank(borrower);
+        borrowTkn.approve(address(mixedPlugin), repaymentAmount);
+        mixedPlugin.repay(loanId);
+        vm.stopPrank();
+
+        MicroLoanPlugin.Loan memory loanAfter = mixedPlugin.getLoan(loanId);
+        assertFalse(loanAfter.isActive, "Loan should be inactive after repay");
+
+        // Collateral should be returned
+        assertEq(collateralTkn.balanceOf(borrower), 1000e18, "Collateral should be fully returned");
+    }
+
+    /**
+     * @notice End-to-end test: borrow with 18-decimal borrow token and 6-decimal collateral,
+     *         then repay successfully.
+     */
+    function test_BorrowAndRepay_Borrow18Dec_Collateral6Dec() public {
+        (
+            MicroLoanPlugin mixedPlugin,
+            uint256 mixedConfigId,
+            MockERC20WithDecimals borrowTkn,
+            MockERC20WithDecimals collateralTkn
+        ) = _setupMixedDecimalPlugin(18, 6, 1e18, 1e18);
+
+        // Fund plugin with borrow token liquidity
+        borrowTkn.mint(owner, 100_000e18);
+        vm.startPrank(owner);
+        borrowTkn.approve(address(mixedPlugin), type(uint256).max);
+        mixedPlugin.depositLiquidity(address(borrowTkn), 100_000e18);
+        vm.stopPrank();
+
+        // Fund borrower with collateral
+        collateralTkn.mint(borrower, 1000e6);
+        vm.prank(borrower);
+        collateralTkn.approve(address(mixedPlugin), type(uint256).max);
+
+        // Borrow 100 tokens (18 dec) => need 150 collateral tokens (6 dec) at 150% ratio
+        uint256 borrowAmount = 100e18;
+        uint256 collateralAmount = 150e6;
+
+        vm.prank(borrower);
+        uint256 loanId = mixedPlugin.borrow(mixedConfigId, borrowAmount, 7 days, collateralAmount);
+
+        MicroLoanPlugin.Loan memory loan = mixedPlugin.getLoan(loanId);
+        assertEq(loan.borrowAmount, borrowAmount, "Borrow amount should be 100e18");
+        assertEq(loan.collateralAmount, collateralAmount, "Collateral should be 150e6");
+
+        // Repay
+        uint256 repaymentAmount = mixedPlugin.getRepaymentAmount(loanId);
+        borrowTkn.mint(borrower, repaymentAmount);
+
+        vm.startPrank(borrower);
+        borrowTkn.approve(address(mixedPlugin), repaymentAmount);
+        mixedPlugin.repay(loanId);
+        vm.stopPrank();
+
+        MicroLoanPlugin.Loan memory loanAfter = mixedPlugin.getLoan(loanId);
+        assertFalse(loanAfter.isActive, "Loan should be inactive after repay");
+        assertEq(collateralTkn.balanceOf(borrower), 1000e6, "Collateral should be fully returned");
+    }
+
+    /**
+     * @notice Test that InsufficientCollateral reverts correctly with mixed decimals.
+     *
+     * Borrow 100 tokens (6 dec, $1) needs 150 collateral tokens (18 dec, $1) at 150%.
+     * Providing only 100e18 (100 tokens) should revert.
+     */
+    function test_Borrow_MixedDecimals_InsufficientCollateral_Reverts() public {
+        (
+            MicroLoanPlugin mixedPlugin,
+            uint256 mixedConfigId,
+            MockERC20WithDecimals borrowTkn,
+            MockERC20WithDecimals collateralTkn
+        ) = _setupMixedDecimalPlugin(6, 18, 1e18, 1e18);
+
+        // Fund plugin with liquidity
+        borrowTkn.mint(owner, 100_000e6);
+        vm.startPrank(owner);
+        borrowTkn.approve(address(mixedPlugin), type(uint256).max);
+        mixedPlugin.depositLiquidity(address(borrowTkn), 100_000e6);
+        vm.stopPrank();
+
+        // Fund borrower with collateral
+        collateralTkn.mint(borrower, 1000e18);
+        vm.prank(borrower);
+        collateralTkn.approve(address(mixedPlugin), type(uint256).max);
+
+        // Try to borrow 100 tokens (6 dec) with only 100e18 collateral (need 150e18)
+        vm.prank(borrower);
+        vm.expectRevert(MicroLoanPlugin.InsufficientCollateral.selector);
+        mixedPlugin.borrow(mixedConfigId, 100e6, 7 days, 100e18);
+    }
+
+    /**
+     * @notice Test both tokens at 6 decimals with equal prices.
+     *
+     * Borrow 100 tokens (6 dec, $1) needs 150 collateral tokens (6 dec, $1).
+     * Both in 6-decimal space: required = 150e6.
+     */
+    function test_RequiredCollateral_Both6Decimals_EqualPrices() public {
+        (
+            MicroLoanPlugin mixedPlugin,
+            uint256 mixedConfigId,
+            ,
+        ) = _setupMixedDecimalPlugin(6, 6, 1e18, 1e18);
+
+        uint256 required = mixedPlugin.getRequiredCollateral(mixedConfigId, 100e6);
+        assertEq(required, 150e6, "Both 6-dec at 1:1 price => 150e6 collateral for 100e6 borrow");
     }
 }

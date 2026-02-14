@@ -603,4 +603,304 @@ contract LendingPoolTest is Test {
         assertGt(data.totalCollateralValue, 0);
         assertGt(data.totalDebtValue, 0);
     }
+
+    // ============ 6-Decimal Token Normalization Tests ============
+
+    /**
+     * @notice Test that _getAssetValue correctly normalizes 6-decimal token amounts.
+     *
+     * A 6-decimal token like real USDC represents 1 token as 1_000_000 (1e6) raw units.
+     * With a price of 1e18 ($1), the value should be:
+     *   (1e6 * 1e18) / 10^6 = 1e18  ($1 in 18-decimal value)
+     *
+     * If normalization is wrong (using 18 decimals for a 6-decimal token), the result
+     * would be (1e6 * 1e18) / 10^18 = 1e6, which is 1e12x too small.
+     */
+    function test_GetAssetValue_6DecimalToken_NormalizesCorrectly() public {
+        // Deploy a 6-decimal USDC (realistic)
+        MockERC20 usdc6 = new MockERC20("USD Coin 6", "USDC6", 6);
+        oracle.setPrice(address(usdc6), 1e18); // $1
+
+        ILendingPool.AssetConfig memory usdc6Config = ILendingPool.AssetConfig({
+            ltv: 8000,
+            liquidationThreshold: 8500,
+            liquidationBonus: 500,
+            reserveFactor: 1000,
+            isActive: true,
+            canBorrow: true,
+            canCollateral: true
+        });
+        pool.configureAsset(address(usdc6), usdc6Config);
+
+        // Verify decimals are cached as 6
+        assertEq(pool.assetDecimals(address(usdc6)), 6);
+
+        // Deposit 1000 USDC (= 1000e6 raw units) then check account value
+        uint256 depositAmount = 1000e6; // 1000 USDC in 6-decimal representation
+        usdc6.mint(alice, depositAmount);
+
+        vm.startPrank(alice);
+        usdc6.approve(address(pool), type(uint256).max);
+        pool.deposit(address(usdc6), depositAmount);
+        vm.stopPrank();
+
+        // Check that account data reflects $1000 collateral value (1000e18 in 18-decimal USD)
+        ILendingPool.AccountData memory data = pool.getAccountData(alice);
+        // The value should be (1000e6 * 1e18) / 1e6 = 1000e18
+        assertEq(data.totalCollateralValue, 1000e18, "1000 USDC (6 dec) should be valued at $1000");
+    }
+
+    /**
+     * @notice Test that a single token unit of a 6-decimal asset is valued correctly.
+     *
+     * 1 USDC = 1e6 raw units. At price $1 (1e18), value should be exactly 1e18.
+     */
+    function test_GetAssetValue_6DecimalToken_SingleUnit() public {
+        MockERC20 usdc6 = new MockERC20("USD Coin 6", "USDC6", 6);
+        oracle.setPrice(address(usdc6), 1e18);
+
+        ILendingPool.AssetConfig memory config = ILendingPool.AssetConfig({
+            ltv: 8000,
+            liquidationThreshold: 8500,
+            liquidationBonus: 500,
+            reserveFactor: 1000,
+            isActive: true,
+            canBorrow: true,
+            canCollateral: true
+        });
+        pool.configureAsset(address(usdc6), config);
+
+        // Deposit exactly 1 USDC (1e6 raw units)
+        uint256 oneUsdc = 1e6;
+        usdc6.mint(alice, oneUsdc);
+
+        vm.startPrank(alice);
+        usdc6.approve(address(pool), type(uint256).max);
+        pool.deposit(address(usdc6), oneUsdc);
+        vm.stopPrank();
+
+        // Account value should be exactly $1 = 1e18
+        ILendingPool.AccountData memory data = pool.getAccountData(alice);
+        assertEq(data.totalCollateralValue, 1e18, "1 USDC (1e6 raw) should be valued at $1 (1e18)");
+    }
+
+    /**
+     * @notice Test borrowing with mixed-decimal assets:
+     *         deposit 6-decimal collateral (USDC6), borrow 18-decimal asset (WETH).
+     *
+     * Scenario:
+     *   - Deposit 10,000 USDC6 (= 10_000e6 raw) at $1 each = $10,000 collateral
+     *   - WETH LTV = 75%, so max borrow from WETH deposits
+     *   - But USDC6 LTV = 80%, so collateral capacity = $8,000
+     *   - Borrow 2 WETH (= 2e18 raw) at $2,000 each = $4,000 debt
+     *   - Health factor = (10_000 * 0.85) / 4_000 = 2.125
+     */
+    function test_BorrowRepay_6DecimalCollateral_18DecimalBorrow() public {
+        // Deploy 6-decimal USDC
+        MockERC20 usdc6 = new MockERC20("USD Coin 6", "USDC6", 6);
+        oracle.setPrice(address(usdc6), 1e18); // $1
+
+        ILendingPool.AssetConfig memory usdc6Config = ILendingPool.AssetConfig({
+            ltv: 8000,
+            liquidationThreshold: 8500,
+            liquidationBonus: 500,
+            reserveFactor: 1000,
+            isActive: true,
+            canBorrow: true,
+            canCollateral: true
+        });
+        pool.configureAsset(address(usdc6), usdc6Config);
+
+        // Alice provides WETH liquidity for borrowing
+        vm.prank(alice);
+        pool.deposit(address(weth), 50e18); // $100,000
+
+        // Bob deposits 6-decimal USDC collateral and borrows WETH
+        uint256 collateralAmount = 10_000e6; // 10,000 USDC in 6 decimals
+        usdc6.mint(bob, collateralAmount);
+
+        vm.startPrank(bob);
+        usdc6.approve(address(pool), type(uint256).max);
+        pool.deposit(address(usdc6), collateralAmount);
+
+        // Borrow 2 WETH ($4,000) against $10,000 USDC6 collateral (LTV 80% = $8,000 capacity)
+        uint256 borrowAmount = 2e18; // 2 WETH
+        pool.borrow(address(weth), borrowAmount);
+        vm.stopPrank();
+
+        // Verify borrow balance
+        uint256 bobBorrow = pool.getBorrowBalance(address(weth), bob);
+        assertEq(bobBorrow, borrowAmount, "Bob should have borrowed 2 WETH");
+
+        // Verify health factor is healthy
+        // HF = ($10,000 * 0.85) / $4,000 = 2.125
+        uint256 healthFactor = pool.calculateHealthFactor(bob);
+        assertApproxEqRel(healthFactor, 2.125e18, 0.01e18, "Health factor should be ~2.125");
+
+        // Bob repays the borrow
+        vm.startPrank(bob);
+        weth.approve(address(pool), type(uint256).max);
+        pool.repay(address(weth), borrowAmount);
+        vm.stopPrank();
+
+        uint256 bobBorrowAfter = pool.getBorrowBalance(address(weth), bob);
+        assertEq(bobBorrowAfter, 0, "Borrow balance should be 0 after full repay");
+    }
+
+    /**
+     * @notice Test borrowing 6-decimal token against 18-decimal collateral.
+     *
+     * Scenario:
+     *   - Bob deposits 5 WETH (= 5e18 raw) at $2,000 each = $10,000 collateral
+     *   - Borrow 4000 USDC6 (= 4000e6 raw) at $1 each = $4,000 debt
+     *   - WETH collateral LTV = 75%, threshold = 80%
+     *   - HF = ($10,000 * 0.80) / $4,000 = 2.0
+     */
+    function test_BorrowRepay_18DecimalCollateral_6DecimalBorrow() public {
+        // Deploy 6-decimal borrow token
+        MockERC20 usdc6 = new MockERC20("USD Coin 6", "USDC6", 6);
+        oracle.setPrice(address(usdc6), 1e18);
+
+        ILendingPool.AssetConfig memory usdc6Config = ILendingPool.AssetConfig({
+            ltv: 8000,
+            liquidationThreshold: 8500,
+            liquidationBonus: 500,
+            reserveFactor: 1000,
+            isActive: true,
+            canBorrow: true,
+            canCollateral: true
+        });
+        pool.configureAsset(address(usdc6), usdc6Config);
+
+        // Alice provides USDC6 liquidity for borrowing
+        usdc6.mint(alice, 100_000e6);
+        vm.startPrank(alice);
+        usdc6.approve(address(pool), type(uint256).max);
+        pool.deposit(address(usdc6), 100_000e6);
+        vm.stopPrank();
+
+        // Bob deposits WETH collateral (18 decimals) and borrows USDC6 (6 decimals)
+        vm.startPrank(bob);
+        pool.deposit(address(weth), 5e18); // $10,000 collateral
+
+        uint256 borrowAmount = 4000e6; // 4,000 USDC6 = $4,000
+        pool.borrow(address(usdc6), borrowAmount);
+        vm.stopPrank();
+
+        // Verify borrow balance
+        uint256 bobBorrow = pool.getBorrowBalance(address(usdc6), bob);
+        assertEq(bobBorrow, borrowAmount, "Bob should have borrowed 4000 USDC6");
+
+        // Verify health factor
+        // HF = ($10,000 * 0.80) / $4,000 = 2.0
+        uint256 healthFactor = pool.calculateHealthFactor(bob);
+        assertApproxEqRel(healthFactor, 2.0e18, 0.01e18, "Health factor should be ~2.0");
+
+        // Bob repays
+        vm.startPrank(bob);
+        usdc6.approve(address(pool), type(uint256).max);
+        pool.repay(address(usdc6), borrowAmount);
+        vm.stopPrank();
+
+        uint256 bobBorrowAfter = pool.getBorrowBalance(address(usdc6), bob);
+        assertEq(bobBorrowAfter, 0, "Borrow balance should be 0 after full repay");
+    }
+
+    /**
+     * @notice Test that the health factor computation is consistent when both
+     *         collateral and debt are 6-decimal tokens at different prices.
+     *
+     * Scenario:
+     *   - Token A (6 dec) price = $2, Token B (6 dec) price = $1
+     *   - Deposit 5000 TokenA (= 5000e6) = $10,000 collateral
+     *   - Borrow  4000 TokenB (= 4000e6) = $4,000 debt
+     *   - LTV=80%, liquidation threshold=85%
+     *   - HF = ($10,000 * 0.85) / $4,000 = 2.125
+     */
+    function test_HealthFactor_Both6DecimalTokens_DifferentPrices() public {
+        MockERC20 tokenA = new MockERC20("Token A", "TKNA", 6);
+        MockERC20 tokenB = new MockERC20("Token B", "TKNB", 6);
+
+        oracle.setPrice(address(tokenA), 2e18);  // $2
+        oracle.setPrice(address(tokenB), 1e18);  // $1
+
+        ILendingPool.AssetConfig memory configA = ILendingPool.AssetConfig({
+            ltv: 8000,
+            liquidationThreshold: 8500,
+            liquidationBonus: 500,
+            reserveFactor: 1000,
+            isActive: true,
+            canBorrow: true,
+            canCollateral: true
+        });
+        ILendingPool.AssetConfig memory configB = ILendingPool.AssetConfig({
+            ltv: 8000,
+            liquidationThreshold: 8500,
+            liquidationBonus: 500,
+            reserveFactor: 1000,
+            isActive: true,
+            canBorrow: true,
+            canCollateral: true
+        });
+        pool.configureAsset(address(tokenA), configA);
+        pool.configureAsset(address(tokenB), configB);
+
+        // Provide TokenB liquidity for borrowing
+        tokenB.mint(alice, 100_000e6);
+        vm.startPrank(alice);
+        tokenB.approve(address(pool), type(uint256).max);
+        pool.deposit(address(tokenB), 100_000e6);
+        vm.stopPrank();
+
+        // Bob deposits TokenA collateral and borrows TokenB
+        tokenA.mint(bob, 5000e6);
+        vm.startPrank(bob);
+        tokenA.approve(address(pool), type(uint256).max);
+        pool.deposit(address(tokenA), 5000e6); // 5000 * $2 = $10,000
+
+        pool.borrow(address(tokenB), 4000e6); // 4000 * $1 = $4,000
+        vm.stopPrank();
+
+        // HF = ($10,000 * 0.85) / $4,000 = 2.125
+        uint256 healthFactor = pool.calculateHealthFactor(bob);
+        assertApproxEqRel(healthFactor, 2.125e18, 0.01e18, "Health factor should be ~2.125");
+    }
+
+    /**
+     * @notice Test that insufficient collateral revert still works correctly
+     *         with 6-decimal collateral.
+     *
+     * With 1000 USDC6 ($1,000) at 80% LTV, max borrow = $800.
+     * Attempting to borrow $900 worth of WETH should revert.
+     */
+    function test_Borrow_6DecimalCollateral_InsufficientCollateral_Reverts() public {
+        MockERC20 usdc6 = new MockERC20("USD Coin 6", "USDC6", 6);
+        oracle.setPrice(address(usdc6), 1e18);
+
+        ILendingPool.AssetConfig memory usdc6Config = ILendingPool.AssetConfig({
+            ltv: 8000,
+            liquidationThreshold: 8500,
+            liquidationBonus: 500,
+            reserveFactor: 1000,
+            isActive: true,
+            canBorrow: true,
+            canCollateral: true
+        });
+        pool.configureAsset(address(usdc6), usdc6Config);
+
+        // Alice provides WETH liquidity
+        vm.prank(alice);
+        pool.deposit(address(weth), 50e18);
+
+        // Bob deposits only 1000 USDC6 ($1,000) - max borrow at 80% = $800
+        usdc6.mint(bob, 1000e6);
+        vm.startPrank(bob);
+        usdc6.approve(address(pool), type(uint256).max);
+        pool.deposit(address(usdc6), 1000e6);
+
+        // Try to borrow 0.45 WETH = $900 > $800 max
+        vm.expectRevert(LendingPool.InsufficientCollateral.selector);
+        pool.borrow(address(weth), 0.45e18);
+        vm.stopPrank();
+    }
 }

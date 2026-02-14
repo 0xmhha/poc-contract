@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { IHook } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import { MODULE_TYPE_HOOK } from "../erc7579-smartaccount/types/Constants.sol";
+import { HookExecutionDataLib } from "./HookExecutionDataLib.sol";
 
 /**
  * @title PolicyHook
@@ -181,7 +182,7 @@ contract PolicyHook is IHook {
         }
 
         (address target, uint256 execValue, bytes calldata execCalldata) =
-            _extractExecutionData(msgData, msgValue);
+            HookExecutionDataLib.extractExecutionData(msgData, msgValue);
 
         // Check policy mode
         if (store.mode == PolicyMode.ALLOWLIST) {
@@ -484,126 +485,6 @@ contract PolicyHook is IHook {
     }
 
     // ============ Internal Functions ============
-
-    /// @notice Known function selector for wrapper calldata detection (executeFromExecutor path)
-    bytes4 private constant EXECUTE_FROM_EXECUTOR_SELECTOR =
-        bytes4(keccak256("executeFromExecutor(bytes32,bytes)"));
-
-    /**
-     * @notice Extract the actual execution target, value, and calldata from potentially wrapped msgData
-     * @dev In the Account Abstraction path, msgData may be:
-     *      - executeUserOp path: ABI-encoded (ExecMode, executionCalldata) with selector already stripped
-     *      - executeFromExecutor path: selector + ABI-encoded (ExecMode, executionCalldata)
-     *      - Direct path: raw execution calldata (target[0:20] || value[20:52] || calldata[52:])
-     *      This function detects the wrapper format and extracts the inner execution data.
-     * @param msgData The calldata passed to preCheck
-     * @param msgValue The ETH value passed to preCheck
-     * @return target The execution target address
-     * @return value The ETH value for the execution
-     * @return execCalldata The inner calldata (selector + arguments) being called on the target
-     */
-    function _extractExecutionData(bytes calldata msgData, uint256 msgValue)
-        internal
-        pure
-        returns (address target, uint256 value, bytes calldata execCalldata)
-    {
-        // Path 1: executeFromExecutor wrapper — starts with 4-byte selector
-        if (msgData.length >= 4) {
-            bytes4 selector = bytes4(msgData[0:4]);
-
-            if (selector == EXECUTE_FROM_EXECUTOR_SELECTOR) {
-                // msg.data = selector(4) + abi.encode(ExecMode, bytes executionCalldata)
-                // Skip selector, ABI-decode to get executionCalldata, then parse as raw exec data
-                if (msgData.length >= 100) {
-                    // 4 (selector) + 32 (ExecMode) + 32 (offset) + 32 (length) = 100 minimum
-                    bytes calldata abiPayload = msgData[4:];
-                    return _decodeAbiWrappedExecution(abiPayload, msgValue);
-                }
-            }
-
-            // Path 2: executeUserOp path — selector already stripped, data is abi.encode(ExecMode, bytes)
-            // Detect by checking if bytes[32:64] contain a valid ABI offset (0x40 = 64 for two params)
-            if (msgData.length >= 96) {
-                // 32 (ExecMode) + 32 (offset) + 32 (length) = 96 minimum
-                uint256 offset = uint256(bytes32(msgData[32:64]));
-                if (offset == 0x40) {
-                    return _decodeAbiWrappedExecution(msgData, msgValue);
-                }
-            }
-        }
-
-        // Path 3: Raw execution calldata — target[0:20] || value[20:52] || calldata[52:]
-        if (msgData.length >= 20) {
-            target = address(bytes20(msgData[0:20]));
-        }
-        if (msgData.length >= 52) {
-            value = uint256(bytes32(msgData[20:52]));
-        } else {
-            value = msgValue;
-        }
-        if (msgData.length > 52) {
-            execCalldata = msgData[52:];
-        } else {
-            execCalldata = msgData[0:0]; // empty slice
-        }
-    }
-
-    /**
-     * @notice Decode ABI-encoded (ExecMode, bytes executionCalldata) and extract raw execution data
-     * @param abiPayload ABI-encoded payload: ExecMode(32) + offset(32) + length(32) + executionCalldata
-     * @param msgValue Fallback value if inner calldata doesn't contain value
-     * @return target The execution target address
-     * @return value The ETH value for the execution
-     * @return execCalldata The inner calldata being called on the target
-     */
-    function _decodeAbiWrappedExecution(bytes calldata abiPayload, uint256 msgValue)
-        internal
-        pure
-        returns (address target, uint256 value, bytes calldata execCalldata)
-    {
-        // abiPayload = ExecMode(32 bytes) + ABI-encoded bytes (offset + length + data)
-        // Standard ABI: offset at [32:64] should be 0x40, length at [64:96], data starts at [96:]
-        if (abiPayload.length < 96) {
-            // Too short, fall back to raw parsing
-            if (abiPayload.length >= 20) {
-                target = address(bytes20(abiPayload[0:20]));
-            }
-            value = msgValue;
-            execCalldata = abiPayload[0:0];
-            return (target, value, execCalldata);
-        }
-
-        uint256 dataLength = uint256(bytes32(abiPayload[64:96]));
-        uint256 dataStart = 96;
-        uint256 dataEnd = dataStart + dataLength;
-
-        if (dataEnd > abiPayload.length) {
-            // Invalid encoding, fall back to raw parsing
-            if (abiPayload.length >= 20) {
-                target = address(bytes20(abiPayload[0:20]));
-            }
-            value = msgValue;
-            execCalldata = abiPayload[0:0];
-            return (target, value, execCalldata);
-        }
-
-        // The inner executionCalldata is in raw format: target[0:20] || value[20:52] || calldata[52:]
-        bytes calldata innerData = abiPayload[dataStart:dataEnd];
-
-        if (innerData.length >= 20) {
-            target = address(bytes20(innerData[0:20]));
-        }
-        if (innerData.length >= 52) {
-            value = uint256(bytes32(innerData[20:52]));
-        } else {
-            value = msgValue;
-        }
-        if (innerData.length > 52) {
-            execCalldata = innerData[52:];
-        } else {
-            execCalldata = innerData[0:0];
-        }
-    }
 
     function _checkAllowlistPolicy(
         AccountStorage storage store,

@@ -43,11 +43,20 @@ contract WebAuthnValidator is IValidator {
         bool isActive;
     }
 
+    /// @notice WebAuthn configuration per account
+    struct WebAuthnConfig {
+        bytes32 rpIdHash; // SHA-256 hash of the Relying Party ID
+        bytes allowedOrigin; // Allowed origin string (e.g., "https://example.com")
+        bool requireUserVerification; // Require UV flag in authenticator data
+    }
+
     /// @notice Storage for each smart account
     struct WebAuthnStorage {
         uint256 credentialCount;
         mapping(bytes32 => Credential) credentials;
         bytes32[] credentialIds;
+        WebAuthnConfig config;
+        mapping(bytes32 => uint32) signCounts; // credentialId => last signCount
     }
 
     /// @notice Storage mapping
@@ -67,6 +76,12 @@ contract WebAuthnValidator is IValidator {
     error InvalidClientDataJSON();
     error SignatureVerificationFailed();
     error MalformedSignature();
+    error InvalidWebAuthnType();
+    error InvalidOrigin();
+    error InvalidRpIdHash();
+    error UserPresenceRequired();
+    error UserVerificationRequired();
+    error InvalidSignCount();
 
     /**
      * @notice Install the validator with initial credential
@@ -141,8 +156,12 @@ contract WebAuthnValidator is IValidator {
         Credential storage cred = store.credentials[credentialId];
         if (!cred.isActive) return SIG_VALIDATION_FAILED_UINT;
 
-        // Verify the signature
-        if (_verifyWebAuthnSignature(userOpHash, authenticatorData, clientDataJson, r, s, cred.pubKeyX, cred.pubKeyY)) {
+        // Verify the signature (with signCount update)
+        if (
+            _verifyWebAuthnSignature(
+                store, credentialId, userOpHash, authenticatorData, clientDataJson, r, s, cred.pubKeyX, cred.pubKeyY, true
+            )
+        ) {
             return SIG_VALIDATION_SUCCESS_UINT;
         }
 
@@ -175,8 +194,11 @@ contract WebAuthnValidator is IValidator {
         Credential storage cred = store.credentials[credentialId];
         if (!cred.isActive) return ERC1271_INVALID;
 
-        // Verify the signature
-        if (_verifyWebAuthnSignature(hash, authenticatorData, clientDataJson, r, s, cred.pubKeyX, cred.pubKeyY)) {
+        // Verify the signature (view-only, no signCount update)
+        (bool valid,) = _verifyWebAuthnAssertions(
+            store, credentialId, hash, authenticatorData, clientDataJson, r, s, cred.pubKeyX, cred.pubKeyY
+        );
+        if (valid) {
             return ERC1271_MAGICVALUE;
         }
 
@@ -215,6 +237,39 @@ contract WebAuthnValidator is IValidator {
         store.credentialCount--;
 
         emit CredentialRevoked(msg.sender, credentialId);
+    }
+
+    /**
+     * @notice Configure WebAuthn verification parameters
+     * @param rpIdHash SHA-256 hash of the Relying Party ID
+     * @param allowedOrigin The allowed origin string (e.g., "https://example.com")
+     * @param requireUserVerification Whether to require UV flag
+     */
+    function setWebAuthnConfig(bytes32 rpIdHash, bytes calldata allowedOrigin, bool requireUserVerification) external {
+        WebAuthnStorage storage store = webAuthnStorage[msg.sender];
+        if (store.credentialCount == 0) revert NoCredentials();
+
+        store.config = WebAuthnConfig({
+            rpIdHash: rpIdHash,
+            allowedOrigin: allowedOrigin,
+            requireUserVerification: requireUserVerification
+        });
+    }
+
+    /**
+     * @notice Get WebAuthn config for an account
+     * @param account The smart account address
+     * @return rpIdHash The RP ID hash
+     * @return allowedOrigin The allowed origin
+     * @return requireUserVerification Whether UV is required
+     */
+    function getWebAuthnConfig(address account)
+        external
+        view
+        returns (bytes32 rpIdHash, bytes memory allowedOrigin, bool requireUserVerification)
+    {
+        WebAuthnConfig storage config = webAuthnStorage[account].config;
+        return (config.rpIdHash, config.allowedOrigin, config.requireUserVerification);
     }
 
     /**
@@ -301,17 +356,12 @@ contract WebAuthnValidator is IValidator {
     }
 
     /**
-     * @notice Verify a WebAuthn signature
-     * @param challenge The challenge (userOpHash)
-     * @param authenticatorData The authenticator data
-     * @param clientDataJson The client data JSON
-     * @param r Signature r value
-     * @param s Signature s value
-     * @param pubKeyX Public key X coordinate
-     * @param pubKeyY Public key Y coordinate
-     * @return True if valid
+     * @notice Verify WebAuthn assertions and cryptographic signature (view-safe)
+     * @dev Validates type, origin, rpIdHash, flags, signCount, challenge, and P256 signature
      */
-    function _verifyWebAuthnSignature(
+    function _verifyWebAuthnAssertions(
+        WebAuthnStorage storage store,
+        bytes32 credentialId,
         bytes32 challenge,
         bytes memory authenticatorData,
         bytes memory clientDataJson,
@@ -319,14 +369,64 @@ contract WebAuthnValidator is IValidator {
         uint256 s,
         uint256 pubKeyX,
         uint256 pubKeyY
-    ) internal view returns (bool) {
+    ) internal view returns (bool valid, uint32 signCount) {
         // Validate authenticator data (minimum 37 bytes)
         if (authenticatorData.length < 37) revert InvalidAuthenticatorData();
 
-        // Verify the challenge is in clientDataJson
-        // The challenge should be base64url encoded in the clientDataJson
+        // --- Assertion 1: Verify type field in clientDataJson ---
+        if (!_contains(clientDataJson, bytes('"type":"webauthn.get"'))) {
+            return (false, 0);
+        }
+
+        // --- Assertion 2: Verify origin (if configured) ---
+        WebAuthnConfig storage config = store.config;
+        if (config.allowedOrigin.length > 0) {
+            bytes memory originNeedle = abi.encodePacked('"origin":"', config.allowedOrigin, '"');
+            if (!_contains(clientDataJson, originNeedle)) {
+                return (false, 0);
+            }
+        }
+
+        // --- Assertion 3: Verify rpIdHash (if configured) ---
+        // rpIdHash is bytes [0:32] of authenticatorData
+        if (config.rpIdHash != bytes32(0)) {
+            bytes32 authRpIdHash;
+            assembly {
+                authRpIdHash := mload(add(authenticatorData, 32))
+            }
+            if (authRpIdHash != config.rpIdHash) {
+                return (false, 0);
+            }
+        }
+
+        // --- Assertion 4: Verify flags (byte 32 of authenticatorData) ---
+        uint8 flags = uint8(authenticatorData[32]);
+        // UP (User Present) bit 0 must be set
+        if (flags & 0x01 == 0) {
+            return (false, 0);
+        }
+        // UV (User Verified) bit 2 — required if configured
+        if (config.requireUserVerification && (flags & 0x04 == 0)) {
+            return (false, 0);
+        }
+
+        // --- Assertion 5: Verify signCount (bytes 33-36, big-endian uint32) ---
+        signCount = uint32(uint8(authenticatorData[33])) << 24
+            | uint32(uint8(authenticatorData[34])) << 16
+            | uint32(uint8(authenticatorData[35])) << 8
+            | uint32(uint8(authenticatorData[36]));
+
+        uint32 lastSignCount = store.signCounts[credentialId];
+        // signCount of 0 means authenticator does not support counters — skip check
+        if (signCount > 0 || lastSignCount > 0) {
+            if (signCount <= lastSignCount) {
+                return (false, 0);
+            }
+        }
+
+        // --- Assertion 6: Verify challenge binding in clientDataJson ---
         if (!_containsChallenge(clientDataJson, challenge)) {
-            return false;
+            return (false, 0);
         }
 
         // Compute the message hash
@@ -335,8 +435,35 @@ contract WebAuthnValidator is IValidator {
         bytes32 messageHash = sha256(abi.encodePacked(authenticatorData, clientDataHash));
 
         // Verify P256 signature using precompile (EIP-7212)
-        // If precompile not available, use fallback library
-        return _verifyP256Signature(messageHash, r, s, pubKeyX, pubKeyY);
+        valid = _verifyP256Signature(messageHash, r, s, pubKeyX, pubKeyY);
+        return (valid, signCount);
+    }
+
+    /**
+     * @notice Verify WebAuthn signature with signCount state update (for validateUserOp)
+     */
+    function _verifyWebAuthnSignature(
+        WebAuthnStorage storage store,
+        bytes32 credentialId,
+        bytes32 challenge,
+        bytes memory authenticatorData,
+        bytes memory clientDataJson,
+        uint256 r,
+        uint256 s,
+        uint256 pubKeyX,
+        uint256 pubKeyY,
+        bool updateSignCount
+    ) internal returns (bool) {
+        (bool valid, uint32 signCount) = _verifyWebAuthnAssertions(
+            store, credentialId, challenge, authenticatorData, clientDataJson, r, s, pubKeyX, pubKeyY
+        );
+
+        // Update signCount on successful verification
+        if (valid && updateSignCount && signCount > 0) {
+            store.signCounts[credentialId] = signCount;
+        }
+
+        return valid;
     }
 
     /**

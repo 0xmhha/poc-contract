@@ -361,6 +361,212 @@ contract StealthVaultTest is Test {
     }
 
     /* //////////////////////////////////////////////////////////////
+                    F-007 SECURITY FIX TESTS
+                    (Proof Verification Hardening)
+    ////////////////////////////////////////////////////////////// */
+
+    /**
+     * @notice F-007: Proof reuse prevention via usedProofs mapping
+     * @dev After a valid withdrawal, the same proof must not be accepted for
+     *      a second deposit that shares the same stealthHash. Without the
+     *      usedProofs mapping the proof would pass _verifyStealthProof again
+     *      because the second deposit is not yet marked withdrawn.
+     */
+    function test_F007_ProofReusePrevention_DifferentDeposits() public {
+        uint256 amount = 5 ether;
+
+        // Two deposits to the SAME stealth address hash
+        vm.startPrank(depositor);
+        bytes32 depositId1 = vault.depositETH{ value: amount }(testStealthHash);
+        bytes32 depositId2 = vault.depositETH{ value: amount }(testStealthHash);
+        vm.stopPrank();
+
+        // Build valid proof (matches testStealthHash construction)
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes memory proof = abi.encodePacked(bytes32("secret"));
+
+        // First withdrawal succeeds
+        vm.prank(recipient);
+        vault.withdraw(depositId1, recipient, proof);
+
+        IStealthVault.Deposit memory d1 = vault.getDeposit(depositId1);
+        assertTrue(d1.withdrawn, "First deposit should be withdrawn");
+
+        // Second withdrawal with the SAME proof must revert (proof replay)
+        // depositId2 is NOT yet withdrawn, so this specifically tests usedProofs
+        vm.prank(recipient);
+        vm.expectRevert(IStealthVault.InvalidProof.selector);
+        vault.withdraw(depositId2, recipient, proof);
+
+        // Confirm second deposit remains unaffected
+        IStealthVault.Deposit memory d2 = vault.getDeposit(depositId2);
+        assertFalse(d2.withdrawn, "Second deposit must remain unwithdrawn");
+    }
+
+    /**
+     * @notice F-007: usedProofs flag persists after withdrawal
+     * @dev Validates that the usedProofs mapping is correctly set to true
+     *      after a successful withdrawal completes.
+     */
+    function test_F007_UsedProofsFlagSetAfterWithdrawal() public {
+        uint256 amount = 1 ether;
+
+        vm.prank(depositor);
+        bytes32 depositId = vault.depositETH{ value: amount }(testStealthHash);
+
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes memory proof = abi.encodePacked(bytes32("secret"));
+
+        // Compute the expected proofHash the same way the contract does
+        bytes32 expectedProofHash =
+            keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid));
+
+        // Before withdrawal, proof should not be marked as used
+        assertFalse(vault.usedProofs(expectedProofHash), "Proof should not be used before withdrawal");
+
+        vm.prank(recipient);
+        vault.withdraw(depositId, recipient, proof);
+
+        // After withdrawal, proof must be marked as used
+        assertTrue(vault.usedProofs(expectedProofHash), "Proof must be marked used after withdrawal");
+    }
+
+    /**
+     * @notice F-007: Recipient must equal msg.sender
+     * @dev The withdraw function requires recipient == msg.sender to prevent
+     *      front-running attacks where an attacker submits someone else's
+     *      proof with their own address as recipient.
+     */
+    function test_F007_RecipientMustEqualMsgSender() public {
+        uint256 amount = 5 ether;
+
+        vm.prank(depositor);
+        bytes32 depositId = vault.depositETH{ value: amount }(testStealthHash);
+
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes memory proof = abi.encodePacked(bytes32("secret"));
+
+        // Attacker (depositor) tries to withdraw to recipient using recipient's proof
+        // msg.sender = depositor but recipient != depositor --> should revert
+        vm.prank(depositor);
+        vm.expectRevert(IStealthVault.Unauthorized.selector);
+        vault.withdraw(depositId, recipient, proof);
+    }
+
+    /**
+     * @notice F-007: Third-party caller cannot redirect funds
+     * @dev Even if a third party knows the proof, they cannot call withdraw
+     *      with someone else's address as recipient because msg.sender check fails.
+     */
+    function test_F007_ThirdPartyCannotRedirectFunds() public {
+        uint256 amount = 5 ether;
+
+        vm.prank(depositor);
+        bytes32 depositId = vault.depositETH{ value: amount }(testStealthHash);
+
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes memory proof = abi.encodePacked(bytes32("secret"));
+
+        address attacker = makeAddr("attacker");
+
+        // Attacker calls withdraw with recipient = recipient (not themselves)
+        vm.prank(attacker);
+        vm.expectRevert(IStealthVault.Unauthorized.selector);
+        vault.withdraw(depositId, recipient, proof);
+
+        // Attacker calls withdraw with recipient = attacker (proof will be invalid)
+        vm.prank(attacker);
+        vm.expectRevert(IStealthVault.InvalidProof.selector);
+        vault.withdraw(depositId, attacker, proof);
+    }
+
+    /**
+     * @notice F-007: Domain separation -- chainid is included in proofHash
+     * @dev Validates that the proofHash computation incorporates block.chainid,
+     *      ensuring that a proof valid on one chain cannot be replayed on another.
+     *      We verify this by computing the expected proofHash with and without
+     *      chainid and asserting the contract uses the chain-specific version.
+     */
+    function test_F007_DomainSeparation_ChainIdInProofHash() public {
+        uint256 amount = 1 ether;
+
+        vm.prank(depositor);
+        bytes32 depositId = vault.depositETH{ value: amount }(testStealthHash);
+
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes memory proof = abi.encodePacked(bytes32("secret"));
+
+        // Compute proofHash WITH chainid (correct, matches contract logic)
+        bytes32 proofHashWithChain =
+            keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid));
+
+        // Compute proofHash WITHOUT chainid (incorrect, vulnerable version)
+        bytes32 proofHashWithoutChain =
+            keccak256(abi.encodePacked(recipient, recipient, proof));
+
+        // The two hashes must differ -- domain separation is meaningful
+        assertTrue(
+            proofHashWithChain != proofHashWithoutChain,
+            "Chain-specific hash must differ from chain-agnostic hash"
+        );
+
+        // Perform withdrawal
+        vm.prank(recipient);
+        vault.withdraw(depositId, recipient, proof);
+
+        // The contract must have marked the chain-specific proofHash as used
+        assertTrue(
+            vault.usedProofs(proofHashWithChain),
+            "Contract must use chain-specific proofHash"
+        );
+
+        // The chain-agnostic version must NOT be marked as used
+        assertFalse(
+            vault.usedProofs(proofHashWithoutChain),
+            "Chain-agnostic proofHash must not be marked used"
+        );
+    }
+
+    /**
+     * @notice F-007: Domain separation -- fork to a different chainid
+     * @dev Uses vm.chainId to simulate a different chain and verifies that
+     *      the same proof produces a distinct proofHash, so a cross-chain
+     *      replay would not collide with the used proof from the original chain.
+     */
+    function test_F007_DomainSeparation_DifferentChainProducesDistinctHash() public {
+        // casting to 'bytes32' is safe because test string literal fits in 32 bytes
+        // forge-lint: disable-next-line(unsafe-typecast)
+        bytes memory proof = abi.encodePacked(bytes32("secret"));
+
+        uint256 originalChainId = block.chainid;
+
+        // Compute proofHash on the current chain
+        bytes32 hashOnOriginalChain =
+            keccak256(abi.encodePacked(recipient, recipient, proof, originalChainId));
+
+        // Simulate a different chain
+        uint256 differentChainId = originalChainId + 1;
+        vm.chainId(differentChainId);
+
+        bytes32 hashOnDifferentChain =
+            keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid));
+
+        // Proofs must produce different hashes on different chains
+        assertTrue(
+            hashOnOriginalChain != hashOnDifferentChain,
+            "Same proof must produce different hashes on different chains"
+        );
+
+        // Restore original chain id for subsequent tests
+        vm.chainId(originalChainId);
+    }
+
+    /* //////////////////////////////////////////////////////////////
                         FUZZ TESTS
     ////////////////////////////////////////////////////////////// */
 
