@@ -194,16 +194,16 @@ contract BridgeRateLimiterTest is Test {
         assertEq(hourlyPct, 76);
 
         // Next transaction would push us to 475K = 95%
-        // But since auto-pause threshold is 95%, this should trigger AutoPauseTriggered
-        // Note: The pause happens inside the function but the entire tx reverts,
-        // so paused() returns false after the revert
+        // This triggers auto-pause: the contract pauses and returns (false, usdValue)
+        // without reverting, so the pause state is persisted
         vm.prank(bridge);
-        vm.expectRevert(BridgeRateLimiter.AutoPauseTriggered.selector);
-        limiter.checkAndRecordTransaction(token, amount);
+        (bool allowed,) = limiter.checkAndRecordTransaction(token, amount);
 
-        // The paused state is NOT persisted because the transaction reverted
-        // The AutoPauseTriggered error indicates the threshold was hit
-        assertFalse(limiter.paused());
+        // Transaction was not allowed due to auto-pause threshold
+        assertFalse(allowed);
+
+        // The paused state IS persisted because we no longer revert
+        assertTrue(limiter.paused());
     }
 
     // ============ View Function Tests ============

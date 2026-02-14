@@ -8,6 +8,23 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
+ * @title IStealthVaultReader
+ * @notice Minimal interface for reading deposit data from StealthVault
+ */
+interface IStealthVaultReader {
+    struct Deposit {
+        address depositor;
+        address token;
+        uint256 amount;
+        bytes32 stealthAddress;
+        uint256 timestamp;
+        bool withdrawn;
+    }
+
+    function getDeposit(bytes32 depositId) external view returns (Deposit memory);
+}
+
+/**
  * @title IWithdrawalManager
  * @notice Interface for Enterprise Withdrawal Manager
  */
@@ -71,6 +88,8 @@ interface IWithdrawalManager {
     error Unauthorized();
     error TransferFailed();
     error AmountExceedsThreshold();
+    error VaultNotConfigured();
+    error InvalidDeposit();
 }
 
 /**
@@ -169,6 +188,14 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
         if (depositId == bytes32(0)) revert InvalidDepositId();
         if (recipient == address(0)) revert InvalidRecipient();
         if (amount == 0) revert InvalidAmount();
+        if (stealthVault == address(0)) revert VaultNotConfigured();
+
+        // Validate deposit exists and matches request parameters
+        IStealthVaultReader.Deposit memory deposit = IStealthVaultReader(stealthVault).getDeposit(depositId);
+        if (deposit.depositor == address(0)) revert InvalidDeposit();
+        if (deposit.token != token) revert InvalidDeposit();
+        if (deposit.amount < amount) revert InvalidDeposit();
+        if (deposit.withdrawn) revert InvalidDeposit();
 
         requestId = keccak256(abi.encodePacked(depositId, msg.sender, recipient, amount, block.timestamp, requestCount));
 

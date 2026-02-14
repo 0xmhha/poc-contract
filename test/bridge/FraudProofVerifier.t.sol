@@ -241,14 +241,32 @@ contract FraudProofVerifierTest is Test {
         bytes32 txHash1 = keccak256("tx1");
         bytes32 txHash2 = keccak256("tx2");
         bytes32 inputHash = keccak256("input");
+
+        // Compute the Merkle leaf that the contract will verify
+        bytes32 leaf = keccak256(abi.encodePacked(txHash1, txHash2, inputHash));
+
+        // Build a valid Merkle proof: one sibling node, root = hash(leaf, sibling) or hash(sibling, leaf)
+        bytes32 sibling = keccak256("sibling");
+        bytes32 root;
+        if (uint256(leaf) <= uint256(sibling)) {
+            root = keccak256(abi.encodePacked(leaf, sibling));
+        } else {
+            root = keccak256(abi.encodePacked(sibling, leaf));
+        }
+
+        // Set the state root for chain 1
+        uint256 chainId = 1;
+        vm.prank(owner);
+        verifier.updateStateRoot(chainId, root, 100);
+
         bytes32[] memory merkleProof = new bytes32[](1);
-        merkleProof[0] = keccak256("proof");
+        merkleProof[0] = sibling;
 
         FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
             requestId: requestId,
             proofType: FraudProofVerifier.FraudProofType.DoubleSpending,
             merkleProof: merkleProof,
-            stateProof: "",
+            stateProof: abi.encode(chainId),
             evidence: abi.encode(txHash1, txHash2, inputHash)
         });
 
@@ -266,15 +284,36 @@ contract FraudProofVerifierTest is Test {
 
     function test_VerifyFraudProof_InvalidAmount() public {
         bytes32 requestId = keccak256("request1");
+        uint256 sourceAmount = 1000;
+        uint256 targetAmount = 900;
+        uint256 expectedAmount = 1000;
+
+        // Compute the Merkle leaf that the contract will verify
+        bytes32 leaf = keccak256(abi.encodePacked(requestId, sourceAmount, targetAmount));
+
+        // Build a valid Merkle proof: one sibling node
+        bytes32 sibling = keccak256("sibling");
+        bytes32 root;
+        if (uint256(leaf) <= uint256(sibling)) {
+            root = keccak256(abi.encodePacked(leaf, sibling));
+        } else {
+            root = keccak256(abi.encodePacked(sibling, leaf));
+        }
+
+        // Set the state root for chain 1
+        uint256 chainId = 1;
+        vm.prank(owner);
+        verifier.updateStateRoot(chainId, root, 100);
+
         bytes32[] memory merkleProof = new bytes32[](1);
-        merkleProof[0] = keccak256("proof");
+        merkleProof[0] = sibling;
 
         FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
             requestId: requestId,
             proofType: FraudProofVerifier.FraudProofType.InvalidAmount,
             merkleProof: merkleProof,
-            stateProof: "",
-            evidence: abi.encode(uint256(1000), uint256(900), uint256(1000)) // amounts don't match
+            stateProof: abi.encode(chainId),
+            evidence: abi.encode(sourceAmount, targetAmount, expectedAmount)
         });
 
         verifier.submitFraudProof(proof);

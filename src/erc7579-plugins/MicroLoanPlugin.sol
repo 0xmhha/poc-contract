@@ -4,7 +4,9 @@ pragma solidity ^0.8.28;
 import { IExecutor } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import { MODULE_TYPE_EXECUTOR } from "../erc7579-smartaccount/types/Constants.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IPriceOracle } from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
 
 /**
@@ -31,7 +33,7 @@ import { IPriceOracle } from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
  * 3. User repays loan + interest
  * 4. User withdraws collateral
  */
-contract MicroLoanPlugin is IExecutor {
+contract MicroLoanPlugin is IExecutor, Ownable {
     using SafeERC20 for IERC20;
 
     /// @notice Loan configuration
@@ -138,7 +140,9 @@ contract MicroLoanPlugin is IExecutor {
      * @param _protocolFeeBps Protocol fee in basis points
      * @param _liquidationBonusBps Liquidation bonus in basis points
      */
-    constructor(IPriceOracle _oracle, address _feeRecipient, uint256 _protocolFeeBps, uint256 _liquidationBonusBps) {
+    constructor(IPriceOracle _oracle, address _feeRecipient, uint256 _protocolFeeBps, uint256 _liquidationBonusBps)
+        Ownable(msg.sender)
+    {
         if (address(_oracle) == address(0)) revert InvalidOracle();
         if (_feeRecipient == address(0)) revert ZeroAddress();
 
@@ -192,7 +196,7 @@ contract MicroLoanPlugin is IExecutor {
         uint256 maxLoanAmount,
         uint256 minLoanAmount,
         uint256 maxDuration
-    ) external returns (uint256 configId) {
+    ) external onlyOwner returns (uint256 configId) {
         configId = nextConfigId++;
 
         loanConfigs[configId] = LoanConfig({
@@ -214,7 +218,7 @@ contract MicroLoanPlugin is IExecutor {
      * @param configId The config ID
      * @param isActive New status
      */
-    function setLoanConfigActive(uint256 configId, bool isActive) external {
+    function setLoanConfigActive(uint256 configId, bool isActive) external onlyOwner {
         loanConfigs[configId].isActive = isActive;
         emit LoanConfigUpdated(configId, isActive);
     }
@@ -238,7 +242,7 @@ contract MicroLoanPlugin is IExecutor {
      * @param amount The amount to withdraw
      * @param to Recipient address
      */
-    function withdrawLiquidity(address token, uint256 amount, address to) external {
+    function withdrawLiquidity(address token, uint256 amount, address to) external onlyOwner {
         if (amount > liquidityPool[token]) revert InsufficientLiquidity();
         liquidityPool[token] -= amount;
         IERC20(token).safeTransfer(to, amount);
@@ -459,10 +463,15 @@ contract MicroLoanPlugin is IExecutor {
         (uint256 borrowTokenPrice,) = oracle.getPriceWithTimestamp(config.borrowToken);
         (uint256 collateralTokenPrice,) = oracle.getPriceWithTimestamp(config.collateralToken);
 
-        // Calculate: collateral_needed = (borrow_amount * borrow_price * collateral_ratio) / (collateral_price * 10000)
-        uint256 borrowValue = borrowAmount * borrowTokenPrice;
-        uint256 requiredCollateralValue = (borrowValue * config.collateralRatio) / BASIS_POINTS;
-        uint256 requiredCollateral = requiredCollateralValue / collateralTokenPrice;
+        // Get token decimals to normalize across different decimal tokens (e.g. USDC 6 vs WETH 18)
+        uint8 borrowDecimals = IERC20Metadata(config.borrowToken).decimals();
+        uint8 collateralDecimals = IERC20Metadata(config.collateralToken).decimals();
+
+        // Normalize: required = borrowAmount * borrowPrice * 10^collateralDecimals / (collateralPrice * 10^borrowDecimals)
+        // Then apply collateral ratio
+        uint256 rawRequired = (borrowAmount * borrowTokenPrice * (10 ** collateralDecimals))
+            / (collateralTokenPrice * (10 ** borrowDecimals));
+        uint256 requiredCollateral = (rawRequired * config.collateralRatio) / BASIS_POINTS;
 
         return requiredCollateral;
     }

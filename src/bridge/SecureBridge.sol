@@ -75,6 +75,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
      * @param sender Original sender
      * @param token Token address (address(0) for native)
      * @param amount Amount deposited
+     * @param feeBps Fee rate in basis points at time of deposit
      * @param timestamp Deposit timestamp
      * @param executed Whether tokens have been released
      * @param refunded Whether tokens have been refunded
@@ -83,6 +84,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         address sender;
         address token;
         uint256 amount;
+        uint256 feeBps;
         uint256 timestamp;
         bool executed;
         bool refunded;
@@ -226,6 +228,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
             sender: msg.sender,
             token: token,
             amount: amount,
+            feeBps: bridgeFeeBps,
             timestamp: block.timestamp,
             executed: false,
             refunded: false
@@ -347,8 +350,8 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
 
         deposit.refunded = true;
 
-        // Update TVL (deduct fee that was already taken)
-        uint256 fee = (deposit.amount * bridgeFeeBps) / 10_000;
+        // Update TVL (deduct fee that was already taken, using the fee rate at deposit time)
+        uint256 fee = (deposit.amount * deposit.feeBps) / 10_000;
         uint256 refundAmount = deposit.amount - fee;
 
         if (totalValueLocked[deposit.token] >= refundAmount) {

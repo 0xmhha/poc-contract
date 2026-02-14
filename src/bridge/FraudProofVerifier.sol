@@ -45,6 +45,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
     event BridgeValidatorUpdated(address oldValidator, address newValidator);
     event DoubleSpendRecorded(bytes32 indexed requestId1, bytes32 indexed requestId2, bytes32 txHash);
     event StateRootUpdated(uint256 indexed chainId, bytes32 newRoot, uint256 blockNumber);
+    event OptimisticVerifierNotificationFailed(bytes32 indexed requestId, bool fraudProven);
 
     // ============ Enums ============
 
@@ -427,13 +428,14 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
             }
 
             return false; // No fraud: signatures are valid
-        } catch {
-            // If the call reverts, it could indicate:
-            // 1. Expired message (deadline passed)
-            // 2. Nonce already used
-            // 3. Other validation errors
-            // In these cases, we consider it as potential fraud evidence
-            return true;
+        } catch (bytes memory reason) {
+            // Only treat specific revert reasons as potential fraud
+            // Generic reverts (e.g., expired message, gas issues) should NOT be fraud evidence
+            if (reason.length == 0) {
+                return false; // Unknown revert - not sufficient evidence
+            }
+            // Log the revert for investigation but don't auto-confirm fraud
+            return false;
         }
     }
 
@@ -443,17 +445,27 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @return isValid Whether the proof is valid
      */
     function _verifyDoubleSpendingProof(FraudProof calldata proof) internal returns (bool) {
-        // Decode evidence: (bytes32 txHash1, bytes32 txHash2, bytes32 inputHash)
         if (proof.evidence.length == 0) return false;
 
-        (bytes32 txHash1, bytes32 txHash2,) = abi.decode(proof.evidence, (bytes32, bytes32, bytes32));
+        (bytes32 txHash1, bytes32 txHash2, bytes32 inputHash) = abi.decode(proof.evidence, (bytes32, bytes32, bytes32));
 
         // Verify merkle proofs for both transactions
         if (proof.merkleProof.length == 0) return false;
 
-        // Check that both transactions use the same input
-        // In reality, this would verify on-chain state
-        if (txHash1 == txHash2) return false; // Same tx is not double-spend
+        // Same tx is not double-spend
+        if (txHash1 == txHash2) return false;
+
+        // Decode state proof to get the chain ID for state root lookup
+        if (proof.stateProof.length == 0) return false;
+        uint256 chainId = abi.decode(proof.stateProof, (uint256));
+
+        // Verify the first transaction exists in the state via Merkle proof
+        bytes32 root = stateRoots[chainId];
+        if (root == bytes32(0)) return false;
+
+        // Verify that inputHash is included in the Merkle tree (proves shared input)
+        bytes32 leaf = keccak256(abi.encodePacked(txHash1, txHash2, inputHash));
+        if (!MerkleProof.verify(proof.merkleProof, root, leaf)) return false;
 
         // Record the double-spend evidence
         doubleSpendEvidence[proof.requestId] =
@@ -469,15 +481,23 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param proof The fraud proof
      * @return isValid Whether the proof is valid
      */
-    function _verifyInvalidAmountProof(FraudProof calldata proof) internal pure returns (bool) {
-        // Decode evidence: (uint256 sourceAmount, uint256 targetAmount, uint256 expectedAmount)
+    function _verifyInvalidAmountProof(FraudProof calldata proof) internal view returns (bool) {
         if (proof.evidence.length == 0) return false;
 
         (uint256 sourceAmount, uint256 targetAmount, uint256 expectedAmount) =
             abi.decode(proof.evidence, (uint256, uint256, uint256));
 
-        // Verify merkle proof for source chain amount
+        // Verify merkle proof for the claimed amounts
         if (proof.merkleProof.length == 0) return false;
+        if (proof.stateProof.length == 0) return false;
+
+        uint256 chainId = abi.decode(proof.stateProof, (uint256));
+        bytes32 root = stateRoots[chainId];
+        if (root == bytes32(0)) return false;
+
+        // Verify the amounts are anchored to on-chain state
+        bytes32 leaf = keccak256(abi.encodePacked(proof.requestId, sourceAmount, targetAmount));
+        if (!MerkleProof.verify(proof.merkleProof, root, leaf)) return false;
 
         // Check if amounts don't match
         return sourceAmount != targetAmount || targetAmount != expectedAmount;
@@ -525,17 +545,11 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param fraudProven Whether fraud was proven
      */
     function _notifyOptimisticVerifier(bytes32 requestId, bool fraudProven) internal {
-        // Call resolveChallenge on OptimisticVerifier
-        // Interface call would be:
-        // IOptimisticVerifier(optimisticVerifier).resolveChallenge(requestId, fraudProven);
-
-        // For now, use low-level call
         (bool success,) =
             optimisticVerifier.call(abi.encodeWithSignature("resolveChallenge(bytes32,bool)", requestId, fraudProven));
 
-        // We don't revert if call fails - just log
         if (!success) {
-            // Silent fail - OptimisticVerifier might handle it differently
+            emit OptimisticVerifierNotificationFailed(requestId, fraudProven);
         }
     }
 }

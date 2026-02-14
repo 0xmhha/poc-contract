@@ -340,16 +340,105 @@ contract WebAuthnValidator is IValidator {
     }
 
     /**
-     * @notice Check if clientDataJson contains the challenge
-     * @param clientDataJson The client data JSON
-     * @param challenge The challenge to find
-     * @return True if found
+     * @notice Check if clientDataJson contains the challenge as a base64url-encoded value
+     * @dev Verifies that clientDataJson includes '"challenge":"<base64url(challenge)>"'
+     *      This ensures the WebAuthn assertion is bound to the expected userOpHash
+     * @param clientDataJson The client data JSON bytes
+     * @param challenge The expected challenge (typically userOpHash)
+     * @return True if the challenge is correctly embedded in clientDataJson
      */
     function _containsChallenge(bytes memory clientDataJson, bytes32 challenge) internal pure returns (bool) {
-        // In production, this would parse the JSON and verify the base64url-encoded challenge
-        // For simplicity, we do a basic check that the JSON is not empty
-        // A full implementation would use a JSON parser
-        return clientDataJson.length > 0 && challenge != bytes32(0);
+        if (clientDataJson.length == 0 || challenge == bytes32(0)) return false;
+
+        // Base64url encode the challenge (32 bytes -> 43 chars, no padding)
+        bytes memory encoded = _base64UrlEncode(abi.encodePacked(challenge));
+
+        // Build the expected JSON fragment: "challenge":"<base64url>"
+        bytes memory needle = abi.encodePacked('"challenge":"', encoded, '"');
+
+        // Search for the needle in clientDataJson
+        return _contains(clientDataJson, needle);
+    }
+
+    /**
+     * @notice Base64url encode bytes (RFC 4648 §5, no padding)
+     * @param data The data to encode
+     * @return The base64url-encoded string as bytes
+     */
+    function _base64UrlEncode(bytes memory data) internal pure returns (bytes memory) {
+        bytes memory table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+        uint256 len = data.length;
+        if (len == 0) return "";
+
+        // Output length without padding: ceil(len * 4 / 3)
+        uint256 encodedLen = 4 * ((len + 2) / 3);
+        // Remove padding chars
+        uint256 noPadLen = encodedLen;
+        uint256 remainder = len % 3;
+        if (remainder == 1) noPadLen -= 2;
+        else if (remainder == 2) noPadLen -= 1;
+
+        bytes memory result = new bytes(noPadLen);
+
+        uint256 dataPtr;
+        uint256 resultPtr;
+
+        assembly {
+            dataPtr := add(data, 32)
+            resultPtr := add(result, 32)
+        }
+
+        uint256 i;
+        uint256 j;
+        for (i = 0; i + 2 < len; i += 3) {
+            uint256 a = uint8(data[i]);
+            uint256 b = uint8(data[i + 1]);
+            uint256 c = uint8(data[i + 2]);
+
+            result[j++] = table[(a >> 2) & 0x3F];
+            result[j++] = table[((a & 0x03) << 4) | ((b >> 4) & 0x0F)];
+            result[j++] = table[((b & 0x0F) << 2) | ((c >> 6) & 0x03)];
+            result[j++] = table[c & 0x3F];
+        }
+
+        if (remainder == 1) {
+            uint256 a = uint8(data[i]);
+            result[j++] = table[(a >> 2) & 0x3F];
+            result[j++] = table[(a & 0x03) << 4];
+        } else if (remainder == 2) {
+            uint256 a = uint8(data[i]);
+            uint256 b = uint8(data[i + 1]);
+            result[j++] = table[(a >> 2) & 0x3F];
+            result[j++] = table[((a & 0x03) << 4) | ((b >> 4) & 0x0F)];
+            result[j++] = table[(b & 0x0F) << 2];
+        }
+
+        return result;
+    }
+
+    /**
+     * @notice Check if haystack contains needle (bytes substring search)
+     * @param haystack The bytes to search in
+     * @param needle The bytes to search for
+     * @return True if needle is found in haystack
+     */
+    function _contains(bytes memory haystack, bytes memory needle) internal pure returns (bool) {
+        if (needle.length > haystack.length) return false;
+        if (needle.length == 0) return true;
+
+        uint256 limit = haystack.length - needle.length;
+        for (uint256 i = 0; i <= limit; i++) {
+            bool found = true;
+            for (uint256 j = 0; j < needle.length; j++) {
+                if (haystack[i + j] != needle[j]) {
+                    found = false;
+                    break;
+                }
+            }
+            if (found) return true;
+        }
+        return false;
     }
 
     /**

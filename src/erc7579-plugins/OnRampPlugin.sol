@@ -5,6 +5,7 @@ import { IExecutor } from "../erc7579-smartaccount/interfaces/IERC7579Modules.so
 import { MODULE_TYPE_EXECUTOR } from "../erc7579-smartaccount/types/Constants.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
 
 /**
@@ -32,7 +33,7 @@ import { ECDSA } from "solady/utils/ECDSA.sol";
  * 4. Anyone can call claimOrder with the signature
  * 5. Tokens are minted/transferred to user's smart account
  */
-contract OnRampPlugin is IExecutor {
+contract OnRampPlugin is IExecutor, Ownable {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
 
@@ -150,6 +151,7 @@ contract OnRampPlugin is IExecutor {
     error UserBlacklisted();
     error InvalidOrderStatus();
     error ZeroAddress();
+    error UnauthorizedCaller();
 
     /**
      * @notice Constructor
@@ -157,7 +159,7 @@ contract OnRampPlugin is IExecutor {
      * @param _feeBps Fee in basis points
      * @param _orderExpiry Order expiry time in seconds
      */
-    constructor(address _treasury, uint256 _feeBps, uint256 _orderExpiry) {
+    constructor(address _treasury, uint256 _feeBps, uint256 _orderExpiry) Ownable(msg.sender) {
         if (_treasury == address(0)) revert ZeroAddress();
         treasury = _treasury;
         feeBps = _feeBps;
@@ -202,7 +204,7 @@ contract OnRampPlugin is IExecutor {
         uint256 maxAmount,
         uint256 dailyLimit,
         KYCLevel requiredKyc
-    ) external returns (uint256 providerId) {
+    ) external onlyOwner returns (uint256 providerId) {
         if (signer == address(0)) revert ZeroAddress();
 
         providerId = nextProviderId++;
@@ -228,7 +230,7 @@ contract OnRampPlugin is IExecutor {
      * @param providerId The provider ID
      * @param status New status
      */
-    function setProviderStatus(uint256 providerId, ProviderStatus status) external {
+    function setProviderStatus(uint256 providerId, ProviderStatus status) external onlyOwner {
         providers[providerId].status = status;
         emit ProviderUpdated(providerId, status);
     }
@@ -238,7 +240,7 @@ contract OnRampPlugin is IExecutor {
      * @param providerId The provider ID
      * @param signer New signer address
      */
-    function setProviderSigner(uint256 providerId, address signer) external {
+    function setProviderSigner(uint256 providerId, address signer) external onlyOwner {
         if (signer == address(0)) revert ZeroAddress();
         providers[providerId].signer = signer;
     }
@@ -250,7 +252,7 @@ contract OnRampPlugin is IExecutor {
      * @param maxAmount New maximum
      * @param dailyLimit New daily limit
      */
-    function setProviderLimits(uint256 providerId, uint256 minAmount, uint256 maxAmount, uint256 dailyLimit) external {
+    function setProviderLimits(uint256 providerId, uint256 minAmount, uint256 maxAmount, uint256 dailyLimit) external onlyOwner {
         Provider storage provider = providers[providerId];
         provider.minAmount = minAmount;
         provider.maxAmount = maxAmount;
@@ -265,7 +267,7 @@ contract OnRampPlugin is IExecutor {
      * @param level KYC level
      * @param verificationHash Hash of verification documents
      */
-    function setUserKyc(address user, KYCLevel level, bytes32 verificationHash) external {
+    function setUserKyc(address user, KYCLevel level, bytes32 verificationHash) external onlyOwner {
         userKyc[user] = UserKyc({
             level: level, verifiedAt: block.timestamp, verificationHash: verificationHash, isBlacklisted: false
         });
@@ -278,7 +280,7 @@ contract OnRampPlugin is IExecutor {
      * @param user User address
      * @param blacklisted Blacklist status
      */
-    function setUserBlacklist(address user, bool blacklisted) external {
+    function setUserBlacklist(address user, bool blacklisted) external onlyOwner {
         userKyc[user].isBlacklisted = blacklisted;
     }
 
@@ -396,6 +398,10 @@ contract OnRampPlugin is IExecutor {
     function cancelOrder(bytes32 orderId) external {
         Order storage order = orders[orderId];
 
+        if (providers[order.providerId].signer != msg.sender && msg.sender != owner()) {
+            revert UnauthorizedCaller();
+        }
+
         if (order.status != OrderStatus.PENDING) revert InvalidOrderStatus();
 
         order.status = OrderStatus.CANCELLED;
@@ -409,6 +415,10 @@ contract OnRampPlugin is IExecutor {
      */
     function refundOrder(bytes32 orderId) external {
         Order storage order = orders[orderId];
+
+        if (providers[order.providerId].signer != msg.sender && msg.sender != owner()) {
+            revert UnauthorizedCaller();
+        }
 
         if (order.status != OrderStatus.PENDING && order.status != OrderStatus.COMPLETED) {
             revert InvalidOrderStatus();

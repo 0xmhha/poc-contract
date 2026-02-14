@@ -104,9 +104,9 @@ contract SubscriptionManagerTest is Test {
     function test_CreatePlan_Success() public {
         vm.prank(merchant);
         vm.expectEmit(true, true, false, true);
-        emit PlanCreated(2, merchant, 5 ether, 7 days, address(0));
+        emit PlanCreated(2, merchant, 5 ether, 7 days, address(token));
         uint256 newPlanId =
-            subManager.createPlan(5 ether, 7 days, address(0), 0, 1 days, 0, "Basic Plan", "Basic features");
+            subManager.createPlan(5 ether, 7 days, address(token), 0, 1 days, 0, "Basic Plan", "Basic features");
 
         assertEq(newPlanId, 2);
 
@@ -126,13 +126,13 @@ contract SubscriptionManagerTest is Test {
     function test_CreatePlan_RevertsOnInvalidPeriod_TooShort() public {
         vm.prank(merchant);
         vm.expectRevert(ISubscriptionManager.InvalidPeriod.selector);
-        subManager.createPlan(1 ether, 30 minutes, address(0), 0, 0, 0, "Plan", "Desc");
+        subManager.createPlan(1 ether, 30 minutes, address(token), 0, 0, 0, "Plan", "Desc");
     }
 
     function test_CreatePlan_RevertsOnInvalidPeriod_TooLong() public {
         vm.prank(merchant);
         vm.expectRevert(ISubscriptionManager.InvalidPeriod.selector);
-        subManager.createPlan(1 ether, 400 days, address(0), 0, 0, 0, "Plan", "Desc");
+        subManager.createPlan(1 ether, 400 days, address(token), 0, 0, 0, "Plan", "Desc");
     }
 
     // ============ UpdatePlan Tests ============

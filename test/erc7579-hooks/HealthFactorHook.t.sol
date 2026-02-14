@@ -236,9 +236,12 @@ contract HealthFactorHookTest is Test {
         vm.prank(account);
         hook.addMonitoredTarget(targetContract);
 
-        // preCheck should pass (no revert)
+        // preCheck with AA-style msgData encoding:
+        // selector(4) + ExecMode(32) + offset(32) + length(32) + target(20) + value(32)
+        bytes memory msgData = _buildSingleExecMsgData(targetContract, 0);
+
         vm.prank(account);
-        bytes memory context = hook.preCheck(targetContract, 0, bytes(""));
+        bytes memory context = hook.preCheck(account, 0, msgData);
 
         // Context should contain pre-tx health factor
         assertGt(context.length, 0);
@@ -249,9 +252,10 @@ contract HealthFactorHookTest is Test {
 
         // Don't add target to monitored list
         // preCheck should pass without checking health factor
+        bytes memory msgData = _buildSingleExecMsgData(otherContract, 0);
 
         vm.prank(account);
-        bytes memory context = hook.preCheck(otherContract, 0, bytes(""));
+        bytes memory context = hook.preCheck(account, 0, msgData);
 
         // Empty context when not monitored
         assertEq(context.length, 0);
@@ -269,8 +273,9 @@ contract HealthFactorHookTest is Test {
         // Should pass even with low health factor when disabled
         MockLendingPool(lendingPool).setHealthFactor(account, 0.5e18);
 
+        bytes memory msgData = _buildSingleExecMsgData(targetContract, 0);
         vm.prank(account);
-        bytes memory context = hook.preCheck(targetContract, 0, bytes(""));
+        bytes memory context = hook.preCheck(account, 0, msgData);
 
         assertEq(context.length, 0);
     }
@@ -288,9 +293,11 @@ contract HealthFactorHookTest is Test {
         // Set initial HF to 1.5
         MockLendingPool(lendingPool).setHealthFactor(account, 1.5e18);
 
+        bytes memory msgData = _buildSingleExecMsgData(targetContract, 0);
+
         // preCheck
         vm.prank(account);
-        bytes memory context = hook.preCheck(targetContract, 0, bytes(""));
+        bytes memory context = hook.preCheck(account, 0, msgData);
 
         // HF stays at 1.3 (still above threshold)
         MockLendingPool(lendingPool).setHealthFactor(account, 1.3e18);
@@ -309,9 +316,11 @@ contract HealthFactorHookTest is Test {
         // Set initial HF to 1.5
         MockLendingPool(lendingPool).setHealthFactor(account, 1.5e18);
 
+        bytes memory msgData = _buildSingleExecMsgData(targetContract, 0);
+
         // preCheck
         vm.prank(account);
-        bytes memory context = hook.preCheck(targetContract, 0, bytes(""));
+        bytes memory context = hook.preCheck(account, 0, msgData);
 
         // HF drops to 1.1 (below 1.2 threshold)
         MockLendingPool(lendingPool).setHealthFactor(account, 1.1e18);
@@ -331,9 +340,11 @@ contract HealthFactorHookTest is Test {
         // Set initial HF to 1.5
         MockLendingPool(lendingPool).setHealthFactor(account, 1.5e18);
 
+        bytes memory msgData = _buildSingleExecMsgData(targetContract, 0);
+
         // preCheck
         vm.prank(account);
-        bytes memory context = hook.preCheck(targetContract, 0, bytes(""));
+        bytes memory context = hook.preCheck(account, 0, msgData);
 
         // HF drops to 0.9 (liquidatable)
         MockLendingPool(lendingPool).setHealthFactor(account, 0.9e18);
@@ -364,8 +375,10 @@ contract HealthFactorHookTest is Test {
         // Set initial HF to 2.0
         MockLendingPool(lendingPool).setHealthFactor(account, 2.0e18);
 
+        bytes memory msgData = _buildSingleExecMsgData(targetContract, 0);
+
         vm.prank(account);
-        bytes memory context = hook.preCheck(targetContract, 0, bytes(""));
+        bytes memory context = hook.preCheck(account, 0, msgData);
 
         // HF drops to 1.25 (above threshold but significant drop)
         MockLendingPool(lendingPool).setHealthFactor(account, 1.25e18);
@@ -421,8 +434,10 @@ contract HealthFactorHookTest is Test {
 
         MockLendingPool(lendingPool).setHealthFactor(account, preHf);
 
+        bytes memory msgData = _buildSingleExecMsgData(targetContract, 0);
+
         vm.prank(account);
-        bytes memory context = hook.preCheck(targetContract, 0, bytes(""));
+        bytes memory context = hook.preCheck(account, 0, msgData);
 
         MockLendingPool(lendingPool).setHealthFactor(account, postHf);
 
@@ -447,6 +462,22 @@ contract HealthFactorHookTest is Test {
         MockLendingPool(lendingPool).setHealthFactor(account, 2.0e18);
 
         _installHook();
+    }
+
+    /**
+     * @notice Build msgData in the AA execution format expected by the updated HealthFactorHook
+     * @dev Format: selector(4) + ExecMode(32) + ABI-offset(32) + ABI-length(32) + target(20) + value(32)
+     *      ExecMode first byte = 0x00 for CALLTYPE_SINGLE
+     */
+    function _buildSingleExecMsgData(address target, uint256 value) internal pure returns (bytes memory) {
+        return abi.encodePacked(
+            bytes4(0x51945447), // execute selector
+            bytes32(0), // ExecMode with CALLTYPE_SINGLE (0x00)
+            uint256(0x40), // ABI offset for bytes parameter
+            uint256(52), // ABI length: target(20) + value(32) = 52 bytes
+            bytes20(target), // execution target
+            uint256(value) // execution value
+        );
     }
 }
 

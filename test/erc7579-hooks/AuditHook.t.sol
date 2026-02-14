@@ -210,14 +210,12 @@ contract AuditHookTest is Test {
     function test_GetAuditEntries() public {
         _installHook();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(0.1 ether), "");
-
         vm.startPrank(address(account));
-        hook.preCheck(user, 0.1 ether, msgData);
-        hook.preCheck(user, 0.2 ether, msgData);
-        hook.preCheck(user, 0.3 ether, msgData);
-        hook.preCheck(user, 0.4 ether, msgData);
-        hook.preCheck(user, 0.5 ether, msgData);
+        hook.preCheck(user, 0, abi.encodePacked(recipient, uint256(0.1 ether), ""));
+        hook.preCheck(user, 0, abi.encodePacked(recipient, uint256(0.2 ether), ""));
+        hook.preCheck(user, 0, abi.encodePacked(recipient, uint256(0.3 ether), ""));
+        hook.preCheck(user, 0, abi.encodePacked(recipient, uint256(0.4 ether), ""));
+        hook.preCheck(user, 0, abi.encodePacked(recipient, uint256(0.5 ether), ""));
         vm.stopPrank();
 
         // Get entries 1-3
@@ -387,22 +385,23 @@ contract AuditHookTest is Test {
     function test_GetStatistics() public {
         _installHook();
 
-        // Create some transactions
+        // Create msgData with value encoded in raw execution format (target || value || calldata)
         bytes memory msgData1 = abi.encodePacked(recipient, uint256(0.5 ether), "");
         bytes memory msgData2 = abi.encodePacked(recipient, uint256(2 ether), "");
+        bytes memory msgData3 = abi.encodePacked(recipient, uint256(0.3 ether), "");
 
         vm.startPrank(address(account));
 
-        // Normal transaction
-        bytes memory hookData1 = hook.preCheck(user, 0.5 ether, msgData1);
+        // Normal transaction (value from msgData, not msgValue)
+        bytes memory hookData1 = hook.preCheck(user, 0, msgData1);
         hook.postCheck(hookData1);
 
         // High value transaction (flagged)
-        bytes memory hookData2 = hook.preCheck(user, 2 ether, msgData2);
+        bytes memory hookData2 = hook.preCheck(user, 0, msgData2);
         hook.postCheck(hookData2);
 
         // Another normal transaction
-        bytes memory hookData3 = hook.preCheck(user, 0.3 ether, msgData1);
+        bytes memory hookData3 = hook.preCheck(user, 0, msgData3);
         hook.postCheck(hookData3);
 
         vm.stopPrank();

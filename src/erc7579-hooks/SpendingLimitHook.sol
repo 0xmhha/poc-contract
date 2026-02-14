@@ -129,45 +129,47 @@ contract SpendingLimitHook is IHook {
         // Check if paused
         if (store.isPaused) revert AccountIsPaused();
 
-        // Extract target and check whitelist
-        address target;
-        if (msgData.length >= 20) {
-            target = address(bytes20(msgData[0:20]));
-            if (store.whitelist[target]) {
-                return abi.encode(address(0), uint256(0)); // Skip limit check
-            }
+        // Extract execution data, handling wrapper calldata from AA/executor paths
+        if (msgData.length < 20) {
+            return abi.encode(address(0), msgValue);
+        }
+
+        (address target, uint256 execValue, bytes calldata execCalldata) =
+            _extractExecutionData(msgData, msgValue);
+
+        // Check whitelist
+        if (target != address(0) && store.whitelist[target]) {
+            return abi.encode(address(0), uint256(0)); // Skip limit check
         }
 
         // Check ETH spending
-        if (msgValue > 0) {
-            _checkAndRecordSpending(msg.sender, address(0), msgValue);
+        if (execValue > 0) {
+            _checkAndRecordSpending(msg.sender, address(0), execValue);
         }
 
         // Check ERC-20 transfers and approvals
-        if (msgData.length >= 56) {
-            // 20 (target) + 32 (value) + 4 (selector)
+        if (execCalldata.length >= 4) {
+            bytes4 selector = bytes4(execCalldata[0:4]);
 
-            bytes4 selector = bytes4(msgData[52:56]);
-
-            if (selector == TRANSFER_SELECTOR && msgData.length >= 120) {
-                // transfer(address,uint256): target + value + selector + to(32) + amount(32)
-                uint256 amount = uint256(bytes32(msgData[88:120]));
+            if (selector == TRANSFER_SELECTOR && execCalldata.length >= 68) {
+                // transfer(address,uint256): selector(4) + to(32) + amount(32) = 68
+                uint256 amount = uint256(bytes32(execCalldata[36:68]));
                 _checkAndRecordSpending(msg.sender, target, amount);
                 return abi.encode(target, amount);
-            } else if (selector == TRANSFER_FROM_SELECTOR && msgData.length >= 152) {
-                // transferFrom(address,address,uint256)
-                uint256 amount = uint256(bytes32(msgData[120:152]));
+            } else if (selector == TRANSFER_FROM_SELECTOR && execCalldata.length >= 100) {
+                // transferFrom(address,address,uint256): selector(4) + from(32) + to(32) + amount(32) = 100
+                uint256 amount = uint256(bytes32(execCalldata[68:100]));
                 _checkAndRecordSpending(msg.sender, target, amount);
                 return abi.encode(target, amount);
-            } else if (selector == APPROVE_SELECTOR && msgData.length >= 120) {
-                // approve(address,uint256): also track approvals as potential spending
-                uint256 amount = uint256(bytes32(msgData[88:120]));
+            } else if (selector == APPROVE_SELECTOR && execCalldata.length >= 68) {
+                // approve(address,uint256): selector(4) + spender(32) + amount(32) = 68
+                uint256 amount = uint256(bytes32(execCalldata[36:68]));
                 _checkAndRecordSpending(msg.sender, target, amount);
                 return abi.encode(target, amount);
             }
         }
 
-        return abi.encode(address(0), msgValue);
+        return abi.encode(address(0), execValue);
     }
 
     /**
@@ -320,6 +322,110 @@ contract SpendingLimitHook is IHook {
     }
 
     // ============ Internal Functions ============
+
+    /// @notice Known function selector for wrapper calldata detection (executeFromExecutor path)
+    bytes4 private constant EXECUTE_FROM_EXECUTOR_SELECTOR =
+        bytes4(keccak256("executeFromExecutor(bytes32,bytes)"));
+
+    /**
+     * @notice Extract the actual execution target, value, and calldata from potentially wrapped msgData
+     * @dev In the Account Abstraction path, msgData may be:
+     *      - executeUserOp path: ABI-encoded (ExecMode, executionCalldata) with selector already stripped
+     *      - executeFromExecutor path: selector + ABI-encoded (ExecMode, executionCalldata)
+     *      - Direct path: raw execution calldata (target[0:20] || value[20:52] || calldata[52:])
+     * @param msgData The calldata passed to preCheck
+     * @param msgValue The ETH value passed to preCheck
+     * @return target The execution target address
+     * @return value The ETH value for the execution
+     * @return execCalldata The inner calldata (selector + arguments) being called on the target
+     */
+    function _extractExecutionData(bytes calldata msgData, uint256 msgValue)
+        internal
+        pure
+        returns (address target, uint256 value, bytes calldata execCalldata)
+    {
+        // Path 1: executeFromExecutor wrapper — starts with 4-byte selector
+        if (msgData.length >= 4) {
+            bytes4 selector = bytes4(msgData[0:4]);
+
+            if (selector == EXECUTE_FROM_EXECUTOR_SELECTOR) {
+                if (msgData.length >= 100) {
+                    bytes calldata abiPayload = msgData[4:];
+                    return _decodeAbiWrappedExecution(abiPayload, msgValue);
+                }
+            }
+
+            // Path 2: executeUserOp path — selector already stripped, data is abi.encode(ExecMode, bytes)
+            if (msgData.length >= 96) {
+                uint256 offset = uint256(bytes32(msgData[32:64]));
+                if (offset == 0x40) {
+                    return _decodeAbiWrappedExecution(msgData, msgValue);
+                }
+            }
+        }
+
+        // Path 3: Raw execution calldata — target[0:20] || value[20:52] || calldata[52:]
+        if (msgData.length >= 20) {
+            target = address(bytes20(msgData[0:20]));
+        }
+        if (msgData.length >= 52) {
+            value = uint256(bytes32(msgData[20:52]));
+        } else {
+            value = msgValue;
+        }
+        if (msgData.length > 52) {
+            execCalldata = msgData[52:];
+        } else {
+            execCalldata = msgData[0:0];
+        }
+    }
+
+    /**
+     * @notice Decode ABI-encoded (ExecMode, bytes executionCalldata) and extract raw execution data
+     */
+    function _decodeAbiWrappedExecution(bytes calldata abiPayload, uint256 msgValue)
+        internal
+        pure
+        returns (address target, uint256 value, bytes calldata execCalldata)
+    {
+        if (abiPayload.length < 96) {
+            if (abiPayload.length >= 20) {
+                target = address(bytes20(abiPayload[0:20]));
+            }
+            value = msgValue;
+            execCalldata = abiPayload[0:0];
+            return (target, value, execCalldata);
+        }
+
+        uint256 dataLength = uint256(bytes32(abiPayload[64:96]));
+        uint256 dataStart = 96;
+        uint256 dataEnd = dataStart + dataLength;
+
+        if (dataEnd > abiPayload.length) {
+            if (abiPayload.length >= 20) {
+                target = address(bytes20(abiPayload[0:20]));
+            }
+            value = msgValue;
+            execCalldata = abiPayload[0:0];
+            return (target, value, execCalldata);
+        }
+
+        bytes calldata innerData = abiPayload[dataStart:dataEnd];
+
+        if (innerData.length >= 20) {
+            target = address(bytes20(innerData[0:20]));
+        }
+        if (innerData.length >= 52) {
+            value = uint256(bytes32(innerData[20:52]));
+        } else {
+            value = msgValue;
+        }
+        if (innerData.length > 52) {
+            execCalldata = innerData[52:];
+        } else {
+            execCalldata = innerData[0:0];
+        }
+    }
 
     function _setSpendingLimit(address account, address token, uint256 limit, uint256 periodLength) internal {
         if (limit == 0) revert InvalidLimit();

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
@@ -75,6 +76,9 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
     /// @notice Protocol reserves (fees collected)
     mapping(address => uint256) public protocolReserves;
 
+    /// @notice Asset decimals cache
+    mapping(address => uint8) public assetDecimals;
+
     /// @notice List of supported assets
     address[] public supportedAssets;
 
@@ -123,6 +127,13 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         }
 
         assetConfigs[asset] = config;
+
+        // Cache asset decimals
+        try IERC20Metadata(asset).decimals() returns (uint8 d) {
+            assetDecimals[asset] = d;
+        } catch {
+            assetDecimals[asset] = 18; // Default to 18 if no decimals() function
+        }
 
         // Initialize reserve if new
         if (_reserves[asset].liquidityIndex == 0) {
@@ -550,6 +561,9 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
             // Calculate interest earned
             uint256 interestEarned = (reserve.totalBorrows * interestFactor) / RAY;
 
+            // Update totalBorrows with accrued interest
+            reserve.totalBorrows += interestEarned;
+
             // Protocol takes reserve factor
             uint256 protocolShare = (interestEarned * assetConfigs[asset].reserveFactor) / BASIS_POINTS;
             protocolReserves[asset] += protocolShare;
@@ -623,13 +637,17 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
     function _getAssetValue(address asset, uint256 amount) internal view returns (uint256) {
         (uint256 price, uint256 timestamp) = oracle.getPriceWithTimestamp(asset);
         if (block.timestamp - timestamp > MAX_PRICE_AGE) revert StalePriceData();
-        return (amount * price) / 1e18;
+        uint8 decimals = assetDecimals[asset];
+        if (decimals == 0) decimals = 18; // Fallback
+        return (amount * price) / (10 ** decimals);
     }
 
     function _getAmountFromValue(address asset, uint256 value) internal view returns (uint256) {
         (uint256 price, uint256 timestamp) = oracle.getPriceWithTimestamp(asset);
         if (block.timestamp - timestamp > MAX_PRICE_AGE) revert StalePriceData();
-        return (value * 1e18) / price;
+        uint8 decimals = assetDecimals[asset];
+        if (decimals == 0) decimals = 18; // Fallback
+        return (value * (10 ** decimals)) / price;
     }
 
     function _getTotalShares(address asset) internal view returns (uint256) {

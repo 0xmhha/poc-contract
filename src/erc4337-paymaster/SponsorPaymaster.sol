@@ -250,19 +250,25 @@ contract SponsorPaymaster is BasePaymaster {
         } else if (paymasterData.length >= 4) {
             sponsorType = SponsorshipType(uint32(bytes4(paymasterData[0:4])));
 
-            if (sponsorType == SponsorshipType.SIGNATURE && paymasterData.length >= 84) {
-                // Parse signature mode data
+            if (sponsorType == SponsorshipType.SIGNATURE && paymasterData.length >= 80) {
+                // Parse signature mode data:
+                // [0:4]   sponsorType (uint32)
+                // [4:10]  validUntil (uint48)
+                // [10:16] validAfter (uint48)
+                // [16:80] signature (64 bytes, r+s compact ECDSA)
                 validUntil = uint48(bytes6(paymasterData[4:10]));
                 validAfter = uint48(bytes6(paymasterData[10:16]));
 
-                // Verify signature
+                // Verify signature (nonce incremented AFTER verification to prevent DoS via invalid signatures)
                 bytes memory sig = paymasterData[16:80];
+                uint256 currentNonce = nonces[userOp.sender];
                 // forge-lint: disable-next-line(asm-keccak256)
-                bytes32 hash = keccak256(abi.encode(userOp.sender, nonces[userOp.sender]++, validUntil, validAfter));
+                bytes32 hash = keccak256(abi.encode(userOp.sender, currentNonce, validUntil, validAfter));
 
                 if (signer != ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), sig)) {
                     return ("", _packValidationDataFailure(validUntil, validAfter));
                 }
+                nonces[userOp.sender] = currentNonce + 1;
             } else if (sponsorType == SponsorshipType.CAMPAIGN && paymasterData.length >= 36) {
                 campaignId = uint256(bytes32(paymasterData[4:36]));
             }

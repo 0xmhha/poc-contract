@@ -67,7 +67,7 @@ interface ISubscriptionManager {
         address merchant; // Merchant receiving payments
         uint256 amount; // Payment amount per period
         uint256 period; // Payment period in seconds (e.g., 30 days)
-        address token; // Payment token (address(0) for native)
+        address token; // Payment token (ERC-20 only, address(0) not supported)
         uint256 trialPeriod; // Free trial period in seconds
         uint256 gracePeriod; // Grace period after missed payment
         uint256 minSubscriptionTime; // Minimum subscription duration
@@ -102,7 +102,7 @@ interface ISubscriptionManager {
  *   - Subscribe users with ERC-7715 permission
  *   - Automated recurring payments
  *   - Trial periods and grace periods
- *   - Support for native and ERC-20 tokens
+ *   - Support for ERC-20 tokens (native token not supported in pull-based model)
  *
  * Flow:
  *   1. Merchant creates a plan
@@ -175,7 +175,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
      * @notice Create a new subscription plan
      * @param amount Payment amount per period
      * @param period Payment period in seconds
-     * @param token Payment token (address(0) for native)
+     * @param token Payment token (must be ERC-20, address(0) not supported)
      * @param trialPeriod Trial period in seconds
      * @param gracePeriod Grace period in seconds
      * @param minSubscriptionTime Minimum subscription duration
@@ -194,6 +194,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         string calldata description
     ) external returns (uint256 planId) {
         if (amount == 0) revert InvalidAmount();
+        if (token == address(0)) revert InvalidAmount(); // Native token not supported for subscriptions
         if (period < MIN_PERIOD || period > MAX_PERIOD) revert InvalidPeriod();
 
         planId = ++planCount;
@@ -421,13 +422,9 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
         // Transfer tokens (external calls last)
         if (plan.token == address(0)) {
-            // Native token
-            (bool merchantSuccess,) = payable(plan.merchant).call{ value: merchantAmount }("");
-            if (!merchantSuccess) revert PaymentFailed();
-            if (fee > 0) {
-                (bool feeSuccess,) = payable(feeRecipient).call{ value: fee }("");
-                if (!feeSuccess) revert PaymentFailed();
-            }
+            // Native token payments are not supported in pull-based subscription model
+            // Subscribers must use ERC-20 wrapped tokens (e.g., WETH)
+            revert PaymentFailed();
         } else {
             // ERC-20 token
             IERC20(plan.token).safeTransferFrom(sub.subscriber, plan.merchant, merchantAmount);

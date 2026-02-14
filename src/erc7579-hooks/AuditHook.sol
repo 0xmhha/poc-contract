@@ -135,15 +135,18 @@ contract AuditHook is IHook {
 
         if (!store.config.isEnabled) revert ModuleNotEnabled();
 
-        // Extract target address
+        // Extract execution data, handling wrapper calldata from AA/executor paths
         address target = address(0);
+        uint256 execValue = msgValue;
         bytes4 selector = bytes4(0);
 
         if (msgData.length >= 20) {
-            target = address(bytes20(msgData[0:20]));
-        }
-        if (msgData.length >= 56) {
-            selector = bytes4(msgData[52:56]);
+            bytes calldata execCalldata;
+            (target, execValue, execCalldata) = _extractExecutionData(msgData, msgValue);
+
+            if (execCalldata.length >= 4) {
+                selector = bytes4(execCalldata[0:4]);
+            }
         }
 
         // Check blocklist
@@ -153,11 +156,11 @@ contract AuditHook is IHook {
         }
 
         // Check if flagged transaction
-        bool isFlagged = msgValue >= store.config.highValueThreshold;
+        bool isFlagged = execValue >= store.config.highValueThreshold;
 
         // Check pending delay for flagged transactions
         if (isFlagged && store.config.flaggedDelay > 0) {
-            bytes32 txHash = _getTxHash(msg.sender, target, msgValue, msgData);
+            bytes32 txHash = _getTxHash(msg.sender, target, execValue, msgData);
             uint256 allowedAfter = store.pendingExecutions[txHash];
 
             if (allowedAfter == 0) {
@@ -178,7 +181,7 @@ contract AuditHook is IHook {
                     timestamp: block.timestamp,
                     sender: msgSender,
                     target: target,
-                    value: msgValue,
+                    value: execValue,
                     selector: selector,
                     dataHash: keccak256(msgData),
                     isFlagged: isFlagged,
@@ -192,7 +195,7 @@ contract AuditHook is IHook {
             store.flaggedCount++;
         }
 
-        emit TransactionLogged(msg.sender, logIndex, target, msgValue, selector, isFlagged);
+        emit TransactionLogged(msg.sender, logIndex, target, execValue, selector, isFlagged);
 
         return abi.encode(logIndex);
     }
@@ -413,6 +416,110 @@ contract AuditHook is IHook {
     }
 
     // ============ Internal Functions ============
+
+    /// @notice Known function selector for wrapper calldata detection (executeFromExecutor path)
+    bytes4 private constant EXECUTE_FROM_EXECUTOR_SELECTOR =
+        bytes4(keccak256("executeFromExecutor(bytes32,bytes)"));
+
+    /**
+     * @notice Extract the actual execution target, value, and calldata from potentially wrapped msgData
+     * @dev In the Account Abstraction path, msgData may be:
+     *      - executeUserOp path: ABI-encoded (ExecMode, executionCalldata) with selector already stripped
+     *      - executeFromExecutor path: selector + ABI-encoded (ExecMode, executionCalldata)
+     *      - Direct path: raw execution calldata (target[0:20] || value[20:52] || calldata[52:])
+     * @param msgData The calldata passed to preCheck
+     * @param msgValue The ETH value passed to preCheck
+     * @return target The execution target address
+     * @return value The ETH value for the execution
+     * @return execCalldata The inner calldata (selector + arguments) being called on the target
+     */
+    function _extractExecutionData(bytes calldata msgData, uint256 msgValue)
+        internal
+        pure
+        returns (address target, uint256 value, bytes calldata execCalldata)
+    {
+        // Path 1: executeFromExecutor wrapper — starts with 4-byte selector
+        if (msgData.length >= 4) {
+            bytes4 selector = bytes4(msgData[0:4]);
+
+            if (selector == EXECUTE_FROM_EXECUTOR_SELECTOR) {
+                if (msgData.length >= 100) {
+                    bytes calldata abiPayload = msgData[4:];
+                    return _decodeAbiWrappedExecution(abiPayload, msgValue);
+                }
+            }
+
+            // Path 2: executeUserOp path — selector already stripped, data is abi.encode(ExecMode, bytes)
+            if (msgData.length >= 96) {
+                uint256 offset = uint256(bytes32(msgData[32:64]));
+                if (offset == 0x40) {
+                    return _decodeAbiWrappedExecution(msgData, msgValue);
+                }
+            }
+        }
+
+        // Path 3: Raw execution calldata — target[0:20] || value[20:52] || calldata[52:]
+        if (msgData.length >= 20) {
+            target = address(bytes20(msgData[0:20]));
+        }
+        if (msgData.length >= 52) {
+            value = uint256(bytes32(msgData[20:52]));
+        } else {
+            value = msgValue;
+        }
+        if (msgData.length > 52) {
+            execCalldata = msgData[52:];
+        } else {
+            execCalldata = msgData[0:0];
+        }
+    }
+
+    /**
+     * @notice Decode ABI-encoded (ExecMode, bytes executionCalldata) and extract raw execution data
+     */
+    function _decodeAbiWrappedExecution(bytes calldata abiPayload, uint256 msgValue)
+        internal
+        pure
+        returns (address target, uint256 value, bytes calldata execCalldata)
+    {
+        if (abiPayload.length < 96) {
+            if (abiPayload.length >= 20) {
+                target = address(bytes20(abiPayload[0:20]));
+            }
+            value = msgValue;
+            execCalldata = abiPayload[0:0];
+            return (target, value, execCalldata);
+        }
+
+        uint256 dataLength = uint256(bytes32(abiPayload[64:96]));
+        uint256 dataStart = 96;
+        uint256 dataEnd = dataStart + dataLength;
+
+        if (dataEnd > abiPayload.length) {
+            if (abiPayload.length >= 20) {
+                target = address(bytes20(abiPayload[0:20]));
+            }
+            value = msgValue;
+            execCalldata = abiPayload[0:0];
+            return (target, value, execCalldata);
+        }
+
+        bytes calldata innerData = abiPayload[dataStart:dataEnd];
+
+        if (innerData.length >= 20) {
+            target = address(bytes20(innerData[0:20]));
+        }
+        if (innerData.length >= 52) {
+            value = uint256(bytes32(innerData[20:52]));
+        } else {
+            value = msgValue;
+        }
+        if (innerData.length > 52) {
+            execCalldata = innerData[52:];
+        } else {
+            execCalldata = innerData[0:0];
+        }
+    }
 
     function _getTxHash(address account, address target, uint256 value, bytes calldata data)
         internal

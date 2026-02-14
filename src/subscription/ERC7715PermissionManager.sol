@@ -26,6 +26,7 @@ interface IERC7715PermissionManager {
     error InsufficientAllowance();
     error InvalidTarget();
     error PermissionPaused();
+    error ExpiredDeadline();
 
     /* //////////////////////////////////////////////////////////////
                                  EVENTS
@@ -88,6 +89,7 @@ interface IERC7715PermissionManager {
         address target,
         Permission calldata permission,
         Rule[] calldata rules,
+        uint256 deadline,
         bytes calldata signature
     ) external returns (bytes32 permissionId);
 
@@ -237,6 +239,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
      * @param target Target contract for the permission
      * @param permission Permission details
      * @param rules Rules to apply to the permission
+     * @param deadline Signature validity deadline (must be >= block.timestamp)
      * @param signature EIP-712 signature from granter
      * @return permissionId Unique identifier for the permission
      */
@@ -246,8 +249,12 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         address target,
         Permission calldata permission,
         Rule[] calldata rules,
+        uint256 deadline,
         bytes calldata signature
     ) external override whenNotPaused returns (bytes32 permissionId) {
+        // Validate deadline
+        if (deadline < block.timestamp) revert ExpiredDeadline();
+
         // Build and verify signature
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 structHash = keccak256(
@@ -259,7 +266,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
                 keccak256(bytes(permission.permissionType)),
                 keccak256(permission.data),
                 nonces[granter],
-                block.timestamp + 1 hours // Deadline
+                deadline
             )
         );
 
@@ -377,6 +384,9 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
 
         if (record.createdAt == 0) revert PermissionNotFound();
         if (!record.active) revert PermissionNotFound();
+
+        // Verify caller is the authorized target for this permission
+        if (msg.sender != record.target) revert UnauthorizedCaller();
 
         // Check expiry
         uint256 expiry = _getExpiry(record.rules);

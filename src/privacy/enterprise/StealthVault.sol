@@ -108,6 +108,9 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
     /// @notice Total deposit count
     uint256 public depositCount;
 
+    /// @notice Mapping of used proofs to prevent replay attacks
+    mapping(bytes32 => bool) public usedProofs;
+
     /// @notice Stealth Ledger contract for balance tracking
     address public stealthLedger;
 
@@ -213,6 +216,7 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
 
         if (deposit.depositor == address(0)) revert DepositNotFound();
         if (deposit.withdrawn) revert AlreadyWithdrawn();
+        if (recipient != msg.sender) revert Unauthorized();
 
         // Verify proof (simplified - in production, use proper stealth address verification)
         if (!_verifyStealthProof(deposit.stealthAddress, recipient, proof)) {
@@ -235,19 +239,29 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
 
     /**
      * @notice Verify stealth proof
-     * @dev Simplified implementation - in production, implement proper stealth address verification
+     * @dev Includes msg.sender binding (front-running protection), chain ID domain separation,
+     *      and proof reuse prevention via usedProofs mapping
      */
     function _verifyStealthProof(bytes32 stealthHash, address recipient, bytes calldata proof)
         internal
-        pure
         returns (bool)
     {
-        // Simplified verification: proof must be the pre-image that hashes to stealthHash
-        // In production, this would verify the stealth address derivation
         if (proof.length < 20) return false;
 
+        // Include msg.sender and chainid for front-running protection and domain separation
+        bytes32 proofHash = keccak256(abi.encodePacked(msg.sender, recipient, proof, block.chainid));
+
+        // Prevent proof reuse
+        if (usedProofs[proofHash]) return false;
+
+        // Verify proof
         bytes32 computedHash = keccak256(abi.encodePacked(recipient, proof));
-        return computedHash == stealthHash;
+        if (computedHash != stealthHash) return false;
+
+        // Mark proof as used
+        usedProofs[proofHash] = true;
+
+        return true;
     }
 
     /* //////////////////////////////////////////////////////////////

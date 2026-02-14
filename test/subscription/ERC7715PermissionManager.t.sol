@@ -41,6 +41,7 @@ contract ERC7715PermissionManagerTest is Test {
         vm.startPrank(owner);
         manager = new ERC7715PermissionManager();
         manager.addAuthorizedExecutor(executor);
+        manager.addAuthorizedExecutor(target);
         vm.stopPrank();
 
         // Setup default permission
@@ -143,6 +144,8 @@ contract ERC7715PermissionManagerTest is Test {
     // ============ GrantPermissionWithSignature Tests ============
 
     function test_GrantPermissionWithSignature_Success() public {
+        uint256 deadline = block.timestamp + 1 hours;
+
         // Build signature
         bytes32 structHash = keccak256(
             abi.encode(
@@ -153,7 +156,7 @@ contract ERC7715PermissionManagerTest is Test {
                 keccak256(bytes(defaultPermission.permissionType)),
                 keccak256(defaultPermission.data),
                 manager.nonces(granter),
-                block.timestamp + 1 hours
+                deadline
             )
         );
 
@@ -165,19 +168,31 @@ contract ERC7715PermissionManagerTest is Test {
         address relayer = makeAddr("relayer");
         vm.prank(relayer);
         bytes32 permissionId = manager.grantPermissionWithSignature(
-            granter, grantee, target, defaultPermission, defaultRules, signature
+            granter, grantee, target, defaultPermission, defaultRules, deadline, signature
         );
 
         assertTrue(manager.isPermissionValid(permissionId));
     }
 
     function test_GrantPermissionWithSignature_RevertsOnInvalidSignature() public {
+        uint256 deadline = block.timestamp + 1 hours;
         bytes memory invalidSignature = new bytes(65);
 
         // ECDSA library throws ECDSAInvalidSignature, which gets caught and re-thrown as InvalidSignature
         vm.expectRevert();
         manager.grantPermissionWithSignature(
-            granter, grantee, target, defaultPermission, defaultRules, invalidSignature
+            granter, grantee, target, defaultPermission, defaultRules, deadline, invalidSignature
+        );
+    }
+
+    function test_GrantPermissionWithSignature_RevertsOnExpiredDeadline() public {
+        vm.warp(1 days);
+        uint256 deadline = block.timestamp - 1;
+        bytes memory signature = new bytes(65);
+
+        vm.expectRevert(IERC7715PermissionManager.ExpiredDeadline.selector);
+        manager.grantPermissionWithSignature(
+            granter, grantee, target, defaultPermission, defaultRules, deadline, signature
         );
     }
 
@@ -268,9 +283,9 @@ contract ERC7715PermissionManagerTest is Test {
         vm.prank(granter);
         bytes32 permissionId = manager.grantPermission(grantee, target, defaultPermission, defaultRules);
 
-        vm.prank(executor);
+        vm.prank(target);
         vm.expectEmit(true, true, false, true);
-        emit PermissionUsed(permissionId, executor, 10 ether);
+        emit PermissionUsed(permissionId, target, 10 ether);
         bool success = manager.usePermission(permissionId, 10 ether);
 
         assertTrue(success);
@@ -297,7 +312,7 @@ contract ERC7715PermissionManagerTest is Test {
         // Move past expiry
         vm.warp(block.timestamp + 2 hours);
 
-        vm.prank(executor);
+        vm.prank(target);
         vm.expectRevert(IERC7715PermissionManager.PermissionExpired.selector);
         manager.usePermission(permissionId, 10 ether);
     }
@@ -307,9 +322,19 @@ contract ERC7715PermissionManagerTest is Test {
         bytes32 permissionId = manager.grantPermission(grantee, target, defaultPermission, defaultRules);
 
         // Try to use more than the 100 ether limit
-        vm.prank(executor);
+        vm.prank(target);
         vm.expectRevert(IERC7715PermissionManager.InsufficientAllowance.selector);
         manager.usePermission(permissionId, 150 ether);
+    }
+
+    function test_UsePermission_RevertsOnWrongTarget() public {
+        vm.prank(granter);
+        bytes32 permissionId = manager.grantPermission(grantee, target, defaultPermission, defaultRules);
+
+        // executor is authorized but not the target for this permission
+        vm.prank(executor);
+        vm.expectRevert(IERC7715PermissionManager.UnauthorizedCaller.selector);
+        manager.usePermission(permissionId, 10 ether);
     }
 
     // ============ View Function Tests ============
@@ -351,7 +376,7 @@ contract ERC7715PermissionManagerTest is Test {
         bytes32 permissionId = manager.grantPermission(grantee, target, defaultPermission, defaultRules);
 
         // Use 30 ether
-        vm.prank(executor);
+        vm.prank(target);
         manager.usePermission(permissionId, 30 ether);
 
         uint256 remaining = manager.getRemainingAllowance(permissionId);

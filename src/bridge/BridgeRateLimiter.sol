@@ -206,7 +206,10 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
         }
 
         // Check thresholds and potentially trigger alerts/pause
-        _checkThresholds(newHourlyVolume, newDailyVolume, limits);
+        bool autoPaused = _checkThresholds(newHourlyVolume, newDailyVolume, limits);
+        if (autoPaused) {
+            return (false, usdValue);
+        }
 
         // Record the transaction
         hourlyWindow.volume = newHourlyVolume;
@@ -584,14 +587,17 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @param newDailyVolume New daily volume after transaction
      * @param limits Applicable limits
      */
-    function _checkThresholds(uint256 newHourlyVolume, uint256 newDailyVolume, RateLimitConfig memory limits) internal {
+    function _checkThresholds(uint256 newHourlyVolume, uint256 newDailyVolume, RateLimitConfig memory limits)
+        internal
+        returns (bool paused)
+    {
         // Check hourly thresholds
         uint256 hourlyPct = (newHourlyVolume * 100) / limits.hourlyLimit;
 
         if (hourlyPct >= autoPauseThreshold) {
             _pause();
             emit AutoPauseActivated("hourly_limit", newHourlyVolume, limits.hourlyLimit);
-            revert AutoPauseTriggered();
+            return true;
         }
 
         if (hourlyPct >= alertThreshold) {
@@ -604,11 +610,13 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
         if (dailyPct >= autoPauseThreshold) {
             _pause();
             emit AutoPauseActivated("daily_limit", newDailyVolume, limits.dailyLimit);
-            revert AutoPauseTriggered();
+            return true;
         }
 
         if (dailyPct >= alertThreshold) {
             emit AlertTriggered("daily", newDailyVolume, limits.dailyLimit, dailyPct);
         }
+
+        return false;
     }
 }
