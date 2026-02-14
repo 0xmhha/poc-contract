@@ -377,7 +377,8 @@ contract BridgeValidatorTest is Test {
         uint256 currentVersion = validator.signerSetVersion();
 
         // Create rotation proof signed by current signers
-        bytes32 rotationHash = keccak256(abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 3, block.chainid));
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 rotationHash = keccak256(abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 3, deadline, block.chainid));
         bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", rotationHash));
 
         bytes[] memory rotationProof = new bytes[](THRESHOLD);
@@ -387,7 +388,7 @@ contract BridgeValidatorTest is Test {
         }
 
         vm.prank(owner);
-        validator.rotateSignerSet(newSigners, 3, rotationProof);
+        validator.rotateSignerSet(newSigners, 3, deadline, rotationProof);
 
         // Verify new signer set
         assertEq(validator.signerSetVersion(), currentVersion + 1);
@@ -420,7 +421,8 @@ contract BridgeValidatorTest is Test {
 
         uint256 currentVersion = validator.signerSetVersion();
 
-        bytes32 rotationHash = keccak256(abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 2, block.chainid));
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 rotationHash = keccak256(abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 2, deadline, block.chainid));
         bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", rotationHash));
 
         bytes[] memory rotationProof = new bytes[](THRESHOLD);
@@ -431,7 +433,7 @@ contract BridgeValidatorTest is Test {
 
         // First rotation
         vm.prank(owner);
-        validator.rotateSignerSet(newSigners, 2, rotationProof);
+        validator.rotateSignerSet(newSigners, 2, deadline, rotationProof);
 
         // Create another rotation proof for immediate retry
         address[] memory newSigners2 = new address[](3);
@@ -445,7 +447,7 @@ contract BridgeValidatorTest is Test {
         vm.expectRevert(BridgeValidator.RotationCooldownActive.selector);
         // Use empty proof since it will fail before validation anyway
         bytes[] memory emptyProof = new bytes[](2);
-        validator.rotateSignerSet(newSigners2, 2, emptyProof);
+        validator.rotateSignerSet(newSigners2, 2, block.timestamp + 1 hours, emptyProof);
     }
 
     // ============ Pause Tests ============

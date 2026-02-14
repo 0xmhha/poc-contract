@@ -39,8 +39,8 @@ contract SwapExecutor is IExecutor {
 
     /// @notice Account-specific swap configuration
     struct AccountConfig {
-        uint256 dailyLimit; // Maximum swap amount per day
-        uint256 perSwapLimit; // Maximum single swap amount
+        uint256 dailyLimit; // Maximum swap amount per day (0 = unlimited)
+        uint256 perSwapLimit; // Maximum single swap amount (0 = unlimited)
         uint256 dailyUsed; // Amount used today
         uint256 lastResetTime; // Last daily reset timestamp
         bool isActive; // Whether module is active
@@ -128,6 +128,7 @@ contract SwapExecutor is IExecutor {
     error SlippageTooHigh();
     error SwapsPaused();
     error SwapFailed();
+    error ZeroAddress();
 
     // =========================================================================
     // Constructor
@@ -139,6 +140,8 @@ contract SwapExecutor is IExecutor {
      * @param _quoter Uniswap V3 Quoter address
      */
     constructor(address _swapRouter, address _quoter) {
+        if (_swapRouter == address(0)) revert ZeroAddress();
+        if (_quoter == address(0)) revert ZeroAddress();
         SWAP_ROUTER = _swapRouter;
         QUOTER = _quoter;
     }
@@ -497,6 +500,12 @@ contract SwapExecutor is IExecutor {
 
     /**
      * @dev Basic swap validation (no token checks)
+     * @notice Limit enforcement behavior:
+     *         - perSwapLimit == 0: No per-swap cap (unlimited single swap size)
+     *         - dailyLimit == 0:   No daily cap (unlimited daily volume)
+     *         Installation with empty data or zero limits intentionally disables
+     *         limit protections. Callers should set non-zero limits after install
+     *         if rate-limiting is desired.
      */
     function _validateSwapBasic(AccountStorage storage store, uint256 amountIn, uint256 deadline) internal view {
         AccountConfig storage config = store.config;
@@ -506,12 +515,12 @@ contract SwapExecutor is IExecutor {
         if (deadline < block.timestamp) revert DeadlineExpired();
         if (amountIn == 0) revert InvalidAmount();
 
-        // Check per-swap limit
+        // Check per-swap limit (0 == unlimited, no cap enforced)
         if (config.perSwapLimit > 0 && amountIn > config.perSwapLimit) {
             revert ExceedsPerSwapLimit();
         }
 
-        // Check daily limit
+        // Check daily limit (0 == unlimited, no cap enforced)
         if (config.dailyLimit > 0) {
             uint256 currentUsage = getDailyUsage(msg.sender);
             if (currentUsage + amountIn > config.dailyLimit) {
@@ -607,9 +616,15 @@ contract SwapExecutor is IExecutor {
 
         bytes[] memory results = IERC7579Account(account).executeFromExecutor(execMode, swapExecData);
 
-        if (results.length > 0 && results[0].length >= 32) {
-            amountOut = abi.decode(results[0], (uint256));
-        }
+        // Revoke residual approval
+        bytes memory revokeCall = abi.encodeWithSelector(IERC20.approve.selector, SWAP_ROUTER, uint256(0));
+        bytes memory revokeExecData = abi.encodePacked(params.tokenIn, uint256(0), revokeCall);
+        IERC7579Account(account).executeFromExecutor(execMode, revokeExecData);
+
+        // Validate swap result
+        if (results.length == 0 || results[0].length < 32) revert SwapFailed();
+        amountOut = abi.decode(results[0], (uint256));
+        if (amountOut == 0) revert SwapFailed();
     }
 
     /**
@@ -634,9 +649,15 @@ contract SwapExecutor is IExecutor {
 
         bytes[] memory results = IERC7579Account(account).executeFromExecutor(execMode, swapExecData);
 
-        if (results.length > 0 && results[0].length >= 32) {
-            amountOut = abi.decode(results[0], (uint256));
-        }
+        // Revoke residual approval
+        bytes memory revokeCall = abi.encodeWithSelector(IERC20.approve.selector, SWAP_ROUTER, uint256(0));
+        bytes memory revokeExecData = abi.encodePacked(tokenIn, uint256(0), revokeCall);
+        IERC7579Account(account).executeFromExecutor(execMode, revokeExecData);
+
+        // Validate swap result
+        if (results.length == 0 || results[0].length < 32) revert SwapFailed();
+        amountOut = abi.decode(results[0], (uint256));
+        if (amountOut == 0) revert SwapFailed();
     }
 
     /**

@@ -129,10 +129,10 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
         _updateRewards();
         _updateUserRewards(msg.sender);
 
-        // Calculate penalty if early withdrawal
+        // Calculate penalty if early withdrawal (use rate locked at stake time)
         uint256 penalty = 0;
         if (block.timestamp < userStake.lockUntil) {
-            penalty = (amount * config.earlyWithdrawPenalty) / BASIS_POINTS;
+            penalty = (amount * userStake.penaltyAtStake) / BASIS_POINTS;
         }
 
         uint256 amountAfterPenalty = amount - penalty;
@@ -286,7 +286,7 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
      */
     function calculatePenalty(address user, uint256 amount) external view returns (uint256) {
         if (block.timestamp >= stakes[user].lockUntil) return 0;
-        return (amount * config.earlyWithdrawPenalty) / BASIS_POINTS;
+        return (amount * stakes[user].penaltyAtStake) / BASIS_POINTS;
     }
 
     // ============ Admin Functions ============
@@ -332,11 +332,22 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
      * @param amount Amount to recover
      */
     function recoverTokens(address token, address to, uint256 amount) external onlyOwner {
-        // Cannot recover staking token if it would affect user stakes
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        uint256 reserved = 0;
+
+        // Protect staked tokens
         if (token == address(stakingToken)) {
-            uint256 excess = IERC20(token).balanceOf(address(this)) - state.totalStaked;
-            if (amount > excess) revert InvalidAmount();
+            reserved += state.totalStaked;
         }
+
+        // Protect reward tokens
+        if (token == address(rewardToken)) {
+            reserved += state.rewardsRemaining;
+        }
+
+        uint256 excess = balance > reserved ? balance - reserved : 0;
+        if (amount > excess) revert InvalidAmount();
+
         IERC20(token).safeTransfer(to, amount);
     }
 
@@ -368,10 +379,11 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
             userStake.lockUntil = newLockUntil;
         }
 
-        // Update staked timestamp if first stake or reset
+        // Update staked timestamp and lock penalty at stake time
         if (userStake.stakedAt == 0) {
             userStake.stakedAt = block.timestamp;
         }
+        userStake.penaltyAtStake = config.earlyWithdrawPenalty;
 
         // Update reward debt
         userStake.rewardDebt = (userStake.amount * state.accRewardPerShare) / ACC_REWARD_PRECISION;

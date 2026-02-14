@@ -74,6 +74,7 @@ contract RecurringPaymentExecutor is IExecutor {
         uint256 paymentNumber
     );
     event PaymentScheduleCompleted(address indexed account, uint256 indexed scheduleId);
+    event PaymentBatchFailed(address indexed account, uint256 indexed scheduleId, bytes reason);
 
     // Errors
     error ScheduleNotFound();
@@ -214,9 +215,15 @@ contract RecurringPaymentExecutor is IExecutor {
 
         if (block.timestamp < nextPaymentTime) revert PaymentNotDue();
 
-        // Update schedule state
-        schedule.lastPaymentTime = block.timestamp;
+        // Update schedule state: advance lastPaymentTime to the scheduled payment time
+        // rather than resetting to block.timestamp, preventing timing drift and ensuring
+        // late payments don't cause subsequent payments to be skipped.
+        // The Nth payment is due at: startTime + (N-1) * interval.
+        // nextPaymentTime is computed as: lastPaymentTime + interval (or startTime if first).
+        // So after payment N, lastPaymentTime must equal startTime + (N-1) * interval,
+        // making the (N+1)th payment due at startTime + N * interval.
         schedule.paymentsMade++;
+        schedule.lastPaymentTime = schedule.startTime + ((schedule.paymentsMade - 1) * schedule.interval);
 
         // Execute payment
         bytes[] memory result;
@@ -254,8 +261,8 @@ contract RecurringPaymentExecutor is IExecutor {
         for (uint256 i = 0; i < scheduleIds.length; i++) {
             try this.executePayment(account, scheduleIds[i]) {
                 successCount++;
-            } catch {
-                // Continue with next payment
+            } catch (bytes memory reason) {
+                emit PaymentBatchFailed(account, scheduleIds[i], reason);
             }
         }
     }

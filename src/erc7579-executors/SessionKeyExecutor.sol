@@ -28,12 +28,17 @@ contract SessionKeyExecutor is IExecutor {
     using ECDSA for bytes32;
 
     /// @notice Session key configuration
+    /// @dev SECURITY NOTE: spendingLimit and spentAmount only track native ETH value sent via
+    /// msg.value. ERC-20 token transfers (e.g., transfer/approve calls) are NOT tracked against
+    /// these limits. Token spending must be controlled via Permission.target and Permission.selector
+    /// restrictions. This is an intentional design limitation -- adding token-aware spending tracking
+    /// would require calldata parsing for each token standard and is out of scope.
     struct SessionKeyConfig {
         address sessionKey;
         uint48 validAfter;
         uint48 validUntil;
-        uint256 spendingLimit; // Max ETH that can be spent
-        uint256 spentAmount; // ETH already spent
+        uint256 spendingLimit; // Max native ETH (msg.value) that can be spent; does NOT track ERC-20 transfers
+        uint256 spentAmount; // Native ETH already spent; does NOT track ERC-20 transfers
         uint256 nonce; // For replay protection
         bool isActive;
     }
@@ -225,7 +230,7 @@ contract SessionKeyExecutor is IExecutor {
         bytes4 selector = data.length >= 4 ? bytes4(data[:4]) : bytes4(0);
         _validatePermission(store, signer, target, selector, value);
 
-        // Update spending
+        // Update native ETH spending limit (does NOT track ERC-20 token transfers)
         if (value > 0) {
             if (session.spentAmount + value > session.spendingLimit) {
                 revert SpendingLimitExceeded();
@@ -266,7 +271,7 @@ contract SessionKeyExecutor is IExecutor {
         bytes4 selector = data.length >= 4 ? bytes4(data[:4]) : bytes4(0);
         _validatePermission(store, msg.sender, target, selector, value);
 
-        // Update spending
+        // Update native ETH spending limit (does NOT track ERC-20 token transfers)
         if (value > 0) {
             if (session.spentAmount + value > session.spendingLimit) {
                 revert SpendingLimitExceeded();
@@ -432,8 +437,10 @@ contract SessionKeyExecutor is IExecutor {
         view
         returns (bytes32)
     {
+        // Use abi.encode instead of abi.encodePacked to prevent hash collisions
+        // when variable-length `data` is packed adjacent to fixed-length `nonce`.
         // forge-lint: disable-next-line(asm-keccak256)
-        return keccak256(abi.encodePacked(block.chainid, address(this), account, target, value, data, nonce));
+        return keccak256(abi.encode(block.chainid, address(this), account, target, value, data, nonce));
     }
 
     function _encodeExecMode() internal pure returns (ExecMode) {

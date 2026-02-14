@@ -291,7 +291,9 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
         record.lastUpdated = block.timestamp;
         record.updatedBy = msg.sender;
 
-        totalVerified--;
+        if (totalVerified > 0) {
+            totalVerified--;
+        }
 
         emit KYCStatusUpdated(account, oldStatus, KYCStatus.EXPIRED, msg.sender);
         emit KYCExpired(account);

@@ -134,6 +134,46 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
     }
 
     /* //////////////////////////////////////////////////////////////
+                        ACCESS CONTROL OVERRIDES
+    ////////////////////////////////////////////////////////////// */
+
+    /**
+     * @notice Override OZ hasRole to incorporate expiration checks
+     * @dev OpenZeppelin's default hasRole returns true based solely on _grantRole,
+     * which does not support time-bound expiry. This override ensures that expired
+     * role assignments are treated as inactive, closing the gap where
+     * hasRole(roleId, account) would return true for an expired assignment.
+     * @param role The role identifier
+     * @param account The account address
+     * @return True if the account has the role and it is not expired
+     */
+    function hasRole(bytes32 role, address account) public view override returns (bool) {
+        // Preserve default behavior for the DEFAULT_ADMIN_ROLE (no expiration tracking)
+        if (role == DEFAULT_ADMIN_ROLE) {
+            return super.hasRole(role, account);
+        }
+
+        // For custom-managed roles: OZ must have granted it AND the assignment must be valid
+        if (!super.hasRole(role, account)) {
+            return false;
+        }
+
+        // If there is no assignment record (e.g., system roles granted in constructor),
+        // fall back to OZ's answer
+        RoleAssignment storage assignment = assignments[account][role];
+        if (assignment.assignedAt == 0) {
+            return true;
+        }
+
+        // Check expiration
+        if (assignment.expiresAt != 0 && block.timestamp > assignment.expiresAt) {
+            return false;
+        }
+
+        return assignment.active;
+    }
+
+    /* //////////////////////////////////////////////////////////////
                           ROLE MANAGEMENT
     ////////////////////////////////////////////////////////////// */
 
@@ -188,13 +228,34 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
     }
 
     /**
-     * @notice Deactivate a role
+     * @notice Deactivate a role and revoke it from all existing members
      * @param roleId The role ID to deactivate
+     * @dev WARNING: Gas cost scales linearly with the number of role members.
+     * For roles with a large number of members, this function may exceed the
+     * block gas limit. Consider monitoring roleMembers[roleId].length before
+     * calling, or revoking members in batches via revokeRoleAssignment first.
      */
     function deactivateRole(bytes32 roleId) external onlyRole(ROLE_ADMIN) whenNotPaused {
         if (roles[roleId].createdAt == 0) revert RoleNotFound();
 
         roles[roleId].active = false;
+
+        // Revoke OZ role from all existing members so that hasRole returns false
+        // immediately, rather than relying solely on the active flag check.
+        address[] storage members = roleMembers[roleId];
+        uint256 length = members.length;
+        for (uint256 i = 0; i < length;) {
+            address member = members[i];
+            RoleAssignment storage assignment = assignments[member][roleId];
+            if (assignment.active) {
+                assignment.active = false;
+                _revokeRole(roleId, member);
+            }
+            unchecked {
+                i++;
+            }
+        }
+        roles[roleId].memberCount = 0;
 
         emit RoleDeactivated(roleId, msg.sender);
     }

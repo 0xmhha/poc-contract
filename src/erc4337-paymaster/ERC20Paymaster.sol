@@ -75,6 +75,8 @@ contract ERC20Paymaster is BasePaymaster {
     error OracleCannotBeZero();
     error StalePrice(uint256 updatedAt, uint256 maxAge);
     error InvalidPaymasterDataLength();
+    error InvalidPrice();
+    error InvalidTokenDecimals(address token);
 
     /**
      * @notice Constructor
@@ -121,11 +123,13 @@ contract ERC20Paymaster is BasePaymaster {
      * @param supported Whether the token is supported
      */
     function setSupportedToken(address token, bool supported) external onlyOwner {
-        supportedTokens[token] = supported;
-        if (supported && tokenDecimals[token] == 0) {
-            // Cache decimals for supported tokens
-            tokenDecimals[token] = IERC20Metadata(token).decimals();
+        if (supported) {
+            // Cache and validate decimals for supported tokens
+            uint8 decimals = IERC20Metadata(token).decimals();
+            if (decimals == 0) revert InvalidTokenDecimals(token);
+            tokenDecimals[token] = decimals;
         }
+        supportedTokens[token] = supported;
         emit TokenSupported(token, supported);
     }
 
@@ -149,6 +153,9 @@ contract ERC20Paymaster is BasePaymaster {
     function getTokenAmount(address token, uint256 ethCost) public view returns (uint256 tokenAmount) {
         // Get token price (how much ETH per token in 18 decimals)
         (uint256 tokenPrice, uint256 updatedAt) = oracle.getPriceWithTimestamp(token);
+
+        // Sanity check: reject zero or invalid price
+        if (tokenPrice == 0) revert InvalidPrice();
 
         // Check staleness
         if (block.timestamp - updatedAt > MAX_PRICE_STALENESS) {

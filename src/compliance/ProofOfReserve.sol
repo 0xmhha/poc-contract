@@ -30,6 +30,7 @@ interface IAggregatorV3 {
  */
 interface IStablecoin {
     function totalSupply() external view returns (uint256);
+    function decimals() external view returns (uint8);
 }
 
 /**
@@ -83,6 +84,7 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
     uint256 public autoPauseThreshold; // Number of consecutive unhealthy before auto-pause
 
     bool public autoPauseEnabled;
+    uint256 public minVerificationInterval;
 
     // ============ Events ============
     event OracleConfigured(address indexed oracle, uint8 decimals, uint256 heartbeat);
@@ -95,6 +97,7 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
     event AutoPauseTriggered(uint256 reserveRatio, uint256 consecutiveUnhealthy);
     event AutoPauseThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
     event AutoPauseToggled(bool enabled);
+    event MinVerificationIntervalUpdated(uint256 oldInterval, uint256 newInterval);
 
     // ============ Errors ============
     error InvalidAddress();
@@ -106,11 +109,14 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
     error OracleInactive();
     error InvalidHeartbeat();
     error InvalidThreshold();
+    error VerificationTooFrequent();
+    error InvalidInterval();
 
     // ============ Constructor ============
     constructor(address initialOwner, uint256 _autoPauseThreshold) Ownable(initialOwner) {
         autoPauseThreshold = _autoPauseThreshold > 0 ? _autoPauseThreshold : 3;
         autoPauseEnabled = true;
+        minVerificationInterval = 5 minutes;
     }
 
     // ============ Configuration Functions ============
@@ -177,6 +183,19 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
+     * @notice Set minimum interval between reserve verifications
+     * @param interval New minimum interval in seconds
+     */
+    function setMinVerificationInterval(uint256 interval) external onlyOwner {
+        if (interval == 0) revert InvalidInterval();
+
+        uint256 oldInterval = minVerificationInterval;
+        minVerificationInterval = interval;
+
+        emit MinVerificationIntervalUpdated(oldInterval, interval);
+    }
+
+    /**
      * @notice Deactivate the oracle (emergency)
      */
     function deactivateOracle() external onlyOwner {
@@ -198,6 +217,8 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
      * @return status The current reserve status
      */
     function verifyReserve() external nonReentrant returns (ReserveStatus memory status) {
+        if (block.timestamp < lastVerificationTime + minVerificationInterval) revert VerificationTooFrequent();
+
         status = _performVerification();
 
         // Auto-pause logic
@@ -234,15 +255,16 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
         if (answer <= 0) revert InvalidOracleData();
         if (block.timestamp - updatedAt > reserveOracle.heartbeat * 2) revert StaleOracleData();
 
-        // Get total supply
+        // Get total supply and stablecoin decimals
         uint256 totalSupply = stablecoin.totalSupply();
+        uint8 stablecoinDecimals = stablecoin.decimals();
 
-        // Normalize reserve to same decimals as totalSupply (assuming 18 decimals)
+        // Normalize reserve to same decimals as totalSupply
         uint256 totalReserve = answer.toUint256();
-        if (reserveOracle.decimals < 18) {
-            totalReserve = totalReserve * (10 ** (18 - reserveOracle.decimals));
-        } else if (reserveOracle.decimals > 18) {
-            totalReserve = totalReserve / (10 ** (reserveOracle.decimals - 18));
+        if (reserveOracle.decimals < stablecoinDecimals) {
+            totalReserve = totalReserve * (10 ** (stablecoinDecimals - reserveOracle.decimals));
+        } else if (reserveOracle.decimals > stablecoinDecimals) {
+            totalReserve = totalReserve / (10 ** (reserveOracle.decimals - stablecoinDecimals));
         }
 
         // Calculate reserve ratio in basis points
@@ -298,12 +320,13 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
         }
 
         totalSupply = stablecoin.totalSupply();
+        uint8 stablecoinDecimals = stablecoin.decimals();
 
         totalReserve = answer.toUint256();
-        if (reserveOracle.decimals < 18) {
-            totalReserve = totalReserve * (10 ** (18 - reserveOracle.decimals));
-        } else if (reserveOracle.decimals > 18) {
-            totalReserve = totalReserve / (10 ** (reserveOracle.decimals - 18));
+        if (reserveOracle.decimals < stablecoinDecimals) {
+            totalReserve = totalReserve * (10 ** (stablecoinDecimals - reserveOracle.decimals));
+        } else if (reserveOracle.decimals > stablecoinDecimals) {
+            totalReserve = totalReserve / (10 ** (reserveOracle.decimals - stablecoinDecimals));
         }
 
         if (totalSupply > 0) {
@@ -386,11 +409,12 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
 
         if (answer <= 0) return (false, 0);
 
+        uint8 stablecoinDecimals = stablecoin.decimals();
         uint256 totalReserve = answer.toUint256();
-        if (reserveOracle.decimals < 18) {
-            totalReserve = totalReserve * (10 ** (18 - reserveOracle.decimals));
-        } else if (reserveOracle.decimals > 18) {
-            totalReserve = totalReserve / (10 ** (reserveOracle.decimals - 18));
+        if (reserveOracle.decimals < stablecoinDecimals) {
+            totalReserve = totalReserve * (10 ** (stablecoinDecimals - reserveOracle.decimals));
+        } else if (reserveOracle.decimals > stablecoinDecimals) {
+            totalReserve = totalReserve / (10 ** (reserveOracle.decimals - stablecoinDecimals));
         }
 
         uint256 newTotalSupply = stablecoin.totalSupply() + mintAmount;

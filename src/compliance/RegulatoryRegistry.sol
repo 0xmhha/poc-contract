@@ -102,6 +102,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
     error InvalidJurisdiction();
     error EmptyName();
     error NotRequestCreator();
+    error JurisdictionMismatch();
 
     // ============ Constructor ============
     constructor(address[] memory initialApprovers) {
@@ -315,6 +316,9 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
         Regulator storage reg = regulators[msg.sender];
         if (!reg.isActive) revert RegulatorNotActive();
         if (reg.accessLevel < request.requiredAccessLevel) revert InsufficientAccessLevel();
+        if (keccak256(bytes(reg.jurisdiction)) != keccak256(bytes(request.jurisdiction))) {
+            revert JurisdictionMismatch();
+        }
 
         request.isExecuted = true;
 

@@ -222,6 +222,16 @@ contract PrivateBank is ReentrancyGuard, Ownable {
      * @notice Withdraw native tokens from a stealth address
      * @param amount The amount to withdraw
      * @dev Caller must be the stealth address owner (derived private key)
+     *
+     * @dev SECURITY: Cross-contract reentrancy warning for integrators.
+     * Although this function follows the CEI pattern and uses nonReentrant,
+     * cross-contract reentrancy is still possible if an external contract
+     * reads stale state from PrivateBank during the native token transfer.
+     * Integrating contracts that depend on PrivateBank balances (e.g., via
+     * getNativeBalance or nativeBalances) MUST NOT make trust decisions
+     * based on those values within the same transaction as a withdrawal,
+     * or should implement their own reentrancy guards to prevent
+     * read-only reentrancy attacks.
      */
     function withdrawNative(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
@@ -242,6 +252,16 @@ contract PrivateBank is ReentrancyGuard, Ownable {
      * @notice Withdraw native tokens to a different address
      * @param recipient The address to receive funds
      * @param amount The amount to withdraw
+     *
+     * @dev SECURITY: Cross-contract reentrancy warning for integrators.
+     * Although this function follows the CEI pattern and uses nonReentrant,
+     * cross-contract reentrancy is still possible if an external contract
+     * reads stale state from PrivateBank during the native token transfer.
+     * Integrating contracts that depend on PrivateBank balances (e.g., via
+     * getNativeBalance or nativeBalances) MUST NOT make trust decisions
+     * based on those values within the same transaction as a withdrawal,
+     * or should implement their own reentrancy guards to prevent
+     * read-only reentrancy attacks.
      */
     function withdrawNativeTo(address recipient, uint256 amount) external nonReentrant {
         if (recipient == address(0)) revert ZeroAddress();

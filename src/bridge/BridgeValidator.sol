@@ -37,6 +37,8 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
     error ZeroAddress();
     error InvalidMessageLength();
     error ExpiredMessage();
+    error NonceNotUsed();
+    error RotationDeadlineExpired();
 
     // ============ Events ============
     event SignerAdded(address indexed signer, uint256 signerSetVersion);
@@ -45,6 +47,7 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
     event SignerSetRotated(uint256 oldVersion, uint256 newVersion);
     event MessageValidated(bytes32 indexed messageHash, uint256 nonce, address indexed sender);
     event NonceInvalidated(uint256 indexed nonce, address indexed sender);
+    event NonceRecovered(uint256 indexed nonce, address indexed sender, address indexed recoveredBy);
 
     // ============ Structs ============
 
@@ -278,6 +281,21 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
         emit NonceInvalidated(nonce, msg.sender);
     }
 
+    /**
+     * @notice Recover a consumed nonce when verification succeeded but execution failed
+     * @dev Only callable by owner. Allows re-use of nonces that were consumed by
+     *      verifyMpcSignatures but whose corresponding bridge operation failed to execute.
+     * @param sender The sender whose nonce to recover
+     * @param nonce The nonce to mark as unused
+     */
+    function recoverNonce(address sender, uint256 nonce) external onlyOwner {
+        if (!usedNonces[sender][nonce]) revert NonceNotUsed();
+
+        usedNonces[sender][nonce] = false;
+
+        emit NonceRecovered(nonce, sender, msg.sender);
+    }
+
     // ============ Admin Functions ============
 
     /**
@@ -349,12 +367,18 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
      * @notice Rotate to a new signer set
      * @param newSigners Array of new signer addresses
      * @param newThreshold New minimum signatures required
+     * @param deadline Timestamp after which the rotation proof expires
      * @param rotationProof Proof authorizing the rotation (signed by current threshold)
      */
-    function rotateSignerSet(address[] calldata newSigners, uint256 newThreshold, bytes[] calldata rotationProof)
-        external
-        onlyOwner
-    {
+    function rotateSignerSet(
+        address[] calldata newSigners,
+        uint256 newThreshold,
+        uint256 deadline,
+        bytes[] calldata rotationProof
+    ) external onlyOwner {
+        // Check deadline
+        if (block.timestamp > deadline) revert RotationDeadlineExpired();
+
         // Check cooldown
         if (block.timestamp < lastRotationTime + ROTATION_COOLDOWN) revert RotationCooldownActive();
 
@@ -365,8 +389,9 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
 
         // Verify rotation proof (current signers must approve)
         // forge-lint: disable-next-line(asm-keccak256)
-        bytes32 rotationHash =
-            keccak256(abi.encode("ROTATE_SIGNER_SET", signerSetVersion, newSigners, newThreshold, block.chainid));
+        bytes32 rotationHash = keccak256(
+            abi.encode("ROTATE_SIGNER_SET", signerSetVersion, newSigners, newThreshold, deadline, block.chainid)
+        );
 
         SignerSet storage currentSet = signerSets[signerSetVersion];
         if (!_verifyRotationProof(rotationHash, rotationProof, currentSet)) {

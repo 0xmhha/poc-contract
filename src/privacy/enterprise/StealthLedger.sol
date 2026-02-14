@@ -95,6 +95,9 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
     /// @notice Authorized vaults that can update balances
     mapping(address vault => bool) public authorizedVaults;
 
+    /// @notice Next transaction ID (monotonically incrementing counter)
+    uint256 public nextTxId;
+
     /// @notice Total transaction count
     uint256 public transactionCount;
 
@@ -283,7 +286,12 @@ contract StealthLedger is IStealthLedger, AccessControl, Pausable, ReentrancyGua
         TransactionType txType,
         bytes32 relatedTxId
     ) internal returns (bytes32 txId) {
-        txId = keccak256(abi.encodePacked(stealthAddressHash, token, amount, txType, block.timestamp, transactionCount));
+        // Use monotonically incrementing counter to eliminate collision risk.
+        // The previous hash-based approach (hashing stealthAddressHash, token,
+        // amount, txType, timestamp, transactionCount) could theoretically
+        // produce collisions. A simple counter is deterministic and collision-free.
+        txId = bytes32(nextTxId);
+        nextTxId++;
 
         transactions[txId] = Transaction({
             stealthAddressHash: stealthAddressHash,

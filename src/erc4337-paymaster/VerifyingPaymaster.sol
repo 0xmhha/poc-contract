@@ -134,9 +134,7 @@ contract VerifyingPaymaster is BasePaymaster {
         }
 
         // Increment nonce to prevent replay
-        unchecked {
-            senderNonce[userOp.sender]++;
-        }
+        senderNonce[userOp.sender]++;
 
         // Emit event for tracking
         emit GasSponsored(userOp.sender, keccak256(abi.encode(userOp)), maxCost);

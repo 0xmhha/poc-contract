@@ -25,6 +25,7 @@ interface IStakingVault {
         uint256 stakedAt; // Timestamp when staked
         uint256 lockUntil; // Lock end timestamp
         uint256 pendingRewards; // Unclaimed rewards
+        uint256 penaltyAtStake; // Early withdrawal penalty rate locked at stake time (basis points)
     }
 
     /// @notice Vault state
