@@ -407,10 +407,7 @@ contract AutoSwapPlugin is IExecutor {
         // Check if order is triggered
         if (!_isOrderTriggered(order)) revert OrderNotTriggered();
 
-        // Execute the swap
-        uint256 amountOut = _executeSwap(account, order);
-
-        // Update order state
+        // Effects: update order state BEFORE external call (checks-effects-interactions)
         order.lastExecutionTime = block.timestamp;
 
         if (order.orderType == OrderType.DCA) {
@@ -425,6 +422,9 @@ contract AutoSwapPlugin is IExecutor {
             order.status = OrderStatus.EXECUTED;
             _removeFromActiveList(account, orderId);
         }
+
+        // Interactions: execute the swap AFTER state updates
+        uint256 amountOut = _executeSwap(account, order);
 
         uint256 currentPrice = _getCurrentPrice(order.tokenIn, order.tokenOut);
         emit OrderExecuted(account, orderId, order.amountIn, amountOut, currentPrice);

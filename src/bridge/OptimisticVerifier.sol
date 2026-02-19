@@ -338,22 +338,26 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param requestId ID of the request to cancel
      * @param reason Reason for cancellation
      */
-    function cancelRequest(bytes32 requestId, string calldata reason) external onlyOwner {
+    function cancelRequest(bytes32 requestId, string calldata reason) external onlyOwner nonReentrant {
         BridgeRequest storage request = requests[requestId];
 
         if (request.status == RequestStatus.None) revert RequestNotFound();
         if (request.status == RequestStatus.Executed) revert RequestAlreadyExecuted();
         if (request.status == RequestStatus.Cancelled) revert RequestAlreadyCancelled();
 
-        // If there's an active challenge, refund the challenger
+        // Cache current status before state change
+        RequestStatus currentStatus = request.status;
+
+        // Effects: update state BEFORE external call (checks-effects-interactions)
+        request.status = RequestStatus.Cancelled;
+
+        // Interactions: refund challenger if there's an active challenge
         Challenge storage challenge = challenges[requestId];
-        if (request.status == RequestStatus.Challenged && !challenge.resolved) {
+        if (currentStatus == RequestStatus.Challenged && !challenge.resolved) {
             challenge.resolved = true;
             (bool success,) = payable(challenge.challenger).call{ value: challenge.bondAmount }("");
             if (!success) revert TransferFailed();
         }
-
-        request.status = RequestStatus.Cancelled;
 
         emit RequestCancelled(requestId, reason);
     }

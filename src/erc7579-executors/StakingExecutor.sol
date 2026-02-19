@@ -263,12 +263,12 @@ contract StakingExecutor is IExecutor {
             config.dailyUsed += amount;
         }
 
-        // Execute stake via smart account
+        // Effects: update cached stake amount BEFORE external call (checks-effects-interactions)
+        stakedAmounts[msg.sender][pool] += amount;
+
+        // Interactions: execute stake via smart account
         bytes memory callData = abi.encodeWithSelector(IStakingPool.stake.selector, amount);
         _executeFromAccount(msg.sender, pool, 0, callData);
-
-        // Update cached stake amount
-        stakedAmounts[msg.sender][pool] += amount;
 
         emit Staked(msg.sender, pool, amount);
     }
@@ -305,12 +305,12 @@ contract StakingExecutor is IExecutor {
             config.dailyUsed += amount;
         }
 
-        // Execute stake with lock via smart account
+        // Effects: update cached stake amount BEFORE external call (checks-effects-interactions)
+        stakedAmounts[msg.sender][pool] += amount;
+
+        // Interactions: execute stake with lock via smart account
         bytes memory callData = abi.encodeWithSelector(IStakingPool.stakeWithLock.selector, amount, lockDuration);
         _executeFromAccount(msg.sender, pool, 0, callData);
-
-        // Update cached stake amount
-        stakedAmounts[msg.sender][pool] += amount;
 
         emit Staked(msg.sender, pool, amount);
     }

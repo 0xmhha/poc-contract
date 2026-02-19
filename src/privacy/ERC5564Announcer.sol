@@ -2,6 +2,8 @@
 
 pragma solidity ^0.8.0;
 
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+
 /**
  * @title IERC5564Announcer
  * @notice Interface for ERC-5564 Stealth Address announcements
@@ -40,7 +42,7 @@ interface IERC5564Announcer {
  *   - First byte: View tag (for efficient scanning)
  *   - Remaining bytes: Application-specific data
  */
-contract ERC5564Announcer is IERC5564Announcer {
+contract ERC5564Announcer is IERC5564Announcer, Ownable {
     /* //////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -79,10 +81,11 @@ contract ERC5564Announcer is IERC5564Announcer {
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor() {
+    constructor() Ownable(msg.sender) {
         // Register default schemes
         supportedSchemes[1] = true; // secp256k1
         supportedSchemes[2] = true; // secp256r1 (P-256)
+        enforceSchemeValidation = true;
 
         emit SchemeRegistered(1, "secp256k1");
         emit SchemeRegistered(2, "secp256r1");
@@ -196,6 +199,31 @@ contract ERC5564Announcer is IERC5564Announcer {
 
         // Emit the announcement
         emit Announcement(schemeId, stealthAddress, msg.sender, ephemeralPubKey, metadata);
+    }
+
+    /* //////////////////////////////////////////////////////////////
+                           ADMIN FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Register or unregister a stealth address scheme
+     * @param schemeId The scheme identifier
+     * @param supported Whether the scheme should be supported
+     * @param description Human-readable description of the scheme
+     */
+    function setSchemeSupport(uint256 schemeId, bool supported, string calldata description) external onlyOwner {
+        supportedSchemes[schemeId] = supported;
+        if (supported) {
+            emit SchemeRegistered(schemeId, description);
+        }
+    }
+
+    /**
+     * @notice Enable or disable scheme validation enforcement
+     * @param enforce Whether to enforce scheme validation
+     */
+    function setEnforceSchemeValidation(bool enforce) external onlyOwner {
+        enforceSchemeValidation = enforce;
     }
 
     /* //////////////////////////////////////////////////////////////

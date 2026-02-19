@@ -80,3 +80,8 @@ claudedocs/
 .serena/
 
 broadcast/
+
+# =============================================================================
+# SECURITY ANALYSIS (Ignore: regeneratable via slither/mythril)
+# =============================================================================
+security/

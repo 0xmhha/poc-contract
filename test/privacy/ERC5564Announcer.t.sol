@@ -73,8 +73,18 @@ contract ERC5564AnnouncerTest is Test {
         assertEq(announcer.announcementsByScheme(2), 1);
     }
 
+    function test_Announce_RevertsOnUnsupportedScheme_WhenEnforced() public {
+        // By default, scheme validation is enforced
+        assertTrue(announcer.enforceSchemeValidation());
+
+        vm.prank(sender);
+        vm.expectRevert(abi.encodeWithSelector(ERC5564Announcer.UnsupportedScheme.selector, 99));
+        announcer.announce(99, stealthAddress, ephemeralPubKey, metadata);
+    }
+
     function test_Announce_WithUnsupportedScheme_WhenNotEnforced() public {
-        // By default, scheme validation is not enforced
+        // Owner disables scheme validation
+        announcer.setEnforceSchemeValidation(false);
         assertFalse(announcer.enforceSchemeValidation());
 
         vm.prank(sender);
