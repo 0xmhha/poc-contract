@@ -408,6 +408,8 @@ function verifyContract(
       env: {
         ...process.env,
         FOUNDRY_PROFILE: "uniswap",
+        // Suppress non-fatal ERROR logs from foundry scanning v5 OZ paths against v3 remappings
+        RUST_LOG: "foundry_compilers_artifacts_solc::sources=off",
       },
     });
     console.log(`Verification successful`);
