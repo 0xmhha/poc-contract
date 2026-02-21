@@ -55,6 +55,9 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     error InvalidSelector();
     error InitConfigError(uint256 idx);
     error AlreadyInitialized();
+    error ModuleAlreadyInstalled(uint256 moduleType, address module);
+    error ModuleNotInstalled(uint256 moduleType, address module);
+    error ModuleOnUninstallFailed(uint256 moduleType, address module);
 
     event Received(address sender, uint256 amount);
     event Upgraded(address indexed implementation);
@@ -348,6 +351,9 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         if (moduleType == MODULE_TYPE_VALIDATOR) {
             ValidationStorage storage vs = _validationStorage();
             ValidationId vId = ValidatorLib.validatorToIdentifier(IValidator(module));
+            if (vs.validationConfig[vId].hook != IHook(HOOK_MODULE_NOT_INSTALLED)) {
+                revert ModuleAlreadyInstalled(moduleType, module);
+            }
             if (vs.validationConfig[vId].nonce == vs.currentNonce) {
                 // only increase currentNonce when vId's currentNonce is same
                 unchecked {
@@ -367,6 +373,9 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
                 _grantAccess(vId, bytes4(data.selectorData[0:4]), true);
             }
         } else if (moduleType == MODULE_TYPE_EXECUTOR) {
+            if (address(_executorConfig(IExecutor(module)).hook) != HOOK_MODULE_NOT_INSTALLED) {
+                revert ModuleAlreadyInstalled(moduleType, module);
+            }
             InstallExecutorDataFormat calldata data;
             assembly {
                 data := add(initData.offset, 20)
@@ -375,6 +384,9 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
             _installExecutor(IExecutor(module), data.executorData, hook);
             _installHook(hook, data.hookData);
         } else if (moduleType == MODULE_TYPE_FALLBACK) {
+            if (_selectorConfig(bytes4(initData[0:4])).target != address(0)) {
+                revert ModuleAlreadyInstalled(moduleType, module);
+            }
             InstallFallbackDataFormat calldata data;
             assembly {
                 data := add(initData.offset, 24)
@@ -443,15 +455,20 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     {
         if (moduleType == MODULE_TYPE_VALIDATOR) {
             ValidationId vId = ValidatorLib.validatorToIdentifier(IValidator(module));
+            if (_validationStorage().validationConfig[vId].hook == IHook(HOOK_MODULE_NOT_INSTALLED)) {
+                revert ModuleNotInstalled(moduleType, module);
+            }
             _clearValidationData(vId);
         } else if (moduleType == MODULE_TYPE_EXECUTOR) {
+            if (address(_executorConfig(IExecutor(module)).hook) == HOOK_MODULE_NOT_INSTALLED) {
+                revert ModuleNotInstalled(moduleType, module);
+            }
             _clearExecutorData(IExecutor(module));
         } else if (moduleType == MODULE_TYPE_FALLBACK) {
             bytes4 selector = bytes4(deInitData[0:4]);
-            address target;
-            _clearSelectorData(selector);
+            (, address target) = _clearSelectorData(selector);
             if (target == address(0)) {
-                return;
+                revert ModuleNotInstalled(moduleType, module);
             }
             if (target != module) {
                 revert InvalidSelector();
@@ -485,7 +502,10 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         } else {
             revert InvalidModuleType();
         }
-        ModuleLib.uninstallModule(module, deInitData);
+        bool success = ModuleLib.uninstallModule(module, deInitData);
+        if (!success) {
+            revert ModuleOnUninstallFailed(moduleType, module);
+        }
         emit ModuleUninstalled(moduleType, module);
     }
 

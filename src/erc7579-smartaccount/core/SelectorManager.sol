@@ -62,10 +62,8 @@ abstract contract SelectorManager {
     function _clearSelectorData(bytes4 selector) internal returns (IHook hook, address target) {
         SelectorConfig storage ss = _selectorConfig(selector);
         hook = ss.hook;
+        target = ss.target;
         ss.hook = IHook(address(0));
-        if (ss.callType == CALLTYPE_SINGLE) {
-            target = ss.target; // if callType!=CALLTYPE_SINGLE, don't need to call uninstall
-        }
         ss.target = address(0);
         ss.callType = CallType.wrap(bytes1(0x00));
     }
