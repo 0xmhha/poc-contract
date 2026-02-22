@@ -583,7 +583,7 @@ Phase 6: Subscription (independent)
 |----------|-----------------|
 | Kernel | `IEntryPoint _entrypoint` |
 | KernelFactory | `address _impl` (Kernel address) |
-| FactoryStaker | `address _owner` (deployer or OWNER_ADDRESS) |
+| FactoryStaker | `address _owner` (ADMIN_ADDRESS, defaults to deployer) |
 
 #### Phase 2: ERC-7579 Modules
 

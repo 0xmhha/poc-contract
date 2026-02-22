@@ -1029,7 +1029,7 @@ function main(): void {
   const deployerAddr = env.privateKeyDeployer ? getWalletAddress(env.privateKeyDeployer) : "(not set)";
   console.log("─".repeat(60));
   console.log(`Paymaster Owner: ${paymasterAddr} (Steps 1-4: deposit, token, whitelist, budget)`);
-  console.log(`Deployer:        ${deployerAddr} (Step 6: factory stake)`);
+  console.log(`Deployer:        ${deployerAddr} (Step 0: transfer ownership, Step 6: factory stake)`);
   if (env.privateKeyBundler) {
     console.log(`Bundler:         ${getWalletAddress(env.privateKeyBundler)} (Step 5: bundler stake)`);
   }

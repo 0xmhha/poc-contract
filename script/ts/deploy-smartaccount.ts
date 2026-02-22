@@ -198,8 +198,9 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
     ? addresses.kernel.toLowerCase().replace("0x", "").padStart(64, "0")
     : undefined;
 
-  // FactoryStaker: constructor(address _owner)
-  const factoryStakerConstructorArgs = deployerAddress.toLowerCase().replace("0x", "").padStart(64, "0");
+  // FactoryStaker: constructor(address _owner) — owner = ADMIN_ADDRESS (deployer/admin)
+  const adminAddr = process.env.ADMIN_ADDRESS || deployerAddress;
+  const factoryStakerConstructorArgs = adminAddr.toLowerCase().replace("0x", "").padStart(64, "0");
 
   const contracts = [
     {
@@ -305,9 +306,9 @@ function main(): void {
   console.log(`EntryPoint: ${addresses.entryPoint}`);
   console.log("=".repeat(60));
 
-  // Get deployer/owner address
+  // Get deployer address (= ADMIN_ADDRESS for FactoryStaker owner)
   const deployerAddress = getDeployerAddress(privateKey);
-  const ownerAddress = process.env.OWNER_ADDRESS || deployerAddress;
+  const adminAddress = process.env.ADMIN_ADDRESS || deployerAddress;
 
   // Step 1: Deploy contracts
   const deployCmd = buildDeployCommand({
@@ -326,7 +327,7 @@ function main(): void {
         ...process.env,
         FOUNDRY_PROFILE: FOUNDRY_PROFILE,
         ENTRYPOINT_ADDRESS: addresses.entryPoint,
-        OWNER_ADDRESS: ownerAddress,
+        ADMIN_ADDRESS: adminAddress,
         FORCE_REDEPLOY: force ? "true" : "",
       },
     });

@@ -64,8 +64,8 @@ contract DeployKernelScript is DeploymentHelper {
             console.log("KernelFactory: Using existing at", existing);
         }
 
-        // Deploy FactoryStaker
-        address owner = vm.envOr("OWNER_ADDRESS", msg.sender);
+        // Deploy FactoryStaker (infra contract — owned by deployer/admin, not paymaster)
+        address owner = vm.envOr("ADMIN_ADDRESS", msg.sender);
         existing = _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER);
         if (existing == address(0)) {
             factoryStaker = new FactoryStaker(owner);
