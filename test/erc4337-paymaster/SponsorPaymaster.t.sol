@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
-import { VerifyingPaymaster } from "../../src/erc4337-paymaster/VerifyingPaymaster.sol";
+import { SponsorPaymaster } from "../../src/erc4337-paymaster/SponsorPaymaster.sol";
 import { PaymasterDataLib } from "../../src/erc4337-paymaster/PaymasterDataLib.sol";
 import { PaymasterPayload } from "../../src/erc4337-paymaster/PaymasterPayload.sol";
 import { IEntryPoint } from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
@@ -10,10 +10,10 @@ import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/Pac
 import { EntryPoint } from "../../src/erc4337-entrypoint/EntryPoint.sol";
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-contract VerifyingPaymasterTest is Test {
+contract SponsorPaymasterTest is Test {
     using MessageHashUtils for bytes32;
 
-    VerifyingPaymaster public paymaster;
+    SponsorPaymaster public paymaster;
     EntryPoint public entryPoint;
 
     address public owner;
@@ -24,20 +24,16 @@ contract VerifyingPaymasterTest is Test {
     uint256 constant INITIAL_DEPOSIT = 10 ether;
 
     function setUp() public {
-        // Setup accounts
         owner = makeAddr("owner");
         signerPrivateKey = 0xA1_1CE;
         verifyingSigner = vm.addr(signerPrivateKey);
         user = makeAddr("user");
 
-        // Deploy EntryPoint
         entryPoint = new EntryPoint();
 
-        // Deploy VerifyingPaymaster
         vm.prank(owner);
-        paymaster = new VerifyingPaymaster(IEntryPoint(address(entryPoint)), owner, verifyingSigner);
+        paymaster = new SponsorPaymaster(IEntryPoint(address(entryPoint)), owner, verifyingSigner);
 
-        // Fund paymaster
         vm.deal(owner, 100 ether);
         vm.prank(owner);
         paymaster.deposit{ value: INITIAL_DEPOSIT }();
@@ -47,6 +43,12 @@ contract VerifyingPaymasterTest is Test {
         assertEq(address(paymaster.ENTRYPOINT()), address(entryPoint));
         assertEq(paymaster.owner(), owner);
         assertEq(paymaster.verifyingSigner(), verifyingSigner);
+    }
+
+    function test_constructor_revertIfSignerZero() public {
+        vm.prank(owner);
+        vm.expectRevert(SponsorPaymaster.SignerCannotBeZero.selector);
+        new SponsorPaymaster(IEntryPoint(address(entryPoint)), owner, address(0));
     }
 
     function test_setVerifyingSigner() public {
@@ -68,7 +70,7 @@ contract VerifyingPaymasterTest is Test {
 
     function test_setVerifyingSigner_revertIfZeroAddress() public {
         vm.prank(owner);
-        vm.expectRevert(VerifyingPaymaster.SignerCannotBeZero.selector);
+        vm.expectRevert(SponsorPaymaster.SignerCannotBeZero.selector);
         paymaster.setVerifyingSigner(address(0));
     }
 
@@ -77,14 +79,18 @@ contract VerifyingPaymasterTest is Test {
         uint48 validUntil = uint48(block.timestamp + 1 hours);
         uint48 validAfter = uint48(block.timestamp);
 
-        // Build envelope data
-        bytes memory verifyingPayload = PaymasterPayload.encodeVerifying(
-            PaymasterPayload.VerifyingPayload({
-                policyId: bytes32(0), sponsor: address(0), maxCost: 1 ether, verifierExtra: ""
+        // Build envelope data with SponsorPayload
+        bytes memory sponsorPayload = PaymasterPayload.encodeSponsor(
+            PaymasterPayload.SponsorPayload({
+                campaignId: bytes32(uint256(1)),
+                perUserLimit: 1 ether,
+                targetContract: address(0),
+                targetSelector: bytes4(0),
+                sponsorExtra: ""
             })
         );
         bytes memory envelopeData = PaymasterDataLib.encode(
-            uint8(PaymasterDataLib.PaymasterType.VERIFYING), 0, validUntil, validAfter, uint64(0), verifyingPayload
+            uint8(PaymasterDataLib.PaymasterType.SPONSOR), 0, validUntil, validAfter, uint64(0), sponsorPayload
         );
 
         // Set paymasterAndData temporarily to get hash
@@ -97,13 +103,8 @@ contract VerifyingPaymasterTest is Test {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // Set full paymasterAndData with signature
-        userOp.paymasterAndData = abi.encodePacked(
-            address(paymaster),
-            uint128(100_000), // verification gas
-            uint128(50_000), // post-op gas
-            envelopeData,
-            signature
-        );
+        userOp.paymasterAndData =
+            abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), envelopeData, signature);
 
         // Validate
         vm.prank(address(entryPoint));
@@ -111,7 +112,6 @@ contract VerifyingPaymasterTest is Test {
 
         // Check result
         assertTrue(context.length > 0);
-        // Extract sigFail from validationData (lowest 20 bytes should be 0 for success)
         // forge-lint: disable-next-line(unsafe-typecast)
         address sigFail = address(uint160(validationData));
         assertEq(sigFail, address(0)); // 0 = success
@@ -130,14 +130,17 @@ contract VerifyingPaymasterTest is Test {
         uint48 validUntil = uint48(block.timestamp + 1 hours);
         uint48 validAfter = uint48(block.timestamp);
 
-        // Build envelope data
-        bytes memory verifyingPayload = PaymasterPayload.encodeVerifying(
-            PaymasterPayload.VerifyingPayload({
-                policyId: bytes32(0), sponsor: address(0), maxCost: 1 ether, verifierExtra: ""
+        bytes memory sponsorPayload = PaymasterPayload.encodeSponsor(
+            PaymasterPayload.SponsorPayload({
+                campaignId: bytes32(uint256(1)),
+                perUserLimit: 1 ether,
+                targetContract: address(0),
+                targetSelector: bytes4(0),
+                sponsorExtra: ""
             })
         );
         bytes memory envelopeData = PaymasterDataLib.encode(
-            uint8(PaymasterDataLib.PaymasterType.VERIFYING), 0, validUntil, validAfter, uint64(0), verifyingPayload
+            uint8(PaymasterDataLib.PaymasterType.SPONSOR), 0, validUntil, validAfter, uint64(0), sponsorPayload
         );
 
         // Set paymasterAndData temporarily to get hash
@@ -158,7 +161,6 @@ contract VerifyingPaymasterTest is Test {
 
         // Context should be empty for failure
         assertEq(context.length, 0);
-        // Extract sigFail from validationData (should be 1 for failure)
         // forge-lint: disable-next-line(unsafe-typecast)
         address sigFail = address(uint160(validationData));
         assertEq(sigFail, address(1)); // 1 = failure
@@ -169,20 +171,81 @@ contract VerifyingPaymasterTest is Test {
         uint48 validUntil = uint48(block.timestamp + 1 hours);
         uint48 validAfter = uint48(block.timestamp);
 
-        // Build envelope with wrong type (SPONSOR instead of VERIFYING)
+        // Build envelope with wrong type (VERIFYING instead of SPONSOR)
         bytes memory envelopeData = PaymasterDataLib.encode(
-            uint8(PaymasterDataLib.PaymasterType.SPONSOR), 0, validUntil, validAfter, uint64(0), ""
+            uint8(PaymasterDataLib.PaymasterType.VERIFYING), 0, validUntil, validAfter, uint64(0), ""
         );
 
-        // Dummy signature
         bytes memory signature = new bytes(65);
 
         userOp.paymasterAndData =
             abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), envelopeData, signature);
 
         vm.prank(address(entryPoint));
-        vm.expectRevert(abi.encodeWithSelector(PaymasterDataLib.InvalidType.selector, uint8(1)));
+        vm.expectRevert(abi.encodeWithSelector(PaymasterDataLib.InvalidType.selector, uint8(0)));
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 1 ether);
+    }
+
+    function test_nonceIncrementsAfterValidation() public {
+        PackedUserOperation memory userOp = _createSampleUserOp(user);
+        uint48 validUntil = uint48(block.timestamp + 1 hours);
+        uint48 validAfter = uint48(block.timestamp);
+
+        bytes memory sponsorPayload = PaymasterPayload.encodeSponsor(
+            PaymasterPayload.SponsorPayload({
+                campaignId: bytes32(0),
+                perUserLimit: 0,
+                targetContract: address(0),
+                targetSelector: bytes4(0),
+                sponsorExtra: ""
+            })
+        );
+        bytes memory envelopeData = PaymasterDataLib.encode(
+            uint8(PaymasterDataLib.PaymasterType.SPONSOR), 0, validUntil, validAfter, uint64(0), sponsorPayload
+        );
+
+        userOp.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), envelopeData);
+
+        bytes32 hash = paymaster.getHash(userOp, envelopeData);
+        bytes32 ethSignedHash = hash.toEthSignedMessageHash();
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, ethSignedHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        userOp.paymasterAndData =
+            abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), envelopeData, signature);
+
+        uint256 nonceBefore = paymaster.getNonce(user);
+
+        vm.prank(address(entryPoint));
+        paymaster.validatePaymasterUserOp(userOp, bytes32(0), 1 ether);
+
+        uint256 nonceAfter = paymaster.getNonce(user);
+        assertEq(nonceAfter, nonceBefore + 1);
+    }
+
+    function test_getHash_deterministic() public {
+        PackedUserOperation memory userOp = _createSampleUserOp(user);
+        uint48 validUntil = uint48(block.timestamp + 1 hours);
+        uint48 validAfter = uint48(block.timestamp);
+
+        bytes memory sponsorPayload = PaymasterPayload.encodeSponsor(
+            PaymasterPayload.SponsorPayload({
+                campaignId: bytes32(uint256(1)),
+                perUserLimit: 1 ether,
+                targetContract: address(0),
+                targetSelector: bytes4(0),
+                sponsorExtra: ""
+            })
+        );
+        bytes memory envelopeData = PaymasterDataLib.encode(
+            uint8(PaymasterDataLib.PaymasterType.SPONSOR), 0, validUntil, validAfter, uint64(0), sponsorPayload
+        );
+
+        userOp.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), envelopeData);
+
+        bytes32 hash1 = paymaster.getHash(userOp, envelopeData);
+        bytes32 hash2 = paymaster.getHash(userOp, envelopeData);
+        assertEq(hash1, hash2);
     }
 
     function test_deposit() public view {
@@ -203,41 +266,6 @@ contract VerifyingPaymasterTest is Test {
     function test_getNonce() public view {
         uint256 nonce = paymaster.getNonce(user);
         assertEq(nonce, 0);
-    }
-
-    function test_nonceIncrementsAfterValidation() public {
-        PackedUserOperation memory userOp = _createSampleUserOp(user);
-        uint48 validUntil = uint48(block.timestamp + 1 hours);
-        uint48 validAfter = uint48(block.timestamp);
-
-        // Build envelope data
-        bytes memory verifyingPayload = PaymasterPayload.encodeVerifying(
-            PaymasterPayload.VerifyingPayload({
-                policyId: bytes32(0), sponsor: address(0), maxCost: 1 ether, verifierExtra: ""
-            })
-        );
-        bytes memory envelopeData = PaymasterDataLib.encode(
-            uint8(PaymasterDataLib.PaymasterType.VERIFYING), 0, validUntil, validAfter, uint64(0), verifyingPayload
-        );
-
-        // Set paymasterAndData temporarily to get hash
-        userOp.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), envelopeData);
-
-        bytes32 hash = paymaster.getHash(userOp, envelopeData);
-        bytes32 ethSignedHash = hash.toEthSignedMessageHash();
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, ethSignedHash);
-        bytes memory signature = abi.encodePacked(r, s, v);
-
-        userOp.paymasterAndData =
-            abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), envelopeData, signature);
-
-        uint256 nonceBefore = paymaster.getNonce(user);
-
-        vm.prank(address(entryPoint));
-        paymaster.validatePaymasterUserOp(userOp, bytes32(0), 1 ether);
-
-        uint256 nonceAfter = paymaster.getNonce(user);
-        assertEq(nonceAfter, nonceBefore + 1);
     }
 
     // ============ Helper Functions ============

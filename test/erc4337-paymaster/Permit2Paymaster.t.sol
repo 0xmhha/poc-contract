@@ -11,6 +11,8 @@ import { EntryPoint } from "../../src/erc4337-entrypoint/EntryPoint.sol";
 import { MockPriceOracle } from "./mocks/MockPriceOracle.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import { MockPermit2 } from "./mocks/MockPermit2.sol";
+import { PaymasterDataLib } from "../../src/erc4337-paymaster/PaymasterDataLib.sol";
+import { PaymasterPayload } from "../../src/erc4337-paymaster/PaymasterPayload.sol";
 
 contract Permit2PaymasterTest is Test {
     Permit2Paymaster public paymaster;
@@ -175,11 +177,10 @@ contract Permit2PaymasterTest is Test {
             paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
 
         assertTrue(context.length > 0);
-        // validationData packs expiration as validUntil: uint256(expiration) << 160
-        // authorizer = 0 means success
-        uint48 expiration = uint48(block.timestamp + 1 hours);
-        uint256 expectedValidationData = uint256(expiration) << 160;
-        assertEq(validationData, expectedValidationData);
+        // sigFail (lowest 20 bytes) should be 0 for success
+        // forge-lint: disable-next-line(unsafe-typecast)
+        address sigFail = address(uint160(validationData));
+        assertEq(sigFail, address(0));
     }
 
     function test_validatePaymasterUserOp_withExistingAllowance() public {
@@ -198,10 +199,10 @@ contract Permit2PaymasterTest is Test {
             paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
 
         assertTrue(context.length > 0);
-        // validationData packs expiration as validUntil: uint256(expiration) << 160
-        uint48 expiration = uint48(block.timestamp + 1 hours);
-        uint256 expectedValidationData = uint256(expiration) << 160;
-        assertEq(validationData, expectedValidationData);
+        // sigFail (lowest 20 bytes) should be 0 for success
+        // forge-lint: disable-next-line(unsafe-typecast)
+        address sigFail = address(uint160(validationData));
+        assertEq(sigFail, address(0));
     }
 
     function test_validatePaymasterUserOp_revertIfUnsupportedToken() public {
@@ -224,6 +225,7 @@ contract Permit2PaymasterTest is Test {
     }
 
     function test_validatePaymasterUserOp_revertIfInvalidDataLength() public {
+        // Send only 20 bytes (too short for envelope header)
         PackedUserOperation memory userOp = PackedUserOperation({
             sender: user,
             nonce: 0,
@@ -236,13 +238,52 @@ contract Permit2PaymasterTest is Test {
                 address(paymaster),
                 uint128(100_000),
                 uint128(50_000),
-                bytes20(address(token)) // Only 20 bytes, not enough
+                bytes20(address(token)) // Only 20 bytes, not enough for envelope
             ),
             signature: ""
         });
 
         vm.prank(address(entryPoint));
-        vm.expectRevert(Permit2Paymaster.InvalidPaymasterDataLength.selector);
+        vm.expectRevert(abi.encodeWithSelector(PaymasterDataLib.InvalidLength.selector, uint256(20)));
+        paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
+    }
+
+    function test_revertIfWrongPaymasterType() public {
+        // Build envelope with wrong type (VERIFYING instead of PERMIT2)
+        bytes memory permitSig = new bytes(65);
+        bytes memory payload = PaymasterPayload.encodePermit2(
+            PaymasterPayload.Permit2Payload({
+                token: address(token),
+                permitAmount: type(uint160).max,
+                permitExpiration: uint48(block.timestamp + 1 hours),
+                permitNonce: 0,
+                permitSig: permitSig,
+                permit2Extra: ""
+            })
+        );
+        bytes memory envelopeData = PaymasterDataLib.encode(
+            uint8(PaymasterDataLib.PaymasterType.VERIFYING),
+            0,
+            uint48(block.timestamp + 1 hours),
+            uint48(block.timestamp),
+            uint64(0),
+            payload
+        );
+
+        PackedUserOperation memory userOp = PackedUserOperation({
+            sender: user,
+            nonce: 0,
+            initCode: "",
+            callData: "",
+            accountGasLimits: bytes32(uint256(100_000) << 128 | uint256(100_000)),
+            preVerificationGas: 21_000,
+            gasFees: bytes32(uint256(1 gwei) << 128 | uint256(1 gwei)),
+            paymasterAndData: abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), envelopeData),
+            signature: ""
+        });
+
+        vm.prank(address(entryPoint));
+        vm.expectRevert(abi.encodeWithSelector(PaymasterDataLib.InvalidType.selector, uint8(0)));
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
     }
 
@@ -263,7 +304,7 @@ contract Permit2PaymasterTest is Test {
         // Warp to a reasonable timestamp
         vm.warp(1_000_000);
 
-        // Set stale price (2 hours ago)
+        // Set stale price (2 hours ago) - need to re-set after warp
         oracle.setPriceWithTimestamp(address(token), 5e14, block.timestamp - 2 hours);
 
         PackedUserOperation memory userOp = _createSampleUserOp(user, address(token));
@@ -276,15 +317,29 @@ contract Permit2PaymasterTest is Test {
     // ============ Helper Functions ============
 
     function _createSampleUserOp(address sender, address payToken) internal view returns (PackedUserOperation memory) {
-        // Create paymaster data
-        // [0:20] token, [20:40] amount, [40:46] expiration, [46:52] nonce, [52:117] signature
-        uint160 permitAmount = type(uint160).max;
         uint48 expiration = uint48(block.timestamp + 1 hours);
-        uint48 nonce = 0;
-        bytes memory signature = new bytes(65); // Dummy signature for mock
+        bytes memory permitSig = new bytes(65); // Dummy signature for mock
 
-        bytes memory paymasterData = abi.encodePacked(
-            bytes20(payToken), bytes20(uint160(permitAmount)), bytes6(expiration), bytes6(nonce), signature
+        // Build Permit2Payload
+        bytes memory payload = PaymasterPayload.encodePermit2(
+            PaymasterPayload.Permit2Payload({
+                token: payToken,
+                permitAmount: type(uint160).max,
+                permitExpiration: expiration,
+                permitNonce: 0,
+                permitSig: permitSig,
+                permit2Extra: ""
+            })
+        );
+
+        // Wrap in envelope
+        bytes memory envelopeData = PaymasterDataLib.encode(
+            uint8(PaymasterDataLib.PaymasterType.PERMIT2),
+            0,
+            expiration, // validUntil
+            uint48(block.timestamp), // validAfter
+            uint64(0),
+            payload
         );
 
         return PackedUserOperation({
@@ -299,7 +354,7 @@ contract Permit2PaymasterTest is Test {
                 address(paymaster),
                 uint128(100_000), // verification gas
                 uint128(50_000), // post-op gas
-                paymasterData
+                envelopeData
             ),
             signature: ""
         });

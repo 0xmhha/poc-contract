@@ -157,11 +157,18 @@ contract WebAuthnValidator is IValidator {
         if (!cred.isActive) return SIG_VALIDATION_FAILED_UINT;
 
         // Verify the signature (with signCount update)
-        if (
-            _verifyWebAuthnSignature(
-                store, credentialId, userOpHash, authenticatorData, clientDataJson, r, s, cred.pubKeyX, cred.pubKeyY, true
-            )
-        ) {
+        if (_verifyWebAuthnSignature(
+                store,
+                credentialId,
+                userOpHash,
+                authenticatorData,
+                clientDataJson,
+                r,
+                s,
+                cred.pubKeyX,
+                cred.pubKeyY,
+                true
+            )) {
             return SIG_VALIDATION_SUCCESS_UINT;
         }
 
@@ -250,9 +257,7 @@ contract WebAuthnValidator is IValidator {
         if (store.credentialCount == 0) revert NoCredentials();
 
         store.config = WebAuthnConfig({
-            rpIdHash: rpIdHash,
-            allowedOrigin: allowedOrigin,
-            requireUserVerification: requireUserVerification
+            rpIdHash: rpIdHash, allowedOrigin: allowedOrigin, requireUserVerification: requireUserVerification
         });
     }
 
@@ -411,10 +416,8 @@ contract WebAuthnValidator is IValidator {
         }
 
         // --- Assertion 5: Verify signCount (bytes 33-36, big-endian uint32) ---
-        signCount = uint32(uint8(authenticatorData[33])) << 24
-            | uint32(uint8(authenticatorData[34])) << 16
-            | uint32(uint8(authenticatorData[35])) << 8
-            | uint32(uint8(authenticatorData[36]));
+        signCount = uint32(uint8(authenticatorData[33])) << 24 | uint32(uint8(authenticatorData[34])) << 16
+            | uint32(uint8(authenticatorData[35])) << 8 | uint32(uint8(authenticatorData[36]));
 
         uint32 lastSignCount = store.signCounts[credentialId];
         // signCount of 0 means authenticator does not support counters — skip check

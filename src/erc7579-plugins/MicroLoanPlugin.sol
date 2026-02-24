@@ -467,8 +467,8 @@ contract MicroLoanPlugin is IExecutor, Ownable {
         uint8 borrowDecimals = IERC20Metadata(config.borrowToken).decimals();
         uint8 collateralDecimals = IERC20Metadata(config.collateralToken).decimals();
 
-        // Normalize: required = borrowAmount * borrowPrice * 10^collateralDecimals / (collateralPrice * 10^borrowDecimals)
-        // Then apply collateral ratio
+        // Normalize: required = borrowAmount * borrowPrice * 10^collateralDecimals / (collateralPrice *
+        // 10^borrowDecimals) Then apply collateral ratio
         uint256 rawRequired = (borrowAmount * borrowTokenPrice * (10 ** collateralDecimals))
             / (collateralTokenPrice * (10 ** borrowDecimals));
         uint256 requiredCollateral = (rawRequired * config.collateralRatio) / BASIS_POINTS;

@@ -202,6 +202,50 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
         return paymasterAndData[0:0]; // empty
     }
 
+    // ============ Envelope Helpers ============
+
+    /// @notice EIP-712-like domain typehash (must match SDK/proxy)
+    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address entryPoint,address paymaster)");
+
+    /**
+     * @notice Compute the domain separator for hashing
+     * @return The EIP-712-like domain separator
+     */
+    function _computeDomainSeparator() internal view returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256)
+        return keccak256(
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH,
+                keccak256("StableNetPaymaster"),
+                keccak256("1"),
+                block.chainid,
+                address(ENTRYPOINT),
+                address(this)
+            )
+        );
+    }
+
+    /**
+     * @notice Compute a core hash of the UserOp fields (excluding paymasterAndData and signature)
+     * @param userOp The packed user operation
+     * @return The core hash
+     */
+    function _computeUserOpCoreHash(PackedUserOperation calldata userOp) internal pure returns (bytes32) {
+        // forge-lint: disable-next-line(asm-keccak256)
+        return keccak256(
+            abi.encode(
+                userOp.sender,
+                userOp.nonce,
+                keccak256(userOp.initCode),
+                keccak256(userOp.callData),
+                userOp.accountGasLimits,
+                userOp.preVerificationGas,
+                userOp.gasFees
+            )
+        );
+    }
+
     /**
      * @notice Receive function to accept ETH deposits
      */

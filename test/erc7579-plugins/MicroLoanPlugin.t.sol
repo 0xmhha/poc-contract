@@ -598,11 +598,7 @@ contract MicroLoanPluginTest is Test {
      *   requiredCollateral = 100e6 * 15_000 / 10_000 = 150e6
      */
     function test_RequiredCollateral_Borrow18_Collateral6_EqualPrices() public {
-        (
-            MicroLoanPlugin mixedPlugin,
-            uint256 mixedConfigId,
-            ,
-        ) = _setupMixedDecimalPlugin(18, 6, 1e18, 1e18);
+        (MicroLoanPlugin mixedPlugin, uint256 mixedConfigId,,) = _setupMixedDecimalPlugin(18, 6, 1e18, 1e18);
 
         uint256 borrowAmount = 100e18; // 100 tokens, 18 decimals
         uint256 required = mixedPlugin.getRequiredCollateral(mixedConfigId, borrowAmount);
@@ -622,11 +618,7 @@ contract MicroLoanPluginTest is Test {
      *   requiredCollateral = 100e18 * 15_000 / 10_000 = 150e18
      */
     function test_RequiredCollateral_Borrow6_Collateral18_EqualPrices() public {
-        (
-            MicroLoanPlugin mixedPlugin,
-            uint256 mixedConfigId,
-            ,
-        ) = _setupMixedDecimalPlugin(6, 18, 1e18, 1e18);
+        (MicroLoanPlugin mixedPlugin, uint256 mixedConfigId,,) = _setupMixedDecimalPlugin(6, 18, 1e18, 1e18);
 
         uint256 borrowAmount = 100e6; // 100 tokens, 6 decimals
         uint256 required = mixedPlugin.getRequiredCollateral(mixedConfigId, borrowAmount);
@@ -647,11 +639,7 @@ contract MicroLoanPluginTest is Test {
      *   requiredCollateral = 2e6 * 15_000 / 10_000 = 3e6
      */
     function test_RequiredCollateral_Borrow18_Collateral6_DifferentPrices() public {
-        (
-            MicroLoanPlugin mixedPlugin,
-            uint256 mixedConfigId,
-            ,
-        ) = _setupMixedDecimalPlugin(18, 6, 1e18, 2000e18);
+        (MicroLoanPlugin mixedPlugin, uint256 mixedConfigId,,) = _setupMixedDecimalPlugin(18, 6, 1e18, 2000e18);
 
         uint256 borrowAmount = 4000e18; // 4000 borrow tokens at 18 decimals
         uint256 required = mixedPlugin.getRequiredCollateral(mixedConfigId, borrowAmount);
@@ -673,11 +661,7 @@ contract MicroLoanPluginTest is Test {
      *   requiredCollateral = 2e18 * 15_000 / 10_000 = 3e18
      */
     function test_RequiredCollateral_Borrow6_Collateral18_DifferentPrices() public {
-        (
-            MicroLoanPlugin mixedPlugin,
-            uint256 mixedConfigId,
-            ,
-        ) = _setupMixedDecimalPlugin(6, 18, 1e18, 2000e18);
+        (MicroLoanPlugin mixedPlugin, uint256 mixedConfigId,,) = _setupMixedDecimalPlugin(6, 18, 1e18, 2000e18);
 
         uint256 borrowAmount = 4000e6; // 4000 tokens at 6 decimals
         uint256 required = mixedPlugin.getRequiredCollateral(mixedConfigId, borrowAmount);
@@ -831,11 +815,7 @@ contract MicroLoanPluginTest is Test {
      * Both in 6-decimal space: required = 150e6.
      */
     function test_RequiredCollateral_Both6Decimals_EqualPrices() public {
-        (
-            MicroLoanPlugin mixedPlugin,
-            uint256 mixedConfigId,
-            ,
-        ) = _setupMixedDecimalPlugin(6, 6, 1e18, 1e18);
+        (MicroLoanPlugin mixedPlugin, uint256 mixedConfigId,,) = _setupMixedDecimalPlugin(6, 6, 1e18, 1e18);
 
         uint256 required = mixedPlugin.getRequiredCollateral(mixedConfigId, 100e6);
         assertEq(required, 150e6, "Both 6-dec at 1:1 price => 150e6 collateral for 100e6 borrow");

@@ -39,19 +39,11 @@ contract WebAuthnValidatorTest is Test {
     }
 
     /// @dev Build a valid clientDataJson containing the challenge, type, and origin
-    function _buildClientDataJson(bytes32 challenge, string memory origin)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function _buildClientDataJson(bytes32 challenge, string memory origin) internal pure returns (bytes memory) {
         // Base64url encode the challenge
         bytes memory encoded = _testBase64UrlEncode(abi.encodePacked(challenge));
         return abi.encodePacked(
-            '{"type":"webauthn.get","challenge":"',
-            encoded,
-            '","origin":"',
-            origin,
-            '","crossOrigin":false}'
+            '{"type":"webauthn.get","challenge":"', encoded, '","origin":"', origin, '","crossOrigin":false}'
         );
     }
 
@@ -438,8 +430,7 @@ contract WebAuthnValidatorTest is Test {
         vm.prank(smartAccount);
         validator.setWebAuthnConfig(rpIdHash, origin, true);
 
-        (bytes32 storedRpIdHash, bytes memory storedOrigin, bool storedUv) =
-            validator.getWebAuthnConfig(smartAccount);
+        (bytes32 storedRpIdHash, bytes memory storedOrigin, bool storedUv) = validator.getWebAuthnConfig(smartAccount);
 
         assertEq(storedRpIdHash, rpIdHash);
         assertEq(keccak256(storedOrigin), keccak256(origin));
@@ -461,9 +452,7 @@ contract WebAuthnValidatorTest is Test {
 
         // clientDataJson WITHOUT "type":"webauthn.get" — should fail assertion 1
         bytes memory encoded = _testBase64UrlEncode(abi.encodePacked(userOpHash));
-        bytes memory clientDataJson = abi.encodePacked(
-            '{"challenge":"', encoded, '","origin":"https://example.com"}'
-        );
+        bytes memory clientDataJson = abi.encodePacked('{"challenge":"', encoded, '","origin":"https://example.com"}');
 
         bytes memory signature = abi.encode(credentialId, authenticatorData, clientDataJson, uint256(1), uint256(2));
 
@@ -487,9 +476,8 @@ contract WebAuthnValidatorTest is Test {
 
         // clientDataJson with wrong origin
         bytes memory encoded = _testBase64UrlEncode(abi.encodePacked(userOpHash));
-        bytes memory clientDataJson = abi.encodePacked(
-            '{"type":"webauthn.get","challenge":"', encoded, '","origin":"https://evil.com"}'
-        );
+        bytes memory clientDataJson =
+            abi.encodePacked('{"type":"webauthn.get","challenge":"', encoded, '","origin":"https://evil.com"}');
 
         bytes memory signature = abi.encode(credentialId, authenticatorData, clientDataJson, uint256(1), uint256(2));
 

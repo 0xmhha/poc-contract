@@ -9,6 +9,8 @@ import { UserOperationLib } from "../erc4337-entrypoint/UserOperationLib.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { PaymasterDataLib } from "./PaymasterDataLib.sol";
+import { PaymasterPayload } from "./PaymasterPayload.sol";
 
 /**
  * @title ERC20Paymaster
@@ -17,13 +19,13 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
  *      The paymaster uses a price oracle to convert between token and native currency.
  *      A markup is applied to cover price volatility and operational costs.
  *
- * PaymasterData format:
- *   [0:20] - token address (address) - the ERC-20 token to use for payment
- *   [20:] - optional extra data for future extensions
+ * PaymasterData format (envelope):
+ *   [envelope with type=ERC20, payload=ABI(Erc20Payload)]
+ *   No trailing signature – oracle-based, no signer verification.
  *
  * Flow:
  * 1. User pre-approves tokens to this paymaster
- * 2. validatePaymasterUserOp checks balance and calculates max token cost
+ * 2. validatePaymasterUserOp decodes envelope, checks balance and calculates max token cost
  * 3. postOp transfers actual token cost from user to paymaster
  */
 contract ERC20Paymaster is BasePaymaster {
@@ -74,7 +76,6 @@ contract ERC20Paymaster is BasePaymaster {
     error InvalidMarkup(uint256 markup);
     error OracleCannotBeZero();
     error StalePrice(uint256 updatedAt, uint256 maxAge);
-    error InvalidPaymasterDataLength();
     error InvalidPrice();
     error InvalidTokenDecimals(address token);
 
@@ -181,7 +182,7 @@ contract ERC20Paymaster is BasePaymaster {
      * @param userOpHash Hash of the user operation
      * @param maxCost Maximum cost in native currency
      * @return context Encoded PostOpContext
-     * @return validationData Validation result (always success if we reach here)
+     * @return validationData Packed validation data with time range
      */
     function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
         internal
@@ -193,41 +194,43 @@ contract ERC20Paymaster is BasePaymaster {
 
         bytes calldata paymasterData = _parsePaymasterData(userOp.paymasterAndData);
 
-        // Validate minimum data length (need at least token address)
-        if (paymasterData.length < 20) {
-            revert InvalidPaymasterDataLength();
+        // Decode envelope (no trailing signature for ERC20)
+        PaymasterDataLib.Envelope memory env = PaymasterDataLib.decode(paymasterData);
+
+        // Verify paymaster type
+        if (env.paymasterType != uint8(PaymasterDataLib.PaymasterType.ERC20)) {
+            revert PaymasterDataLib.InvalidType(env.paymasterType);
         }
 
-        // Parse token address
-        address token = address(bytes20(paymasterData[0:20]));
+        // Decode type-specific payload
+        PaymasterPayload.Erc20Payload memory payload = PaymasterPayload.decodeErc20(env.payload);
 
         // Check token is supported
-        if (!supportedTokens[token]) {
-            revert UnsupportedToken(token);
+        if (!supportedTokens[payload.token]) {
+            revert UnsupportedToken(payload.token);
         }
 
         // Calculate max token cost
-        uint256 maxTokenCost = getTokenAmount(token, maxCost);
+        uint256 maxTokenCost = getTokenAmount(payload.token, maxCost);
 
         // Check user has enough balance
-        uint256 balance = IERC20(token).balanceOf(userOp.sender);
+        uint256 balance = IERC20(payload.token).balanceOf(userOp.sender);
         if (balance < maxTokenCost) {
             revert InsufficientTokenBalance(maxTokenCost, balance);
         }
 
         // Check user has approved enough
-        uint256 allowance = IERC20(token).allowance(userOp.sender, address(this));
+        uint256 allowance = IERC20(payload.token).allowance(userOp.sender, address(this));
         if (allowance < maxTokenCost) {
             revert InsufficientTokenAllowance(maxTokenCost, allowance);
         }
 
         // Encode context for postOp
         context = abi.encode(
-            PostOpContext({ sender: userOp.sender, token: token, maxTokenCost: maxTokenCost, maxCost: maxCost })
+            PostOpContext({ sender: userOp.sender, token: payload.token, maxTokenCost: maxTokenCost, maxCost: maxCost })
         );
 
-        // Return success (0 = valid, no time restrictions)
-        return (context, 0);
+        return (context, _packValidationDataSuccess(env.validUntil, env.validAfter));
     }
 
     /**

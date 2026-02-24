@@ -6,6 +6,7 @@ import { IEntryPoint } from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
 import { PackedUserOperation } from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import { UserOperationLib } from "../erc4337-entrypoint/UserOperationLib.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
+import { PaymasterDataLib } from "./PaymasterDataLib.sol";
 
 /**
  * @title VerifyingPaymaster
@@ -13,10 +14,16 @@ import { ECDSA } from "solady/utils/ECDSA.sol";
  * @dev The verifying signer signs a hash of the user operation data to approve sponsorship.
  *      This allows for flexible off-chain policies to determine which operations to sponsor.
  *
- * PaymasterData format:
- *   [0:6] - validUntil (uint48) - timestamp until which sponsorship is valid
- *   [6:12] - validAfter (uint48) - timestamp after which sponsorship is valid
- *   [12:] - signature (65 bytes) - ECDSA signature from verifyingSigner
+ * PaymasterData format (envelope):
+ *   [0]    version      (uint8)  - must be 0x01
+ *   [1]    paymasterType(uint8)  - must be 0 (VERIFYING)
+ *   [2]    flags        (uint8)  - reserved
+ *   [3:9]  validUntil   (uint48) - expiration timestamp
+ *   [9:15] validAfter   (uint48) - activation timestamp
+ *   [15:23] nonce       (uint64) - paymaster-level nonce
+ *   [23:25] payloadLen  (uint16) - payload length
+ *   [25:25+payloadLen]  payload  - ABI-encoded VerifyingPayload
+ *   [25+payloadLen:]    signature - ECDSA signature from verifyingSigner
  */
 contract VerifyingPaymaster is BasePaymaster {
     using ECDSA for bytes32;
@@ -27,9 +34,6 @@ contract VerifyingPaymaster is BasePaymaster {
 
     /// @notice Nonces used to prevent signature replay
     mapping(address => uint256) public senderNonce;
-
-    /// @notice Minimum length of paymasterData (timestamps + signature)
-    uint256 private constant MIN_VALID_DATA_LENGTH = 12 + 65; // 6 + 6 + 65
 
     event SignerChanged(address indexed oldSigner, address indexed newSigner);
     event GasSponsored(address indexed sender, bytes32 indexed userOpHash, uint256 maxCost);
@@ -63,33 +67,13 @@ contract VerifyingPaymaster is BasePaymaster {
     /**
      * @notice Get the hash to be signed by the verifying signer
      * @param userOp The user operation
-     * @param validUntil Timestamp until which the signature is valid
-     * @param validAfter Timestamp after which the signature is valid
+     * @param envelopeData The raw envelope bytes (without trailing signature)
      * @return The hash that needs to be signed
      */
-    function getHash(PackedUserOperation calldata userOp, uint48 validUntil, uint48 validAfter)
-        public
-        view
-        returns (bytes32)
-    {
-        // Hash the operation data excluding the paymaster signature
-        // forge-lint: disable-next-line(asm-keccak256)
-        return keccak256(
-            abi.encode(
-                userOp.sender,
-                userOp.nonce,
-                keccak256(userOp.initCode),
-                keccak256(userOp.callData),
-                userOp.accountGasLimits,
-                userOp.preVerificationGas,
-                userOp.gasFees,
-                block.chainid,
-                address(this),
-                validUntil,
-                validAfter,
-                senderNonce[userOp.sender]
-            )
-        );
+    function getHash(PackedUserOperation calldata userOp, bytes memory envelopeData) public view returns (bytes32) {
+        bytes32 domainSeparator = _computeDomainSeparator();
+        bytes32 userOpCoreHash = _computeUserOpCoreHash(userOp);
+        return PaymasterDataLib.hashForSignature(domainSeparator, userOpCoreHash, envelopeData);
     }
 
     /**
@@ -109,28 +93,45 @@ contract VerifyingPaymaster is BasePaymaster {
 
         bytes calldata paymasterData = _parsePaymasterData(userOp.paymasterAndData);
 
-        // Validate minimum data length
-        if (paymasterData.length < MIN_VALID_DATA_LENGTH) {
-            revert InvalidSignatureLength();
+        return _validate(userOp, paymasterData, maxCost);
+    }
+
+    /**
+     * @notice Validate using envelope format
+     * @param userOp The user operation
+     * @param paymasterData Raw paymaster data
+     * @param maxCost Maximum cost
+     * @return context Encoded context for postOp
+     * @return validationData Packed validation data
+     */
+    function _validate(PackedUserOperation calldata userOp, bytes calldata paymasterData, uint256 maxCost)
+        internal
+        returns (bytes memory context, uint256 validationData)
+    {
+        // Determine envelope length and split envelope from signature
+        uint256 envLen = PaymasterDataLib.envelopeLength(paymasterData);
+        bytes calldata envelopeData = paymasterData[:envLen];
+        bytes calldata signature = paymasterData[envLen:];
+
+        // Decode envelope
+        PaymasterDataLib.Envelope memory env = PaymasterDataLib.decode(envelopeData);
+
+        // Verify paymaster type
+        if (env.paymasterType != uint8(PaymasterDataLib.PaymasterType.VERIFYING)) {
+            revert PaymasterDataLib.InvalidType(env.paymasterType);
         }
 
-        // Parse timestamps
-        uint48 validUntil = uint48(bytes6(paymasterData[0:6]));
-        uint48 validAfter = uint48(bytes6(paymasterData[6:12]));
-
-        // Extract signature
-        bytes calldata signature = paymasterData[12:];
-
-        // Generate hash for signature verification
-        bytes32 hash = getHash(userOp, validUntil, validAfter);
+        // Compute hash for signature verification
+        bytes32 domainSeparator = _computeDomainSeparator();
+        bytes32 userOpCoreHash = _computeUserOpCoreHash(userOp);
+        bytes32 hash = PaymasterDataLib.hashForSignature(domainSeparator, userOpCoreHash, envelopeData);
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
 
         // Verify signature
         address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
 
         if (recoveredSigner != verifyingSigner) {
-            // Return failure but don't revert (for simulation purposes)
-            return ("", _packValidationDataFailure(validUntil, validAfter));
+            return ("", _packValidationDataFailure(env.validUntil, env.validAfter));
         }
 
         // Increment nonce to prevent replay
@@ -140,7 +141,7 @@ contract VerifyingPaymaster is BasePaymaster {
         emit GasSponsored(userOp.sender, keccak256(abi.encode(userOp)), maxCost);
 
         // Return success with time range and sender context
-        return (abi.encode(userOp.sender), _packValidationDataSuccess(validUntil, validAfter));
+        return (abi.encode(userOp.sender), _packValidationDataSuccess(env.validUntil, env.validAfter));
     }
 
     /**

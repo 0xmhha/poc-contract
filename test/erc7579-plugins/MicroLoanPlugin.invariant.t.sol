@@ -55,18 +55,18 @@ contract MicroLoanPluginHandler is Test {
     uint256 public configId;
 
     /// @notice Ghost variable: tracks the last observed nextLoanId to verify monotonic increase
-    uint256 public ghost_lastNextLoanId;
+    uint256 public ghostLastNextLoanId;
 
     /// @notice Ghost variable: set to true if nextLoanId ever decreases
-    bool public ghost_loanIdDecreased;
+    bool public ghostLoanIdDecreased;
 
     /// @notice Ghost variable: tracks all loan IDs ever created for enumeration
-    uint256[] public ghost_allLoanIds;
+    uint256[] public ghostAllLoanIds;
 
     /// @notice Ghost variable: tracks the principal of each loan at repayment time
     ///         to verify repayment reduces outstanding principal.
-    mapping(uint256 => uint256) public ghost_principalBeforeRepay;
-    bool public ghost_repayDidNotReducePrincipal;
+    mapping(uint256 => uint256) public ghostPrincipalBeforeRepay;
+    bool public ghostRepayDidNotReducePrincipal;
 
     constructor(
         MicroLoanPlugin _plugin,
@@ -101,7 +101,7 @@ contract MicroLoanPluginHandler is Test {
             vm.stopPrank();
         }
 
-        ghost_lastNextLoanId = plugin.nextLoanId();
+        ghostLastNextLoanId = plugin.nextLoanId();
     }
 
     // ---- Modifiers ----
@@ -117,7 +117,7 @@ contract MicroLoanPluginHandler is Test {
 
     function borrow(uint256 actorSeed, uint256 borrowAmount, uint256 duration) public useActor(actorSeed) {
         // Bound inputs to valid ranges
-        (,,, uint256 interestRateBps, uint256 maxLoanAmount, uint256 minLoanAmount, uint256 maxDuration, bool isActive) =
+        (,,,, uint256 maxLoanAmount, uint256 minLoanAmount, uint256 maxDuration, bool isActive) =
             plugin.loanConfigs(configId);
 
         if (!isActive) return;
@@ -139,27 +139,25 @@ contract MicroLoanPluginHandler is Test {
             collateralToken.mint(currentActor, requiredCollateral);
         }
 
-        uint256 loanIdBefore = plugin.nextLoanId();
-
         try plugin.borrow(configId, borrowAmount, duration, requiredCollateral) returns (uint256 loanId) {
-            ghost_allLoanIds.push(loanId);
+            ghostAllLoanIds.push(loanId);
 
             // Check monotonic increase
             uint256 newNextLoanId = plugin.nextLoanId();
-            if (newNextLoanId < ghost_lastNextLoanId) {
-                ghost_loanIdDecreased = true;
+            if (newNextLoanId < ghostLastNextLoanId) {
+                ghostLoanIdDecreased = true;
             }
-            ghost_lastNextLoanId = newNextLoanId;
+            ghostLastNextLoanId = newNextLoanId;
         } catch {
             // Borrow failed, that is acceptable
         }
     }
 
     function repay(uint256 actorSeed, uint256 loanIndex) public useActor(actorSeed) {
-        if (ghost_allLoanIds.length == 0) return;
+        if (ghostAllLoanIds.length == 0) return;
 
-        loanIndex = loanIndex % ghost_allLoanIds.length;
-        uint256 loanId = ghost_allLoanIds[loanIndex];
+        loanIndex = loanIndex % ghostAllLoanIds.length;
+        uint256 loanId = ghostAllLoanIds[loanIndex];
 
         MicroLoanPlugin.Loan memory loan = plugin.getLoan(loanId);
         if (!loan.isActive) return;
@@ -169,7 +167,7 @@ contract MicroLoanPluginHandler is Test {
         if (repaymentAmount == 0) return;
 
         // Record principal before repay
-        ghost_principalBeforeRepay[loanId] = loan.borrowAmount;
+        ghostPrincipalBeforeRepay[loanId] = loan.borrowAmount;
 
         // Ensure the repayer has enough tokens
         if (borrowToken.balanceOf(currentActor) < repaymentAmount) {
@@ -180,8 +178,8 @@ contract MicroLoanPluginHandler is Test {
             // After repay, the loan should be inactive (principal effectively 0)
             MicroLoanPlugin.Loan memory loanAfter = plugin.getLoan(loanId);
             // If loan is still somehow active after repay with non-reduced principal, flag it
-            if (loanAfter.isActive && loanAfter.borrowAmount >= ghost_principalBeforeRepay[loanId]) {
-                ghost_repayDidNotReducePrincipal = true;
+            if (loanAfter.isActive && loanAfter.borrowAmount >= ghostPrincipalBeforeRepay[loanId]) {
+                ghostRepayDidNotReducePrincipal = true;
             }
         } catch {
             // Repay failed (e.g., transfer issue), acceptable
@@ -189,18 +187,19 @@ contract MicroLoanPluginHandler is Test {
     }
 
     function liquidate(uint256 actorSeed, uint256 loanIndex) public useActor(actorSeed) {
-        if (ghost_allLoanIds.length == 0) return;
+        if (ghostAllLoanIds.length == 0) return;
 
-        loanIndex = loanIndex % ghost_allLoanIds.length;
-        uint256 loanId = ghost_allLoanIds[loanIndex];
+        loanIndex = loanIndex % ghostAllLoanIds.length;
+        uint256 loanId = ghostAllLoanIds[loanIndex];
 
         MicroLoanPlugin.Loan memory loan = plugin.getLoan(loanId);
         if (!loan.isActive) return;
         if (block.timestamp <= loan.dueTime) return;
 
         try plugin.liquidate(loanId) {
-            // Liquidation succeeded
-        } catch {
+        // Liquidation succeeded
+        }
+            catch {
             // Liquidation failed, acceptable
         }
     }
@@ -213,11 +212,11 @@ contract MicroLoanPluginHandler is Test {
     // ---- Getters ----
 
     function getAllLoanIdsCount() external view returns (uint256) {
-        return ghost_allLoanIds.length;
+        return ghostAllLoanIds.length;
     }
 
     function getAllLoanId(uint256 index) external view returns (uint256) {
-        return ghost_allLoanIds[index];
+        return ghostAllLoanIds[index];
     }
 
     function getActorsCount() external view returns (uint256) {
@@ -305,7 +304,7 @@ contract MicroLoanPluginInvariantTest is Test {
             if (!loan.isActive) continue;
 
             // Get config for this loan
-            (,, uint256 collateralRatio,,,,, bool isActive) = plugin.loanConfigs(loan.configId);
+            (,,,,,,, bool isActive) = plugin.loanConfigs(loan.configId);
             if (!isActive) continue;
 
             // Required collateral at the time of borrow was validated by the contract.
@@ -327,16 +326,10 @@ contract MicroLoanPluginInvariantTest is Test {
     ///         it by 1 via nextLoanId++. A decrease would indicate counter corruption or
     ///         overflow (which is impossible with uint256 in practice).
     function invariant_loanIdMonotonicallyIncreasing() public view {
-        assertFalse(
-            handler.ghost_loanIdDecreased(), "nextLoanId must never decrease (monotonically increasing counter)"
-        );
+        assertFalse(handler.ghostLoanIdDecreased(), "nextLoanId must never decrease (monotonically increasing counter)");
 
         // Additionally verify that nextLoanId >= number of loans ever created
-        assertGe(
-            plugin.nextLoanId(),
-            handler.getAllLoanIdsCount(),
-            "nextLoanId must be >= total loans created"
-        );
+        assertGe(plugin.nextLoanId(), handler.getAllLoanIdsCount(), "nextLoanId must be >= total loans created");
     }
 
     // ---- Invariant: active loan count matches loans with non-zero principal ----
@@ -364,11 +357,7 @@ contract MicroLoanPluginInvariantTest is Test {
         }
 
         // Every active loan must have non-zero principal (no empty active loans)
-        assertEq(
-            activeCount,
-            activeWithPrincipalCount,
-            "All active loans must have non-zero borrowAmount"
-        );
+        assertEq(activeCount, activeWithPrincipalCount, "All active loans must have non-zero borrowAmount");
     }
 
     // ---- Invariant: repayment always reduces outstanding principal ----
@@ -378,7 +367,7 @@ contract MicroLoanPluginInvariantTest is Test {
     ///         that repayment cannot leave a loan active with the same or increased principal.
     function invariant_repaymentReducesPrincipal() public view {
         assertFalse(
-            handler.ghost_repayDidNotReducePrincipal(),
+            handler.ghostRepayDidNotReducePrincipal(),
             "Repayment must always deactivate the loan (reduce outstanding principal to zero)"
         );
     }
@@ -409,10 +398,6 @@ contract MicroLoanPluginInvariantTest is Test {
 
         // The contract holds: liquidity pool + fees (to be transferred) + repayments
         // So actual balance >= tracked liquidity
-        assertGe(
-            actualBalance,
-            trackedLiquidity,
-            "Actual token balance must be >= tracked liquidity pool"
-        );
+        assertGe(actualBalance, trackedLiquidity, "Actual token balance must be >= tracked liquidity pool");
     }
 }

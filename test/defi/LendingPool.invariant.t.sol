@@ -57,15 +57,15 @@ contract LendingPoolHandler is Test {
     /// @notice Ghost variables track expected accounting state independently
     ///         from the contract's internal storage. Invariant assertions compare
     ///         these ghost values against the contract's reported values.
-    mapping(address => mapping(address => uint256)) public ghost_userBorrows;
-    uint256 public ghost_totalBorrows_usdc;
-    uint256 public ghost_totalBorrows_weth;
+    mapping(address => mapping(address => uint256)) public ghostUserBorrows;
+    uint256 public ghostTotalBorrowsUsdc;
+    uint256 public ghostTotalBorrowsWeth;
 
     /// @notice Track the borrow index at specific checkpoints to verify
     ///         monotonic increase.
-    uint256 public ghost_lastBorrowIndex_usdc;
-    uint256 public ghost_lastBorrowIndex_weth;
-    bool public ghost_borrowIndexDecreased;
+    uint256 public ghostLastBorrowIndexUsdc;
+    uint256 public ghostLastBorrowIndexWeth;
+    bool public ghostBorrowIndexDecreased;
 
     /// @notice Track all borrowers for enumeration during invariant checks
     address[] public borrowers;
@@ -96,8 +96,8 @@ contract LendingPoolHandler is Test {
         // Snapshot initial borrow indexes
         ILendingPool.ReserveData memory usdcReserve = pool.getReserveData(address(usdc));
         ILendingPool.ReserveData memory wethReserve = pool.getReserveData(address(weth));
-        ghost_lastBorrowIndex_usdc = usdcReserve.borrowIndex;
-        ghost_lastBorrowIndex_weth = wethReserve.borrowIndex;
+        ghostLastBorrowIndexUsdc = usdcReserve.borrowIndex;
+        ghostLastBorrowIndexWeth = wethReserve.borrowIndex;
     }
 
     // ---- Modifiers ----
@@ -192,15 +192,15 @@ contract LendingPoolHandler is Test {
         ILendingPool.ReserveData memory usdcReserve = pool.getReserveData(address(usdc));
         ILendingPool.ReserveData memory wethReserve = pool.getReserveData(address(weth));
 
-        if (usdcReserve.borrowIndex < ghost_lastBorrowIndex_usdc) {
-            ghost_borrowIndexDecreased = true;
+        if (usdcReserve.borrowIndex < ghostLastBorrowIndexUsdc) {
+            ghostBorrowIndexDecreased = true;
         }
-        if (wethReserve.borrowIndex < ghost_lastBorrowIndex_weth) {
-            ghost_borrowIndexDecreased = true;
+        if (wethReserve.borrowIndex < ghostLastBorrowIndexWeth) {
+            ghostBorrowIndexDecreased = true;
         }
 
-        ghost_lastBorrowIndex_usdc = usdcReserve.borrowIndex;
-        ghost_lastBorrowIndex_weth = wethReserve.borrowIndex;
+        ghostLastBorrowIndexUsdc = usdcReserve.borrowIndex;
+        ghostLastBorrowIndexWeth = wethReserve.borrowIndex;
     }
 
     // ---- Getters for invariant assertions ----
@@ -321,9 +321,7 @@ contract LendingPoolInvariantTest is Test {
             if (reserve.totalBorrows > 0 && reserve.totalBorrows >= sumUserBorrows) {
                 uint256 gap = reserve.totalBorrows - sumUserBorrows;
                 assertLe(
-                    gap,
-                    reserve.totalBorrows / 10 + 1,
-                    "Gap between totalBorrows and sum of user borrows exceeds 10%"
+                    gap, reserve.totalBorrows / 10 + 1, "Gap between totalBorrows and sum of user borrows exceeds 10%"
                 );
             }
         }
@@ -341,7 +339,6 @@ contract LendingPoolInvariantTest is Test {
         for (uint256 a = 0; a < assets.length; a++) {
             ILendingPool.ReserveData memory reserve = pool.getReserveData(assets[a]);
             uint256 contractBalance = ERC20(assets[a]).balanceOf(address(pool));
-            uint256 protocolReserves = pool.protocolReserves(assets[a]);
 
             // The contract holds: deposits - borrows_lent_out + protocol_reserves
             // So: contractBalance >= totalDeposits - totalBorrows (approximately)
@@ -391,8 +388,7 @@ contract LendingPoolInvariantTest is Test {
     ///         breaks the protocol's accounting model.
     function invariant_borrowIndexMonotonicallyIncreasing() public view {
         assertFalse(
-            handler.ghost_borrowIndexDecreased(),
-            "Borrow index must never decrease (interest accrual is monotonic)"
+            handler.ghostBorrowIndexDecreased(), "Borrow index must never decrease (interest accrual is monotonic)"
         );
     }
 

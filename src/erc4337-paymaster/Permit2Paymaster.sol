@@ -11,6 +11,8 @@ import { UserOperationLib } from "../erc4337-entrypoint/UserOperationLib.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { PaymasterDataLib } from "./PaymasterDataLib.sol";
+import { PaymasterPayload } from "./PaymasterPayload.sol";
 
 /**
  * @title Permit2Paymaster
@@ -18,16 +20,14 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
  * @dev Combines Permit2 signature-based approvals with ERC-20 gas payment.
  *      Users don't need to pre-approve tokens - they sign a Permit2 permit instead.
  *
- * PaymasterData format:
- *   [0:20] - token address
- *   [20:40] - amount (uint160) - maximum amount to permit
- *   [40:46] - expiration (uint48) - permit expiration timestamp
- *   [46:52] - nonce (uint48) - permit2 nonce
- *   [52:117] - signature (65 bytes) - Permit2 signature
+ * PaymasterData format (envelope):
+ *   [envelope with type=PERMIT2, payload=ABI(Permit2Payload)]
+ *   Permit2 signature goes inside the Permit2Payload (user's sig, not paymaster's).
+ *   No trailing paymaster signature.
  *
  * Flow:
  * 1. User signs Permit2 permit off-chain
- * 2. validatePaymasterUserOp executes permit to approve this paymaster
+ * 2. validatePaymasterUserOp decodes envelope, executes permit to approve this paymaster
  * 3. postOp transfers tokens using Permit2's transferFrom
  */
 contract Permit2Paymaster is BasePaymaster {
@@ -61,10 +61,6 @@ contract Permit2Paymaster is BasePaymaster {
     /// @notice Cached token decimals
     mapping(address => uint8) public tokenDecimals;
 
-    /// @notice Minimum paymaster data length
-    /// 20 (token) + 20 (amount/uint160) + 6 (expiration) + 6 (nonce) + 65 (signature) = 117
-    uint256 private constant MIN_PAYMASTER_DATA_LENGTH = 117;
-
     /// @notice PostOp context structure
     struct PostOpContext {
         address sender;
@@ -84,7 +80,6 @@ contract Permit2Paymaster is BasePaymaster {
     error OracleCannotBeZero();
     error Permit2CannotBeZero();
     error StalePrice(uint256 updatedAt, uint256 maxAge);
-    error InvalidPaymasterDataLength();
     error PermitFailed();
     error TransferFailed();
 
@@ -182,7 +177,7 @@ contract Permit2Paymaster is BasePaymaster {
      * @param userOpHash Hash of the user operation (unused)
      * @param maxCost Maximum cost in native currency
      * @return context Encoded PostOpContext
-     * @return validationData Validation result
+     * @return validationData Validation result with time range
      */
     function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
         internal
@@ -193,42 +188,45 @@ contract Permit2Paymaster is BasePaymaster {
 
         bytes calldata paymasterData = _parsePaymasterData(userOp.paymasterAndData);
 
-        if (paymasterData.length < MIN_PAYMASTER_DATA_LENGTH) {
-            revert InvalidPaymasterDataLength();
+        // Decode envelope (no trailing signature for Permit2)
+        PaymasterDataLib.Envelope memory env = PaymasterDataLib.decode(paymasterData);
+
+        // Verify paymaster type
+        if (env.paymasterType != uint8(PaymasterDataLib.PaymasterType.PERMIT2)) {
+            revert PaymasterDataLib.InvalidType(env.paymasterType);
         }
 
-        // Parse paymaster data
-        address token = address(bytes20(paymasterData[0:20]));
-        uint160 permitAmount = uint160(bytes20(paymasterData[20:40]));
-        uint48 expiration = uint48(bytes6(paymasterData[40:46]));
-        uint48 nonce = uint48(bytes6(paymasterData[46:52]));
-        bytes calldata signature = paymasterData[52:117];
+        // Decode type-specific payload
+        PaymasterPayload.Permit2Payload memory payload = PaymasterPayload.decodePermit2(env.payload);
 
         // Check token is supported
-        if (!supportedTokens[token]) {
-            revert UnsupportedToken(token);
+        if (!supportedTokens[payload.token]) {
+            revert UnsupportedToken(payload.token);
         }
 
         // Calculate max token cost
-        uint256 maxTokenCost = getTokenAmount(token, maxCost);
+        uint256 maxTokenCost = getTokenAmount(payload.token, maxCost);
 
         // Execute Permit2 permit to approve this paymaster
         IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
             details: IAllowanceTransfer.PermitDetails({
-                token: token, amount: permitAmount, expiration: expiration, nonce: nonce
+                token: payload.token,
+                amount: payload.permitAmount,
+                expiration: payload.permitExpiration,
+                nonce: payload.permitNonce
             }),
             spender: address(this),
-            sigDeadline: expiration
+            sigDeadline: payload.permitExpiration
         });
 
         // Try to execute permit (may fail if already permitted or signature invalid)
-        try PERMIT2.permit(userOp.sender, permitSingle, signature) {
+        try PERMIT2.permit(userOp.sender, permitSingle, payload.permitSig) {
         // Permit successful
         }
         catch {
             // Check if there's existing allowance via Permit2
             (uint160 existingAmount, uint48 existingExpiration,) =
-                PERMIT2.allowance(userOp.sender, token, address(this));
+                PERMIT2.allowance(userOp.sender, payload.token, address(this));
 
             // Verify existing allowance is sufficient
             if (existingAmount < maxTokenCost || existingExpiration < block.timestamp) {
@@ -238,14 +236,10 @@ contract Permit2Paymaster is BasePaymaster {
 
         // Encode context for postOp
         context = abi.encode(
-            PostOpContext({ sender: userOp.sender, token: token, maxTokenCost: maxTokenCost, maxCost: maxCost })
+            PostOpContext({ sender: userOp.sender, token: payload.token, maxTokenCost: maxTokenCost, maxCost: maxCost })
         );
 
-        // Pack validation data with permit expiration as validUntil
-        // Format: validAfter (6 bytes) | validUntil (6 bytes) | authorizer (20 bytes)
-        // authorizer = 0 means success
-        uint256 packed = uint256(expiration) << 160;
-        return (context, packed);
+        return (context, _packValidationDataSuccess(env.validUntil, env.validAfter));
     }
 
     /**

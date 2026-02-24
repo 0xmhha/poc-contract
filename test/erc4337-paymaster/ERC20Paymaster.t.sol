@@ -9,6 +9,8 @@ import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/Pac
 import { EntryPoint } from "../../src/erc4337-entrypoint/EntryPoint.sol";
 import { MockPriceOracle } from "./mocks/MockPriceOracle.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
+import { PaymasterDataLib } from "../../src/erc4337-paymaster/PaymasterDataLib.sol";
+import { PaymasterPayload } from "../../src/erc4337-paymaster/PaymasterPayload.sol";
 
 contract ERC20PaymasterTest is Test {
     ERC20Paymaster public paymaster;
@@ -151,19 +153,26 @@ contract ERC20PaymasterTest is Test {
     }
 
     function test_validatePaymasterUserOp_success() public {
-        PackedUserOperation memory userOp = _createSampleUserOp(user, address(token));
+        uint48 validUntil = uint48(block.timestamp + 1 hours);
+        uint48 validAfter = uint48(block.timestamp);
+        PackedUserOperation memory userOp = _createSampleUserOp(user, address(token), validUntil, validAfter);
 
         vm.prank(address(entryPoint));
         (bytes memory context, uint256 validationData) =
             paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
 
         assertTrue(context.length > 0);
-        assertEq(validationData, 0); // Success
+        // sigFail (lowest 20 bytes) should be 0 for success
+        // forge-lint: disable-next-line(unsafe-typecast)
+        address sigFail = address(uint160(validationData));
+        assertEq(sigFail, address(0));
     }
 
     function test_validatePaymasterUserOp_revertIfUnsupportedToken() public {
         MockERC20 unsupportedToken = new MockERC20("Unsupported", "UNS", 18);
-        PackedUserOperation memory userOp = _createSampleUserOp(user, address(unsupportedToken));
+        uint48 validUntil = uint48(block.timestamp + 1 hours);
+        uint48 validAfter = uint48(block.timestamp);
+        PackedUserOperation memory userOp = _createSampleUserOp(user, address(unsupportedToken), validUntil, validAfter);
 
         vm.prank(address(entryPoint));
         vm.expectRevert(abi.encodeWithSelector(ERC20Paymaster.UnsupportedToken.selector, address(unsupportedToken)));
@@ -177,7 +186,9 @@ contract ERC20PaymasterTest is Test {
         // forge-lint: disable-next-line(erc20-unchecked-transfer)
         token.transfer(address(1), userBalance);
 
-        PackedUserOperation memory userOp = _createSampleUserOp(user, address(token));
+        uint48 validUntil = uint48(block.timestamp + 1 hours);
+        uint48 validAfter = uint48(block.timestamp);
+        PackedUserOperation memory userOp = _createSampleUserOp(user, address(token), validUntil, validAfter);
 
         vm.prank(address(entryPoint));
         vm.expectRevert(); // InsufficientTokenBalance
@@ -189,7 +200,9 @@ contract ERC20PaymasterTest is Test {
         vm.prank(user);
         token.approve(address(paymaster), 0);
 
-        PackedUserOperation memory userOp = _createSampleUserOp(user, address(token));
+        uint48 validUntil = uint48(block.timestamp + 1 hours);
+        uint48 validAfter = uint48(block.timestamp);
+        PackedUserOperation memory userOp = _createSampleUserOp(user, address(token), validUntil, validAfter);
 
         vm.prank(address(entryPoint));
         vm.expectRevert(); // InsufficientTokenAllowance
@@ -216,17 +229,62 @@ contract ERC20PaymasterTest is Test {
         // Set stale price (2 hours ago)
         oracle.setPriceWithTimestamp(address(token), 5e14, block.timestamp - 2 hours);
 
-        PackedUserOperation memory userOp = _createSampleUserOp(user, address(token));
+        uint48 validUntil = uint48(block.timestamp + 1 hours);
+        uint48 validAfter = uint48(block.timestamp);
+        PackedUserOperation memory userOp = _createSampleUserOp(user, address(token), validUntil, validAfter);
 
         vm.prank(address(entryPoint));
         vm.expectRevert(); // StalePrice
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
     }
 
+    function test_revertIfWrongPaymasterType() public {
+        // Build envelope with wrong type (VERIFYING instead of ERC20)
+        bytes memory payload = PaymasterPayload.encodeErc20(
+            PaymasterPayload.Erc20Payload({ token: address(token), maxTokenCost: 0, quoteId: 0, erc20Extra: "" })
+        );
+        bytes memory envelopeData = PaymasterDataLib.encode(
+            uint8(PaymasterDataLib.PaymasterType.VERIFYING),
+            0,
+            uint48(block.timestamp + 1 hours),
+            uint48(block.timestamp),
+            uint64(0),
+            payload
+        );
+
+        PackedUserOperation memory userOp = PackedUserOperation({
+            sender: user,
+            nonce: 0,
+            initCode: "",
+            callData: "",
+            accountGasLimits: bytes32(uint256(100_000) << 128 | uint256(100_000)),
+            preVerificationGas: 21_000,
+            gasFees: bytes32(uint256(1 gwei) << 128 | uint256(1 gwei)),
+            paymasterAndData: abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), envelopeData),
+            signature: ""
+        });
+
+        vm.prank(address(entryPoint));
+        vm.expectRevert(abi.encodeWithSelector(PaymasterDataLib.InvalidType.selector, uint8(0)));
+        paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
+    }
+
     // ============ Helper Functions ============
 
-    function _createSampleUserOp(address sender, address payToken) internal view returns (PackedUserOperation memory) {
-        bytes memory paymasterData = abi.encodePacked(payToken);
+    function _createSampleUserOp(address sender, address payToken, uint48 validUntil, uint48 validAfter)
+        internal
+        view
+        returns (PackedUserOperation memory)
+    {
+        // Build Erc20Payload
+        bytes memory payload = PaymasterPayload.encodeErc20(
+            PaymasterPayload.Erc20Payload({ token: payToken, maxTokenCost: 0, quoteId: 0, erc20Extra: "" })
+        );
+
+        // Wrap in envelope
+        bytes memory envelopeData = PaymasterDataLib.encode(
+            uint8(PaymasterDataLib.PaymasterType.ERC20), 0, validUntil, validAfter, uint64(0), payload
+        );
 
         return PackedUserOperation({
             sender: sender,
@@ -240,7 +298,7 @@ contract ERC20PaymasterTest is Test {
                 address(paymaster),
                 uint128(100_000), // verification gas
                 uint128(50_000), // post-op gas
-                paymasterData
+                envelopeData
             ),
             signature: ""
         });

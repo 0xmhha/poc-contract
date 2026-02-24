@@ -252,7 +252,10 @@ contract OnRampPlugin is IExecutor, Ownable {
      * @param maxAmount New maximum
      * @param dailyLimit New daily limit
      */
-    function setProviderLimits(uint256 providerId, uint256 minAmount, uint256 maxAmount, uint256 dailyLimit) external onlyOwner {
+    function setProviderLimits(uint256 providerId, uint256 minAmount, uint256 maxAmount, uint256 dailyLimit)
+        external
+        onlyOwner
+    {
         Provider storage provider = providers[providerId];
         provider.minAmount = minAmount;
         provider.maxAmount = maxAmount;

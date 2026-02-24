@@ -378,7 +378,8 @@ contract BridgeValidatorTest is Test {
 
         // Create rotation proof signed by current signers
         uint256 deadline = block.timestamp + 1 hours;
-        bytes32 rotationHash = keccak256(abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 3, deadline, block.chainid));
+        bytes32 rotationHash =
+            keccak256(abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 3, deadline, block.chainid));
         bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", rotationHash));
 
         bytes[] memory rotationProof = new bytes[](THRESHOLD);
@@ -422,7 +423,8 @@ contract BridgeValidatorTest is Test {
         uint256 currentVersion = validator.signerSetVersion();
 
         uint256 deadline = block.timestamp + 1 hours;
-        bytes32 rotationHash = keccak256(abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 2, deadline, block.chainid));
+        bytes32 rotationHash =
+            keccak256(abi.encode("ROTATE_SIGNER_SET", currentVersion, newSigners, 2, deadline, block.chainid));
         bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", rotationHash));
 
         bytes[] memory rotationProof = new bytes[](THRESHOLD);

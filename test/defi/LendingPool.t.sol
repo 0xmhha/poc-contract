@@ -821,8 +821,8 @@ contract LendingPoolTest is Test {
         MockERC20 tokenA = new MockERC20("Token A", "TKNA", 6);
         MockERC20 tokenB = new MockERC20("Token B", "TKNB", 6);
 
-        oracle.setPrice(address(tokenA), 2e18);  // $2
-        oracle.setPrice(address(tokenB), 1e18);  // $1
+        oracle.setPrice(address(tokenA), 2e18); // $2
+        oracle.setPrice(address(tokenB), 1e18); // $1
 
         ILendingPool.AssetConfig memory configA = ILendingPool.AssetConfig({
             ltv: 8000,

@@ -242,10 +242,7 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
      * @dev Includes msg.sender binding (front-running protection), chain ID domain separation,
      *      and proof reuse prevention via usedProofs mapping
      */
-    function _verifyStealthProof(bytes32 stealthHash, address recipient, bytes calldata proof)
-        internal
-        returns (bool)
-    {
+    function _verifyStealthProof(bytes32 stealthHash, address recipient, bytes calldata proof) internal returns (bool) {
         if (proof.length < 20) return false;
 
         // Include msg.sender and chainid for front-running protection and domain separation

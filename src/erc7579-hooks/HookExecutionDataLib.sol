@@ -16,8 +16,7 @@ pragma solidity ^0.8.28;
  */
 library HookExecutionDataLib {
     /// @notice Known function selector for wrapper calldata detection (executeFromExecutor path)
-    bytes4 internal constant EXECUTE_FROM_EXECUTOR_SELECTOR =
-        bytes4(keccak256("executeFromExecutor(bytes32,bytes)"));
+    bytes4 internal constant EXECUTE_FROM_EXECUTOR_SELECTOR = bytes4(keccak256("executeFromExecutor(bytes32,bytes)"));
 
     /**
      * @notice Extract the actual execution target, value, and calldata from potentially wrapped msgData

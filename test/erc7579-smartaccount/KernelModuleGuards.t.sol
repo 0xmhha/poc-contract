@@ -88,7 +88,9 @@ contract KernelModuleGuardsTest is Test {
 
         vm.prank(account);
         vm.expectRevert(
-            abi.encodeWithSelector(Kernel.ModuleAlreadyInstalled.selector, MODULE_TYPE_VALIDATOR, address(ecdsaValidator))
+            abi.encodeWithSelector(
+                Kernel.ModuleAlreadyInstalled.selector, MODULE_TYPE_VALIDATOR, address(ecdsaValidator)
+            )
         );
         Kernel(payable(account)).installModule(MODULE_TYPE_VALIDATOR, address(ecdsaValidator), initData);
     }
@@ -163,7 +165,8 @@ contract KernelModuleGuardsTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(Kernel.ModuleNotInstalled.selector, MODULE_TYPE_FALLBACK, address(mockFallback))
         );
-        Kernel(payable(account)).uninstallModule(MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector));
+        Kernel(payable(account))
+            .uninstallModule(MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector));
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -208,9 +211,8 @@ contract KernelModuleGuardsTest is Test {
         Kernel(payable(account)).installModule(MODULE_TYPE_FALLBACK, address(mockFallback), _fallbackInitData(selector));
 
         assertTrue(
-            Kernel(payable(account)).isModuleInstalled(
-                MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector)
-            )
+            Kernel(payable(account))
+                .isModuleInstalled(MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector))
         );
     }
 
@@ -238,13 +240,11 @@ contract KernelModuleGuardsTest is Test {
 
         // Uninstall
         vm.prank(account);
-        Kernel(payable(account)).uninstallModule(
-            MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector)
-        );
+        Kernel(payable(account))
+            .uninstallModule(MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector));
         assertFalse(
-            Kernel(payable(account)).isModuleInstalled(
-                MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector)
-            )
+            Kernel(payable(account))
+                .isModuleInstalled(MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector))
         );
     }
 
@@ -275,17 +275,15 @@ contract KernelModuleGuardsTest is Test {
         Kernel(payable(account)).installModule(MODULE_TYPE_FALLBACK, address(mockFallback), initData);
 
         vm.prank(account);
-        Kernel(payable(account)).uninstallModule(
-            MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector)
-        );
+        Kernel(payable(account))
+            .uninstallModule(MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector));
 
         vm.prank(account);
         Kernel(payable(account)).installModule(MODULE_TYPE_FALLBACK, address(mockFallback), initData);
 
         assertTrue(
-            Kernel(payable(account)).isModuleInstalled(
-                MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector)
-            )
+            Kernel(payable(account))
+                .isModuleInstalled(MODULE_TYPE_FALLBACK, address(mockFallback), abi.encodePacked(selector))
         );
     }
 

@@ -420,8 +420,7 @@ contract StealthVaultTest is Test {
         bytes memory proof = abi.encodePacked(bytes32("secret"));
 
         // Compute the expected proofHash the same way the contract does
-        bytes32 expectedProofHash =
-            keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid));
+        bytes32 expectedProofHash = keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid));
 
         // Before withdrawal, proof should not be marked as used
         assertFalse(vault.usedProofs(expectedProofHash), "Proof should not be used before withdrawal");
@@ -502,17 +501,14 @@ contract StealthVaultTest is Test {
         bytes memory proof = abi.encodePacked(bytes32("secret"));
 
         // Compute proofHash WITH chainid (correct, matches contract logic)
-        bytes32 proofHashWithChain =
-            keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid));
+        bytes32 proofHashWithChain = keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid));
 
         // Compute proofHash WITHOUT chainid (incorrect, vulnerable version)
-        bytes32 proofHashWithoutChain =
-            keccak256(abi.encodePacked(recipient, recipient, proof));
+        bytes32 proofHashWithoutChain = keccak256(abi.encodePacked(recipient, recipient, proof));
 
         // The two hashes must differ -- domain separation is meaningful
         assertTrue(
-            proofHashWithChain != proofHashWithoutChain,
-            "Chain-specific hash must differ from chain-agnostic hash"
+            proofHashWithChain != proofHashWithoutChain, "Chain-specific hash must differ from chain-agnostic hash"
         );
 
         // Perform withdrawal
@@ -520,16 +516,10 @@ contract StealthVaultTest is Test {
         vault.withdraw(depositId, recipient, proof);
 
         // The contract must have marked the chain-specific proofHash as used
-        assertTrue(
-            vault.usedProofs(proofHashWithChain),
-            "Contract must use chain-specific proofHash"
-        );
+        assertTrue(vault.usedProofs(proofHashWithChain), "Contract must use chain-specific proofHash");
 
         // The chain-agnostic version must NOT be marked as used
-        assertFalse(
-            vault.usedProofs(proofHashWithoutChain),
-            "Chain-agnostic proofHash must not be marked used"
-        );
+        assertFalse(vault.usedProofs(proofHashWithoutChain), "Chain-agnostic proofHash must not be marked used");
     }
 
     /**
@@ -546,20 +536,17 @@ contract StealthVaultTest is Test {
         uint256 originalChainId = block.chainid;
 
         // Compute proofHash on the current chain
-        bytes32 hashOnOriginalChain =
-            keccak256(abi.encodePacked(recipient, recipient, proof, originalChainId));
+        bytes32 hashOnOriginalChain = keccak256(abi.encodePacked(recipient, recipient, proof, originalChainId));
 
         // Simulate a different chain
         uint256 differentChainId = originalChainId + 1;
         vm.chainId(differentChainId);
 
-        bytes32 hashOnDifferentChain =
-            keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid));
+        bytes32 hashOnDifferentChain = keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid));
 
         // Proofs must produce different hashes on different chains
         assertTrue(
-            hashOnOriginalChain != hashOnDifferentChain,
-            "Same proof must produce different hashes on different chains"
+            hashOnOriginalChain != hashOnDifferentChain, "Same proof must produce different hashes on different chains"
         );
 
         // Restore original chain id for subsequent tests
