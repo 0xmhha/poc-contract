@@ -80,6 +80,7 @@ contract Permit2Paymaster is BasePaymaster {
     error OracleCannotBeZero();
     error Permit2CannotBeZero();
     error StalePrice(uint256 updatedAt, uint256 maxAge);
+    error InvalidPrice();
     error PermitFailed();
     error TransferFailed();
 
@@ -158,6 +159,9 @@ contract Permit2Paymaster is BasePaymaster {
     function getTokenAmount(address token, uint256 ethCost) public view returns (uint256 tokenAmount) {
         (uint256 tokenPrice, uint256 updatedAt) = oracle.getPriceWithTimestamp(token);
 
+        // Sanity check: reject zero or invalid price (consistent with ERC20Paymaster)
+        if (tokenPrice == 0) revert InvalidPrice();
+
         if (block.timestamp - updatedAt > MAX_PRICE_STALENESS) {
             revert StalePrice(updatedAt, MAX_PRICE_STALENESS);
         }
@@ -219,7 +223,19 @@ contract Permit2Paymaster is BasePaymaster {
             sigDeadline: payload.permitExpiration
         });
 
-        // Try to execute permit (may fail if already permitted or signature invalid)
+        // Try to execute permit (may fail if already permitted or signature invalid).
+        //
+        // [EIP-4337 Bundler Compatibility Warning — External State Change in Validation]
+        //   CRITICAL: PERMIT2.permit() modifies external contract state (Permit2 allowance nonces)
+        //   during the validation phase. EIP-4337 simulation rules forbid external storage writes
+        //   in validation — standard bundlers (Stackup, Pimlico, Alchemy, etc.) will almost
+        //   certainly reject this UserOp during simulation.
+        //   This is a stronger violation than internal senderNonce++ because it touches storage
+        //   owned by an external contract (Permit2), not the paymaster itself.
+        //   Options to resolve:
+        //   (A) Move Permit2 permit execution to _postOp (execution phase)
+        //   (B) Require users to pre-approve via Permit2 before submitting the UserOp
+        //   (C) Operate exclusively with trusted bundlers and document this constraint
         try PERMIT2.permit(userOp.sender, permitSingle, payload.permitSig) {
         // Permit successful
         }

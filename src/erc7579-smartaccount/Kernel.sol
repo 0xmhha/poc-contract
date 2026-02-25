@@ -38,7 +38,6 @@ import {
     EXECTYPE_DEFAULT,
     EXEC_MODE_DEFAULT,
     CALLTYPE_BATCH,
-    CALLTYPE_STATIC,
     EIP7702_PREFIX
 } from "./types/Constants.sol";
 
@@ -195,6 +194,17 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         return this.onERC1155BatchReceived.selector;
     }
 
+    /// @notice Fallback handler that routes unrecognized selectors to installed fallback modules.
+    ///
+    /// [EIP-4337 / ERC-7579 Spec Conflict — Fallback Sender Context]
+    ///   When the EntryPoint calls this account, msg.sender is the EntryPoint address, not the
+    ///   original transaction sender. ERC-7579 fallback modules may use msg.sender for access
+    ///   control, which would incorrectly reference the EntryPoint instead of the actual caller.
+    ///   Resolution: For CALLTYPE_SINGLE fallbacks, we use ERC-2771 style sender appending
+    ///   (doFallback2771Call) — the original msg.sender is appended to the calldata so the
+    ///   fallback module can extract the true caller from the last 20 bytes. Fallback modules
+    ///   must not use msg.sender directly for authorization; they should read the appended sender.
+    ///   CALLTYPE_DELEGATECALL fallbacks run in the account's context where msg.sender is preserved.
     fallback() external payable {
         SelectorConfig memory config = _selectorConfig(msg.sig);
         bool success;
@@ -234,7 +244,25 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         }
     }
 
-    // validation part
+    /// @notice Validates a UserOperation — EIP-4337 IAccount implementation with ERC-7579 validator routing.
+    ///
+    /// [EIP-4337 / ERC-7579 Spec Conflict — validationData Format]
+    ///   EIP-4337 requires this function to return a packed uint256 validationData:
+    ///     `authorizer(20bytes) | validUntil(6bytes) | validAfter(6bytes)`
+    ///   On signature failure, it must return SIG_VALIDATION_FAILED(1) instead of reverting,
+    ///   so that bundlers can accurately estimate gas.
+    ///   ERC-7579 validator modules may return results in their own format, but when used
+    ///   within an EIP-4337 context, they must comply with the above packing format.
+    ///   Resolution: ValidationManager._validateUserOp delegates validation to the 7579 validator,
+    ///   then merges the result into 4337-compliant validationData via _intersectValidationData.
+    ///
+    /// [EIP-4337 / ERC-7579 Spec Conflict — Nonce Layer Separation]
+    ///   EIP-4337's EntryPoint manages per-account nonces using a 192-bit key + 64-bit sequence.
+    ///   ERC-7579 modules (e.g., session keys, permissions) may maintain their own internal nonces.
+    ///   Resolution: Kernel uses the first 2 bytes of userOp.nonce for validation mode and bytes[2:22]
+    ///   for validator identity, piggybacking on 4337's nonce key space without conflicting with
+    ///   its sequential nonce. Module-level nonces (e.g., paymaster senderNonce) are stored in
+    ///   separate storage slots.
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
         external
         payable
@@ -294,7 +322,28 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         return _verifySignature(hash, data);
     }
 
-    // --- Execution ---
+    /// @notice Executes a UserOperation's inner callData with pre/post hook support.
+    ///
+    /// [EIP-4337 / ERC-7579 Spec Conflict — executeUserOp Bridge]
+    ///   EIP-4337 defines `executeUserOp(PackedUserOperation, bytes32)` as an optional extension
+    ///   (IAccountExecute) that allows the account to receive the full UserOp during execution.
+    ///   It must only be called by the EntryPoint.
+    ///   ERC-7579 defines `execute(ExecMode, bytes)` as the primary execution interface. The 7579
+    ///   spec does not define `executeUserOp` — it is a 4337-specific extension.
+    ///   Resolution: This function acts as a bridge. It enforces onlyEntryPoint access, runs
+    ///   ERC-7579 pre/post hooks, then delegatecalls to self with the inner callData (stripping
+    ///   the 4-byte selector). This routes the inner call through 7579's `execute(ExecMode, bytes)`.
+    ///   Validators that require hooks must use this path (enforced by OnlyExecuteUserOp check
+    ///   in validateUserOp).
+    ///
+    /// [EIP-4337 / ERC-7579 Spec Conflict — Hook Determinism and Paymaster Impact]
+    ///   EIP-4337 bundlers simulate the full execution including hooks. Non-deterministic hook
+    ///   behavior causes simulation-vs-onchain divergence, leading to bundler rejection.
+    ///   ERC-7579 hooks (preCheck/postCheck) may perform arbitrary logic, but hooks that depend
+    ///   on volatile external state or consume excessive gas undermine bundler compatibility.
+    ///   Resolution: Hooks are invoked here in pre/post pattern. If postCheck reverts, the entire
+    ///   execution reverts, triggering Paymaster's postOp(opReverted) path. Hook implementations
+    ///   should avoid non-deterministic external calls and stay within reasonable gas bounds.
     function executeUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash)
         external
         payable
@@ -513,6 +562,18 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         return moduleTypeId < 7;
     }
 
+    /// @notice Check if a module is installed.
+    ///
+    /// [EIP-4337 / ERC-7579 Spec Conflict — Hook Module Observability]
+    ///   ERC-7579 requires `isModuleInstalled` to return accurate installation status for all
+    ///   supported module types, including hooks (type 4).
+    ///   Bundlers and SDKs rely on this function to determine account capabilities before
+    ///   constructing UserOps. If an installed hook returns false here, SDK state will be
+    ///   inconsistent with the actual on-chain state.
+    ///   Resolution: Kernel does not install hooks independently — hooks are always paired with a
+    ///   validator, executor, or fallback selector. For MODULE_TYPE_HOOK queries, we check whether
+    ///   the module is registered as the hook on the rootValidator's config by default. To query
+    ///   a hook on a specific validator, pass the ValidationId via additionalContext (21 bytes).
     function isModuleInstalled(uint256 moduleType, address module, bytes calldata additionalContext)
         external
         view
@@ -526,6 +587,18 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
             return address(_executorConfig(IExecutor(module)).hook) != HOOK_MODULE_NOT_INSTALLED;
         } else if (moduleType == MODULE_TYPE_FALLBACK) {
             return _selectorConfig(bytes4(additionalContext[0:4])).target == module;
+        } else if (moduleType == MODULE_TYPE_HOOK) {
+            // Hooks are paired with validators/executors/selectors, not independently tracked.
+            // Check rootValidator's hook as the primary query path.
+            // For specific validator hooks, pass ValidationId via additionalContext.
+            if (additionalContext.length >= 21) {
+                // additionalContext contains a ValidationId — check that specific validator's hook
+                ValidationId vId = ValidationId.wrap(bytes21(additionalContext[0:21]));
+                return address(_validationStorage().validationConfig[vId].hook) == module;
+            }
+            // Default: check rootValidator's hook
+            ValidationId rootVId = _validationStorage().rootValidator;
+            return address(_validationStorage().validationConfig[rootVId].hook) == module;
         } else {
             return false;
         }
@@ -535,13 +608,21 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         return "kernel.advanced.v0.3.3";
     }
 
+    /// @notice Reports supported execution modes.
+    ///
+    /// [EIP-4337 / ERC-7579 Spec Conflict — Execution Mode Consistency]
+    ///   EIP-4337 requires that userOp.callData maps 1:1 to the account's execution function ABI.
+    ///   The bundler simulates the full execution; any mismatch causes simulation-vs-onchain divergence.
+    ///   ERC-7579 defines callType values: SINGLE(0x00), BATCH(0x01), STATIC(0xFE), DELEGATECALL(0xFF).
+    ///   This function must report only modes that the account actually implements in ExecLib.execute().
+    ///   Resolution: CALLTYPE_STATIC (0xFE) is excluded because ExecLib.execute() has no staticcall
+    ///   branch. Reporting it as supported would cause clients/SDKs to submit STATIC-mode UserOps
+    ///   that revert at runtime, breaking EIP-4337's simulation-execution equivalence guarantee.
+    ///   To add STATIC mode support, a staticcall branch must be added to ExecLib.execute() first.
     function supportsExecutionMode(ExecMode mode) external pure override returns (bool) {
         (CallType callType, ExecType execType, ExecModeSelector selector, ExecModePayload payload) =
             ExecLib.decode(mode);
-        if (
-            callType != CALLTYPE_BATCH && callType != CALLTYPE_SINGLE && callType != CALLTYPE_DELEGATECALL
-                && callType != CALLTYPE_STATIC
-        ) {
+        if (callType != CALLTYPE_BATCH && callType != CALLTYPE_SINGLE && callType != CALLTYPE_DELEGATECALL) {
             return false;
         }
 

@@ -46,6 +46,17 @@ library ExecLib {
                 revert("Unsupported");
             }
         } else if (callType == CALLTYPE_DELEGATECALL) {
+            // [EIP-4337 / ERC-7579 Spec Conflict — Delegatecall Mode Security]
+            //   ERC-7579 defines CALLTYPE_DELEGATECALL (0xFF) as an optional execution mode.
+            //   The 7579 security considerations section warns that delegatecall targets can
+            //   modify the account's storage arbitrarily, potentially corrupting state.
+            //   EIP-4337 bundlers trace the full execution; unexpected storage writes from
+            //   delegatecall targets may violate simulation rules.
+            //   Resolution: Delegatecall is supported but callers (Kernel.execute,
+            //   executeFromExecutor) must ensure the delegate target is trusted. Currently
+            //   there is no on-chain whitelist for delegatecall targets — access control relies
+            //   on the validator/executor permission model. Consider adding a registry-based
+            //   target restriction for higher security guarantees.
             returnData = new bytes[](1);
             (address delegate, bytes calldata callData) = LibERC7579.decodeDelegate(executionCalldata);
             bool success;

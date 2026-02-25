@@ -37,6 +37,10 @@ ValidationMode constant VALIDATION_MODE_ENABLE = ValidationMode.wrap(0x01);
 ValidationMode constant VALIDATION_MODE_INSTALL = ValidationMode.wrap(0x02);
 
 // --- Kernel validation types ---
+// Note: VALIDATION_TYPE_ROOT and VALIDATION_TYPE_7702 share the same value (0x00).
+// EIP-7702 authorization-based initialization uses the same validation type as root because
+// both represent "owner-level" authority. Disambiguation happens at the nonce prefix level
+// in ValidationManager, not at the type level.
 ValidationType constant VALIDATION_TYPE_ROOT = ValidationType.wrap(0x00);
 ValidationType constant VALIDATION_TYPE_7702 = ValidationType.wrap(0x00);
 ValidationType constant VALIDATION_TYPE_VALIDATOR = ValidationType.wrap(0x01);

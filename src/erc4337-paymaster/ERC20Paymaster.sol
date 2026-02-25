@@ -213,13 +213,21 @@ contract ERC20Paymaster is BasePaymaster {
         // Calculate max token cost
         uint256 maxTokenCost = getTokenAmount(payload.token, maxCost);
 
-        // Check user has enough balance
+        // Check user has enough balance and allowance.
+        //
+        // [EIP-4337 Bundler Compatibility Warning — External Storage Read in Validation]
+        //   These calls read storage from an external ERC-20 contract during validation.
+        //   EIP-4337's associated storage rule restricts which storage slots can be accessed
+        //   during validation. Arbitrary ERC-20 contract reads may violate this rule, causing
+        //   strict bundlers to reject the UserOp.
+        //   Options to resolve:
+        //   (A) Remove balance/allowance checks here; rely on _postOp's safeTransferFrom failure
+        //   (B) Operate as a staked paymaster to relax the storage access restriction
         uint256 balance = IERC20(payload.token).balanceOf(userOp.sender);
         if (balance < maxTokenCost) {
             revert InsufficientTokenBalance(maxTokenCost, balance);
         }
 
-        // Check user has approved enough
         uint256 allowance = IERC20(payload.token).allowance(userOp.sender, address(this));
         if (allowance < maxTokenCost) {
             revert InsufficientTokenAllowance(maxTokenCost, allowance);

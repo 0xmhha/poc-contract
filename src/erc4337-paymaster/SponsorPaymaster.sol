@@ -126,7 +126,16 @@ contract SponsorPaymaster is BasePaymaster {
             return ("", _packValidationDataFailure(env.validUntil, env.validAfter));
         }
 
-        // Increment nonce to prevent replay
+        // Increment nonce to prevent replay.
+        //
+        // [EIP-4337 Bundler Compatibility Warning — State Change in Validation]
+        //   EIP-4337 simulation rules discourage storage writes during validation because bundlers
+        //   simulate validation off-chain and expect deterministic results. A state change here
+        //   means simulation and on-chain execution may produce different storage states, which
+        //   strict bundlers (e.g., public mempools) may reject.
+        //   This paymaster is designed for trusted/whitelisted bundler environments. For public
+        //   mempool compatibility, consider moving nonce consumption to _postOp or removing it
+        //   entirely in favor of the EntryPoint's built-in nonce management.
         senderNonce[userOp.sender]++;
 
         // Emit event for tracking
