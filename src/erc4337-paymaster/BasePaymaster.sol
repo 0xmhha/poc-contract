@@ -118,6 +118,7 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
      * @notice Add deposit to EntryPoint for this paymaster
      */
     function deposit() public payable {
+        if (msg.value < MIN_DEPOSIT) revert InsufficientDeposit(MIN_DEPOSIT, msg.value);
         ENTRYPOINT.depositTo{ value: msg.value }(address(this));
     }
 

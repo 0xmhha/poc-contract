@@ -388,7 +388,17 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     }
 
     function execute(ExecMode execMode, bytes calldata executionCalldata) external payable onlyEntryPointOrSelfOrRoot {
+        ValidationStorage storage vs = _validationStorage();
+        IHook hook = vs.validationConfig[vs.rootValidator].hook;
+        bytes memory context;
+        bool callHook = address(hook) != HOOK_MODULE_INSTALLED && address(hook) != HOOK_MODULE_NOT_INSTALLED;
+        if (callHook) {
+            context = _doPreHook(hook, msg.value, msg.data);
+        }
         ExecLib.execute(execMode, executionCalldata);
+        if (callHook) {
+            _doPostHook(hook, context);
+        }
     }
 
     function installModule(uint256 moduleType, address module, bytes calldata initData)
@@ -559,7 +569,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     }
 
     function supportsModule(uint256 moduleTypeId) external pure override returns (bool) {
-        return moduleTypeId < 7;
+        return moduleTypeId > 0 && moduleTypeId < 7;
     }
 
     /// @notice Check if a module is installed.
