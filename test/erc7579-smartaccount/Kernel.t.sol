@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { EntryPoint } from "../../src/erc4337-entrypoint/EntryPoint.sol";
-import { IEntryPoint } from "../../src/erc7579-smartaccount/interfaces/IEntryPoint.sol";
+import { IEntryPoint } from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
 import { IStakeManager } from "../../src/erc4337-entrypoint/interfaces/IStakeManager.sol";
 import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import { Kernel } from "../../src/erc7579-smartaccount/Kernel.sol";

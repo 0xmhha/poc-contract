@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { WeightedECDSAValidator } from "../../src/erc7579-validators/WeightedECDSAValidator.sol";
-import { PackedUserOperation } from "../../src/erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_FAILED_UINT,
     MODULE_TYPE_VALIDATOR,

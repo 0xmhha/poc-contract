@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import { KernelFactory } from "./KernelFactory.sol";
-import { IEntryPoint } from "../interfaces/IEntryPoint.sol";
+import { IEntryPoint } from "../../erc4337-entrypoint/interfaces/IEntryPoint.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 
 contract FactoryStaker is Ownable {

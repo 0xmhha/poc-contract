@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 // forge-lint: disable-next-line(unused-import)
 import { Script, console } from "forge-std/Script.sol";
 import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
-import { IEntryPoint } from "../../src/erc7579-smartaccount/interfaces/IEntryPoint.sol";
+import { IEntryPoint } from "../../src/erc4337-entrypoint/interfaces/IEntryPoint.sol";
 import { Kernel } from "../../src/erc7579-smartaccount/Kernel.sol";
 import { KernelFactory } from "../../src/erc7579-smartaccount/factory/KernelFactory.sol";
 import { FactoryStaker } from "../../src/erc7579-smartaccount/factory/FactoryStaker.sol";

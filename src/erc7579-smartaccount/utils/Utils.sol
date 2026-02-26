@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { PackedUserOperation } from "../interfaces/PackedUserOperation.sol";
+import { PackedUserOperation } from "../../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 
 function calldataKeccak(bytes calldata data) pure returns (bytes32 ret) {
     assembly ("memory-safe") {

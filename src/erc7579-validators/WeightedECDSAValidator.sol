@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import { ValidAfter, ValidUntil, packValidationData } from "../erc7579-smartaccount/types/Types.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
 import { EIP712 } from "solady/utils/EIP712.sol";
-import { PackedUserOperation } from "../erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { PackedUserOperation } from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import { IValidator } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import {
     ERC1271_MAGICVALUE,

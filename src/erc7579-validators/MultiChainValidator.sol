@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import { ECDSA } from "solady/utils/ECDSA.sol";
 import { MerkleProofLib } from "solady/utils/MerkleProofLib.sol";
 import { IValidator, IHook } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import { PackedUserOperation } from "../erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { PackedUserOperation } from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_SUCCESS_UINT,
     SIG_VALIDATION_FAILED_UINT,

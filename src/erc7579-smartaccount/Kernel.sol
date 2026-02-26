@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { PackedUserOperation } from "./interfaces/PackedUserOperation.sol";
+import { PackedUserOperation } from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import { IAccount, ValidationData } from "./interfaces/IAccount.sol";
-import { IEntryPoint } from "./interfaces/IEntryPoint.sol";
+import { IEntryPoint } from "../erc4337-entrypoint/interfaces/IEntryPoint.sol";
 import { IAccountExecute } from "./interfaces/IAccountExecute.sol";
 import { IERC7579Account } from "./interfaces/IERC7579Account.sol";
 import { ModuleLib } from "./utils/ModuleLib.sol";

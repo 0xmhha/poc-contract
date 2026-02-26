@@ -21,7 +21,6 @@ import { IPriceOracle } from "../../src/erc4337-paymaster/interfaces/IPriceOracl
 import { IPermit2 } from "../../src/permit2/interfaces/IPermit2.sol";
 
 // ============ ERC-7579 Smart Account ============
-import { IEntryPoint as IKernelEntryPoint } from "../../src/erc7579-smartaccount/interfaces/IEntryPoint.sol";
 import { Kernel } from "../../src/erc7579-smartaccount/Kernel.sol";
 import { KernelFactory } from "../../src/erc7579-smartaccount/factory/KernelFactory.sol";
 import { FactoryStaker } from "../../src/erc7579-smartaccount/factory/FactoryStaker.sol";
@@ -248,7 +247,7 @@ contract DeployAllScript is DeploymentHelper {
 
         // 1. Kernel Implementation
         if (_getAddress(DeploymentAddresses.KEY_KERNEL) == address(0)) {
-            Kernel kernel = new Kernel(IKernelEntryPoint(entryPointAddr));
+            Kernel kernel = new Kernel(IEntryPoint(entryPointAddr));
             _setAddress(DeploymentAddresses.KEY_KERNEL, address(kernel));
             console.log("  [NEW] Kernel:", address(kernel));
         } else {

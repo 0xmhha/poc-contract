@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import { IValidator, IModule, IExecutor, IHook, IPolicy, ISigner } from "../interfaces/IERC7579Modules.sol";
 import { IERC7579Account } from "../interfaces/IERC7579Account.sol";
-import { PackedUserOperation } from "../interfaces/PackedUserOperation.sol";
+import { PackedUserOperation } from "../../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import { SelectorManager } from "./SelectorManager.sol";
 import { HookManager } from "./HookManager.sol";
 import { ExecutorManager } from "./ExecutorManager.sol";

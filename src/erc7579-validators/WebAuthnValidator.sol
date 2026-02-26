@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { IValidator } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import { PackedUserOperation } from "../erc7579-smartaccount/interfaces/PackedUserOperation.sol";
+import { PackedUserOperation } from "../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_SUCCESS_UINT,
     SIG_VALIDATION_FAILED_UINT,

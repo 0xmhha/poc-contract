@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-import { PackedUserOperation } from "./PackedUserOperation.sol";
+import { PackedUserOperation } from "../../erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 
 interface IModule {
     error AlreadyInitialized(address smartAccount);
