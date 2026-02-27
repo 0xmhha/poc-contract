@@ -15,6 +15,27 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  *      - EntryPoint reference and access control
  *      - Deposit and stake management
  *      - Helper functions for validation data
+ *
+ * ## EIP-4337 Public Mempool Compatibility Policy
+ *
+ * **Decision: Private/Trusted Bundler Only (PoC Phase)**
+ *
+ * Several derived paymasters perform state changes during the validation phase
+ * (`_validatePaymasterUserOp`), which violates EIP-4337 simulation determinism rules.
+ * Public mempool bundlers (Stackup, Pimlico, Alchemy, etc.) will reject these operations.
+ *
+ * Known validation-phase violations:
+ *   - VerifyingPaymaster: `senderNonce[sender]++` (internal storage write)
+ *   - SponsorPaymaster:   `senderNonce[sender]++` (internal storage write)
+ *   - Permit2Paymaster:   `PERMIT2.permit()` (external contract state write — most severe)
+ *   - ERC20Paymaster:     `balanceOf()` / `allowance()` (external storage reads)
+ *
+ * For future public mempool support, the following changes are required:
+ *   1. Move `senderNonce++` to `_postOp` or remove in favor of EntryPoint's built-in nonce
+ *   2. Move `PERMIT2.permit()` to `_postOp` or require pre-approval before UserOp submission
+ *   3. Operate ERC20Paymaster as a staked paymaster to relax associated storage rules
+ *
+ * See individual contract warnings for detailed remediation guidance.
  */
 abstract contract BasePaymaster is IPaymaster, Ownable {
     IEntryPoint public immutable ENTRYPOINT;

@@ -173,21 +173,21 @@ contract KernelModuleGuardsTest is Test {
                     uninstallModule — OnUninstallFailed
     //////////////////////////////////////////////////////////////*/
 
-    function test_UninstallModule_OnUninstallFailed_Reverts() public {
+    function test_UninstallModule_OnUninstallFailed_StillRemovesModule() public {
         address account = _createKernelAccount();
 
         // Install executor whose onUninstall always reverts
         vm.prank(account);
         Kernel(payable(account)).installModule(MODULE_TYPE_EXECUTOR, address(revertingExecutor), _executorInitData());
+        assertTrue(Kernel(payable(account)).isModuleInstalled(MODULE_TYPE_EXECUTOR, address(revertingExecutor), hex""));
 
-        // Uninstall should propagate failure
+        // Uninstall should succeed even when onUninstall reverts
+        // (ExcessivelySafeCall catches the revert, module is removed regardless)
         vm.prank(account);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Kernel.ModuleOnUninstallFailed.selector, MODULE_TYPE_EXECUTOR, address(revertingExecutor)
-            )
-        );
         Kernel(payable(account)).uninstallModule(MODULE_TYPE_EXECUTOR, address(revertingExecutor), hex"");
+
+        // Module must be removed
+        assertFalse(Kernel(payable(account)).isModuleInstalled(MODULE_TYPE_EXECUTOR, address(revertingExecutor), hex""));
     }
 
     /* //////////////////////////////////////////////////////////////

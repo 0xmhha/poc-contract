@@ -57,11 +57,15 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     error ModuleAlreadyInstalled(uint256 moduleType, address module);
     error ModuleNotInstalled(uint256 moduleType, address module);
     error ModuleOnUninstallFailed(uint256 moduleType, address module);
+    error ExecutorCannotCallSelf();
 
     event Received(address sender, uint256 amount);
     event Upgraded(address indexed implementation);
 
     IEntryPoint public immutable ENTRYPOINT;
+
+    // keccak256("kernel.executorContext")
+    bytes32 private constant _EXECUTOR_CONTEXT_SLOT = 0x94d32978c622e74e02b217b68ed0f70d5794e5d8e2d849356126ce0119977d0c;
 
     // NOTE : when eip 1153 has been enabled, this can be transient storage
     mapping(bytes32 userOpHash => IHook) internal executionHook;
@@ -99,7 +103,17 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     }
 
     function _checkEntryPointOrSelfOrRoot() internal returns (bytes memory) {
-        if (msg.sender != address(ENTRYPOINT) && msg.sender != address(this)) {
+        if (msg.sender == address(this)) {
+            // Self-calls are only allowed outside of executor context
+            // (legitimate self-call: address(this).call(initConfig[i]) in initialize())
+            uint256 inExecutorContext;
+            assembly { inExecutorContext := tload(_EXECUTOR_CONTEXT_SLOT) }
+            if (inExecutorContext != 0) {
+                revert ExecutorCannotCallSelf();
+            }
+            return "";
+        }
+        if (msg.sender != address(ENTRYPOINT)) {
             IValidator validator = ValidatorLib.getValidator(_validationStorage().rootValidator);
             if (validator.isModuleType(4)) {
                 return IHook(address(validator)).preCheck(msg.sender, msg.value, msg.data);
@@ -381,7 +395,9 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         if (callHook) {
             context = _doPreHook(hook, msg.value, msg.data);
         }
+        assembly { tstore(_EXECUTOR_CONTEXT_SLOT, 1) }
         returnData = ExecLib.execute(execMode, executionCalldata);
+        assembly { tstore(_EXECUTOR_CONTEXT_SLOT, 0) }
         if (callHook) {
             _doPostHook(hook, context);
         }
@@ -561,10 +577,8 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         } else {
             revert InvalidModuleType();
         }
-        bool success = ModuleLib.uninstallModule(module, deInitData);
-        if (!success) {
-            revert ModuleOnUninstallFailed(moduleType, module);
-        }
+        ModuleLib.uninstallModule(module, deInitData);
+        // onUninstall failure is tracked via the ModuleUninstallResult event emitted by ModuleLib
         emit ModuleUninstalled(moduleType, module);
     }
 
