@@ -11,7 +11,7 @@
 #   Phase 2: Modules (Validators, Hooks, Fallbacks, Executors)
 #   Phase 3: Features (Compliance, Privacy, Permit2)
 #   Phase 4: DeFi (UniswapV3, DeFi, Paymasters)
-#   Config:  Paymaster setup (deposit, token, whitelist, budget, bundler, factory)
+#   Config:  Paymaster setup (deposit, token, bundler, factory)
 #
 # Usage:
 #   ./script/deploy-all.sh [options]

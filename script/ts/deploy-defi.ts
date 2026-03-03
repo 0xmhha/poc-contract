@@ -70,12 +70,13 @@ const CONTRACTS = [
 const NATIVE_COIN_ADAPTER = "0x0000000000000000000000000000000000001000";
 
 // Default StakingVault config values (must match deployment script)
+// Relaxed defaults for easier testing
 const DEFAULT_STAKING_CONFIG = {
-  rewardRate: process.env.REWARD_RATE || "1000000000000000", // 1e15
-  lockPeriod: process.env.LOCK_PERIOD || String(7 * 24 * 60 * 60), // 7 days
+  rewardRate: process.env.REWARD_RATE || "10000000000000000", // 1e16 (0.01 tokens/sec, 10x)
+  lockPeriod: process.env.LOCK_PERIOD || "300", // 5 minutes (short for testing)
   earlyWithdrawPenalty: process.env.EARLY_WITHDRAW_PENALTY || "1000", // 10%
   maxStake: process.env.MAX_STAKE || "0", // unlimited
-  minStake: process.env.MIN_STAKE || "1000000000000000000", // 1e18
+  minStake: process.env.MIN_STAKE || "1000000000000000", // 1e15 (0.001 token, low for testing)
   isActive: true,
 };
 
@@ -143,6 +144,7 @@ function buildDeployCommand(options: {
     options.rpcUrl,
     "--private-key",
     options.privateKey,
+    "--non-interactive",
   ];
 
   if (options.broadcast) {
@@ -361,8 +363,8 @@ function main(): void {
   // Get staking token info
   const stakingToken = process.env.STAKING_TOKEN || NATIVE_COIN_ADAPTER;
   const rewardToken = process.env.REWARD_TOKEN || stakingToken;
-  const rewardRate = process.env.REWARD_RATE || "1000000000000000"; // 1e15
-  const lockPeriod = process.env.LOCK_PERIOD || String(7 * 24 * 60 * 60); // 7 days
+  const rewardRate = process.env.REWARD_RATE || "10000000000000000"; // 1e16 (0.01 tokens/sec)
+  const lockPeriod = process.env.LOCK_PERIOD || "300"; // 5 minutes (short for testing)
   const earlyWithdrawPenalty = process.env.EARLY_WITHDRAW_PENALTY || "1000"; // 10%
 
   console.log(`RPC URL: ${rpcUrl}`);
@@ -377,7 +379,7 @@ function main(): void {
   console.log(`  Staking Token: ${stakingToken}`);
   console.log(`  Reward Token: ${rewardToken}`);
   console.log(`  Reward Rate: ${rewardRate} per second`);
-  console.log(`  Lock Period: ${parseInt(lockPeriod) / 86400} days`);
+  console.log(`  Lock Period: ${parseInt(lockPeriod) >= 86400 ? parseInt(lockPeriod) / 86400 + " days" : parseInt(lockPeriod) / 60 + " minutes"}`);
   console.log(`  Early Withdraw Penalty: ${parseInt(earlyWithdrawPenalty) / 100}%`);
   console.log("-".repeat(60));
   console.log("Contracts to deploy:");

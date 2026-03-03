@@ -9,6 +9,7 @@ import { IEntryPoint } from "../../src/erc4337-entrypoint/interfaces/IEntryPoint
 import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import { EntryPoint } from "../../src/erc4337-entrypoint/EntryPoint.sol";
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract SponsorPaymasterTest is Test {
     using MessageHashUtils for bytes32;
@@ -64,7 +65,7 @@ contract SponsorPaymasterTest is Test {
         address newSigner = makeAddr("newSigner");
 
         vm.prank(user);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         paymaster.setVerifyingSigner(newSigner);
     }
 

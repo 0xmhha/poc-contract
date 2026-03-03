@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { OptimisticVerifier } from "../../src/bridge/OptimisticVerifier.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract OptimisticVerifierTest is Test {
     OptimisticVerifier public verifier;
@@ -470,7 +471,7 @@ contract OptimisticVerifierTest is Test {
         verifier.pause();
 
         vm.prank(bridge);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         verifier.submitRequest(
             keccak256("req"), makeAddr("sender"), makeAddr("recipient"), makeAddr("token"), 1000, 1, 137
         );

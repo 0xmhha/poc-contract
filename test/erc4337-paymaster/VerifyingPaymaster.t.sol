@@ -9,6 +9,7 @@ import { IEntryPoint } from "../../src/erc4337-entrypoint/interfaces/IEntryPoint
 import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import { EntryPoint } from "../../src/erc4337-entrypoint/EntryPoint.sol";
 import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract VerifyingPaymasterTest is Test {
     using MessageHashUtils for bytes32;
@@ -62,7 +63,7 @@ contract VerifyingPaymasterTest is Test {
         address newSigner = makeAddr("newSigner");
 
         vm.prank(user);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         paymaster.setVerifyingSigner(newSigner);
     }
 
@@ -110,7 +111,7 @@ contract VerifyingPaymasterTest is Test {
         (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(userOp, bytes32(0), 1 ether);
 
         // Check result
-        assertTrue(context.length > 0);
+        assertEq(context.length, 0, "VerifyingPaymaster returns empty context on success");
         // Extract sigFail from validationData (lowest 20 bytes should be 0 for success)
         // forge-lint: disable-next-line(unsafe-typecast)
         address sigFail = address(uint160(validationData));

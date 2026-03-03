@@ -32,6 +32,7 @@ contract KernelTest is Test {
     address public owner;
     uint256 public ownerKey;
     address public beneficiary;
+    address public senderCreator;
 
     // Gas limits for UserOp
     uint128 constant VERIFICATION_GAS_LIMIT = 1_000_000;
@@ -54,10 +55,13 @@ contract KernelTest is Test {
         kernelImpl = new Kernel(IEntryPoint(address(entryPoint)));
 
         // Deploy KernelFactory
-        kernelFactory = new KernelFactory(address(kernelImpl));
+        kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)));
 
         // Deploy ECDSAValidator
         ecdsaValidator = new ECDSAValidator();
+
+        // Cache SenderCreator address (immutable after EntryPoint deploy)
+        senderCreator = address(entryPoint.senderCreator());
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -93,15 +97,16 @@ contract KernelTest is Test {
             Kernel.initialize, (rootValidator, IHook(HOOK_MODULE_INSTALLED), validatorData, hex"", initConfig)
         );
 
-        // Create account through factory
+        // Create account through factory (must call from SenderCreator)
         bytes32 salt = bytes32(uint256(1));
+        vm.prank(senderCreator);
         address accountAddr = kernelFactory.createAccount(initData, salt);
 
         assertNotEq(accountAddr, address(0), "Account should be created");
 
         // Verify account is initialized
         Kernel account = Kernel(payable(accountAddr));
-        assertEq(account.accountId(), "kernel.advanced.v0.3.3", "Account ID should match");
+        assertEq(account.accountId(), "kernel.advanced.0.3.3", "Account ID should match");
     }
 
     function test_GetAccountAddress() public {
@@ -119,7 +124,8 @@ contract KernelTest is Test {
         // Get predicted address
         address predictedAddr = kernelFactory.getAddress(initData, salt);
 
-        // Create account
+        // Create account (must call from SenderCreator)
+        vm.prank(senderCreator);
         address actualAddr = kernelFactory.createAccount(initData, salt);
 
         assertEq(predictedAddr, actualAddr, "Predicted address should match actual");
@@ -137,7 +143,10 @@ contract KernelTest is Test {
 
         bytes32 salt = bytes32(uint256(42));
 
+        // Must call from SenderCreator
+        vm.prank(senderCreator);
         address first = kernelFactory.createAccount(initData, salt);
+        vm.prank(senderCreator);
         address second = kernelFactory.createAccount(initData, salt);
 
         assertEq(first, second, "Same salt should produce same address");
@@ -258,7 +267,7 @@ contract KernelTest is Test {
         ops[0] = userOp;
 
         vm.prank(beneficiary, beneficiary);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, 0, "AA24 signature error"));
         entryPoint.handleOps(ops, payable(beneficiary));
     }
 
@@ -319,6 +328,9 @@ contract KernelTest is Test {
         );
 
         bytes32 salt = bytes32(uint256(uint160(accountOwner)));
+
+        // KernelFactory requires calls from EntryPoint's SenderCreator
+        vm.prank(senderCreator);
         return kernelFactory.createAccount(initData, salt);
     }
 

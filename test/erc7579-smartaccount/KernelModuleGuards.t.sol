@@ -63,17 +63,20 @@ contract KernelModuleGuardsTest is Test {
 
     address public owner;
     uint256 public ownerKey;
+    address public senderCreator;
 
     function setUp() public {
         (owner, ownerKey) = makeAddrAndKey("owner");
 
         entryPoint = new EntryPoint();
         kernelImpl = new Kernel(IEntryPoint(address(entryPoint)));
-        kernelFactory = new KernelFactory(address(kernelImpl));
+        kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)));
         ecdsaValidator = new ECDSAValidator();
         mockExecutor = new MockGuardExecutor();
         mockFallback = new MockGuardFallback();
         revertingExecutor = new RevertingUninstallExecutor();
+
+        senderCreator = address(entryPoint.senderCreator());
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -173,7 +176,7 @@ contract KernelModuleGuardsTest is Test {
                     uninstallModule — OnUninstallFailed
     //////////////////////////////////////////////////////////////*/
 
-    function test_UninstallModule_OnUninstallFailed_StillRemovesModule() public {
+    function test_UninstallModule_OnUninstallFailed_Reverts() public {
         address account = _createKernelAccount();
 
         // Install executor whose onUninstall always reverts
@@ -181,13 +184,16 @@ contract KernelModuleGuardsTest is Test {
         Kernel(payable(account)).installModule(MODULE_TYPE_EXECUTOR, address(revertingExecutor), _executorInitData());
         assertTrue(Kernel(payable(account)).isModuleInstalled(MODULE_TYPE_EXECUTOR, address(revertingExecutor), hex""));
 
-        // Uninstall should succeed even when onUninstall reverts
-        // (ExcessivelySafeCall catches the revert, module is removed regardless)
+        // Uninstall should revert with ModuleOnUninstallFailed
+        // (Kernel propagates the onUninstall failure to the caller)
         vm.prank(account);
+        vm.expectRevert(
+            abi.encodeWithSelector(Kernel.ModuleOnUninstallFailed.selector, MODULE_TYPE_EXECUTOR, address(revertingExecutor))
+        );
         Kernel(payable(account)).uninstallModule(MODULE_TYPE_EXECUTOR, address(revertingExecutor), hex"");
 
-        // Module must be removed
-        assertFalse(Kernel(payable(account)).isModuleInstalled(MODULE_TYPE_EXECUTOR, address(revertingExecutor), hex""));
+        // Module remains installed because uninstall reverted
+        assertTrue(Kernel(payable(account)).isModuleInstalled(MODULE_TYPE_EXECUTOR, address(revertingExecutor), hex""));
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -301,6 +307,9 @@ contract KernelModuleGuardsTest is Test {
         );
 
         bytes32 salt = bytes32(uint256(uint160(owner)));
+
+        // KernelFactory requires calls from EntryPoint's SenderCreator
+        vm.prank(senderCreator);
         return kernelFactory.createAccount(initData, salt);
     }
 

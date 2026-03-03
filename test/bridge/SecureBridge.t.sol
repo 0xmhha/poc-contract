@@ -8,6 +8,8 @@ import { OptimisticVerifier } from "../../src/bridge/OptimisticVerifier.sol";
 import { BridgeRateLimiter } from "../../src/bridge/BridgeRateLimiter.sol";
 import { BridgeGuardian } from "../../src/bridge/BridgeGuardian.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract MockERC20 is IERC20 {
     string public name = "Mock Token";
@@ -307,7 +309,7 @@ contract SecureBridgeTest is Test {
 
         // The underlying ECDSA library may throw ECDSAInvalidSignature for malformed signatures
         // before reaching SecureBridge's InvalidSignatures check
-        vm.expectRevert();
+        vm.expectRevert(ECDSA.ECDSAInvalidSignature.selector);
         bridge.completeBridge(
             requestId,
             sender,
@@ -579,7 +581,7 @@ contract SecureBridgeTest is Test {
         token.approve(address(bridge), 1000 * 1e18);
 
         vm.prank(sender);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         bridge.initiateBridge(
             address(token), 1000 * 1e18, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours
         );

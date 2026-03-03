@@ -300,7 +300,7 @@ contract EntryPointTest is Test {
 
         // Expect revert
         vm.prank(beneficiary, beneficiary);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, 0, "AA24 signature error"));
         entryPoint.handleOps(ops, payable(beneficiary));
     }
 

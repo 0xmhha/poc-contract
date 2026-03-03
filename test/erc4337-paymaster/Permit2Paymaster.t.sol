@@ -13,6 +13,7 @@ import { MockERC20 } from "./mocks/MockERC20.sol";
 import { MockPermit2 } from "./mocks/MockPermit2.sol";
 import { PaymasterDataLib } from "../../src/erc4337-paymaster/PaymasterDataLib.sol";
 import { PaymasterPayload } from "../../src/erc4337-paymaster/PaymasterPayload.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Permit2PaymasterTest is Test {
     Permit2Paymaster public paymaster;
@@ -124,7 +125,7 @@ contract Permit2PaymasterTest is Test {
         MockPriceOracle newOracle = new MockPriceOracle();
 
         vm.prank(user);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         paymaster.setOracle(IPriceOracle(address(newOracle)));
     }
 
@@ -309,8 +310,12 @@ contract Permit2PaymasterTest is Test {
 
         PackedUserOperation memory userOp = _createSampleUserOp(user, address(token));
 
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Permit2Paymaster.StalePrice.selector, block.timestamp - 2 hours, paymaster.MAX_PRICE_STALENESS()
+            )
+        );
         vm.prank(address(entryPoint));
-        vm.expectRevert(); // StalePrice
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
     }
 

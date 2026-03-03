@@ -154,9 +154,10 @@ contract MicroLoanPlugin is IExecutor, Ownable {
 
     // ============ IModule Implementation ============
 
-    function onInstall(bytes calldata) external payable override {
-        // No initialization needed
-    }
+    /// @dev BY DESIGN: No per-account initialization needed.
+    ///      Loan state is created on-demand via requestLoan().
+    ///      onUninstall validates no active loans remain before removal.
+    function onInstall(bytes calldata) external payable override { }
 
     function onUninstall(bytes calldata) external payable override {
         // Check user has no active loans

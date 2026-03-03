@@ -3,6 +3,8 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { BridgeRateLimiter } from "../../src/bridge/BridgeRateLimiter.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract BridgeRateLimiterTest is Test {
     BridgeRateLimiter public limiter;
@@ -48,9 +50,9 @@ contract BridgeRateLimiterTest is Test {
     function test_Constructor_InitializesDefaultLimits() public view {
         BridgeRateLimiter.RateLimitConfig memory config = limiter.getGlobalLimits();
 
-        assertEq(config.maxPerTransaction, 100_000 * PRECISION);
-        assertEq(config.hourlyLimit, 500_000 * PRECISION);
-        assertEq(config.dailyLimit, 5_000_000 * PRECISION);
+        assertEq(config.maxPerTransaction, 10_000_000 * PRECISION);
+        assertEq(config.hourlyLimit, 50_000_000 * PRECISION);
+        assertEq(config.dailyLimit, 500_000_000 * PRECISION);
     }
 
     function test_Constructor_InitializesThresholds() public view {
@@ -103,7 +105,7 @@ contract BridgeRateLimiterTest is Test {
     }
 
     function test_CheckAndRecordTransaction_RevertsOnPerTxLimit() public {
-        uint256 amount = 150_000 * 1e18; // $150,000 exceeds $100K limit
+        uint256 amount = 15_000_000 * 1e18; // $15M exceeds $10M limit
 
         vm.prank(bridge);
         vm.expectRevert(BridgeRateLimiter.ExceedsPerTransactionLimit.selector);
@@ -111,15 +113,15 @@ contract BridgeRateLimiterTest is Test {
     }
 
     function test_CheckAndRecordTransaction_RevertsOnHourlyLimit() public {
-        // Make multiple transactions to exceed hourly limit
-        uint256 amount = 90_000 * 1e18; // $90,000
+        // Make multiple transactions to exceed hourly limit ($50M)
+        uint256 amount = 9_000_000 * 1e18; // $9M
 
         for (uint256 i = 0; i < 5; i++) {
             vm.prank(bridge);
             limiter.checkAndRecordTransaction(token, amount);
         }
 
-        // Next transaction should exceed hourly limit ($450K + $90K > $500K)
+        // Next transaction should exceed hourly limit ($45M + $9M > $50M)
         vm.prank(bridge);
         vm.expectRevert(BridgeRateLimiter.ExceedsHourlyLimit.selector);
         limiter.checkAndRecordTransaction(token, amount);
@@ -163,37 +165,37 @@ contract BridgeRateLimiterTest is Test {
     // ============ Alert and Auto-Pause Tests ============
 
     function test_CheckAndRecordTransaction_TriggersAlert() public {
-        // Set up to hit 80% of hourly limit
-        uint256 amount = 80_000 * 1e18;
+        // Set up to hit 80% of hourly limit ($50M)
+        uint256 amount = 8_000_000 * 1e18;
 
         for (uint256 i = 0; i < 4; i++) {
             vm.prank(bridge);
             limiter.checkAndRecordTransaction(token, amount);
         }
 
-        // Next transaction should trigger alert (320K + 80K = 400K = 80% of 500K)
+        // Next transaction should trigger alert (32M + 8M = 40M = 80% of 50M)
         vm.prank(bridge);
         vm.expectEmit(false, false, false, true);
-        emit AlertTriggered("hourly", 400_000 * PRECISION, 500_000 * PRECISION, 80);
+        emit AlertTriggered("hourly", 40_000_000 * PRECISION, 50_000_000 * PRECISION, 80);
         limiter.checkAndRecordTransaction(token, amount);
     }
 
     function test_CheckAndRecordTransaction_TriggersAutoPause() public {
         // Set up to hit 95% of hourly limit
-        // Hourly limit is 500K, 95% = 475K
-        uint256 amount = 95_000 * 1e18;
+        // Hourly limit is $50M, 95% = $47.5M
+        uint256 amount = 9_500_000 * 1e18;
 
-        // Make 4 transactions: 4 * 95K = 380K
+        // Make 4 transactions: 4 * 9.5M = 38M
         for (uint256 i = 0; i < 4; i++) {
             vm.prank(bridge);
             limiter.checkAndRecordTransaction(token, amount);
         }
 
-        // Verify we're at 76% (380K / 500K)
+        // Verify we're at 76% (38M / 50M)
         (uint256 hourlyPct,) = limiter.getUsagePercentages();
         assertEq(hourlyPct, 76);
 
-        // Next transaction would push us to 475K = 95%
+        // Next transaction would push us to 47.5M = 95%
         // This triggers auto-pause: the contract pauses and returns (false, usdValue)
         // without reverting, so the pause state is persisted
         vm.prank(bridge);
@@ -218,7 +220,7 @@ contract BridgeRateLimiterTest is Test {
     }
 
     function test_CheckTransaction_ReturnsReasonOnFailure() public view {
-        uint256 amount = 150_000 * 1e18;
+        uint256 amount = 15_000_000 * 1e18; // $15M exceeds $10M per-tx limit
 
         (bool allowed, string memory reason) = limiter.checkTransaction(token, amount);
 
@@ -229,25 +231,25 @@ contract BridgeRateLimiterTest is Test {
     function test_GetRemainingCapacity() public view {
         (uint256 perTx, uint256 hourly, uint256 daily) = limiter.getRemainingCapacity();
 
-        assertEq(perTx, 100_000 * PRECISION);
-        assertEq(hourly, 500_000 * PRECISION);
-        assertEq(daily, 5_000_000 * PRECISION);
+        assertEq(perTx, 10_000_000 * PRECISION);
+        assertEq(hourly, 50_000_000 * PRECISION);
+        assertEq(daily, 500_000_000 * PRECISION);
     }
 
     function test_GetRemainingCapacity_AfterTransactions() public {
         vm.prank(bridge);
-        limiter.checkAndRecordTransaction(token, 100_000 * 1e18);
+        limiter.checkAndRecordTransaction(token, 10_000_000 * 1e18);
 
         (uint256 perTx, uint256 hourly, uint256 daily) = limiter.getRemainingCapacity();
 
-        assertEq(perTx, 100_000 * PRECISION); // Per-tx limit is always full
-        assertEq(hourly, 400_000 * PRECISION);
-        assertEq(daily, 4_900_000 * PRECISION);
+        assertEq(perTx, 10_000_000 * PRECISION); // Per-tx limit is always full
+        assertEq(hourly, 40_000_000 * PRECISION);
+        assertEq(daily, 490_000_000 * PRECISION);
     }
 
     function test_GetUsagePercentages() public {
         vm.prank(bridge);
-        limiter.checkAndRecordTransaction(token, 50_000 * 1e18); // 10% hourly, 1% daily
+        limiter.checkAndRecordTransaction(token, 5_000_000 * 1e18); // 10% of $50M hourly, 1% of $500M daily
 
         (uint256 hourlyPct, uint256 dailyPct) = limiter.getUsagePercentages();
 
@@ -433,7 +435,7 @@ contract BridgeRateLimiterTest is Test {
         limiter.pause();
 
         vm.prank(bridge);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         limiter.checkAndRecordTransaction(token, 1000);
     }
 
@@ -497,8 +499,9 @@ contract BridgeRateLimiterTest is Test {
     // ============ Owner-Only Tests ============
 
     function test_OnlyOwner_SetGlobalLimits() public {
-        vm.prank(makeAddr("random"));
-        vm.expectRevert();
+        address random = makeAddr("random");
+        vm.prank(random);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, random));
         limiter.setGlobalLimits(100, 200, 300);
     }
 

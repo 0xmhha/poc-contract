@@ -15,8 +15,9 @@ import {
     ValidationType,
     PermissionId
 } from "./core/ValidationManager.sol";
-import { IValidator, IHook, IExecutor } from "./interfaces/IERC7579Modules.sol";
+import { IValidator, IHook, IExecutor, IModule } from "./interfaces/IERC7579Modules.sol";
 import { ExecLib } from "./utils/ExecLib.sol";
+import { LibERC7579 } from "solady/accounts/LibERC7579.sol";
 import { ExecMode, CallType, ExecType, ExecModeSelector, ExecModePayload } from "./types/Types.sol";
 import {
     CALLTYPE_SINGLE,
@@ -58,14 +59,29 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     error ModuleNotInstalled(uint256 moduleType, address module);
     error ModuleOnUninstallFailed(uint256 moduleType, address module);
     error ExecutorCannotCallSelf();
+    error Reentrancy();
+    error DelegatecallTargetNotWhitelisted(address target);
 
     event Received(address sender, uint256 amount);
     event Upgraded(address indexed implementation);
+    event DelegatecallWhitelistUpdated(address indexed target, bool allowed);
+    event DelegatecallWhitelistEnforced(bool enforce);
 
     IEntryPoint public immutable ENTRYPOINT;
 
     // keccak256("kernel.executorContext")
     bytes32 private constant _EXECUTOR_CONTEXT_SLOT = 0x94d32978c622e74e02b217b68ed0f70d5794e5d8e2d849356126ce0119977d0c;
+
+    // keccak256("kernel.moduleInstallLock")
+    bytes32 private constant _MODULE_INSTALL_LOCK_SLOT = 0x841c5cbc25998af79f1533f1264d641476b7f439c719e42efd0edf29c24ff93d;
+
+    // keccak256("kernel.delegatecallWhitelist")
+    bytes32 private constant _DELEGATECALL_WHITELIST_SLOT = 0x2ac218ac6989b584ade6c80b6dcf91742a664d5253adfaec93c4b5d66f9d3785;
+
+    struct DelegatecallWhitelistStorage {
+        mapping(address => bool) allowed;
+        bool enforceWhitelist; // false = not enforced (default, backward compatible)
+    }
 
     // NOTE : when eip 1153 has been enabled, this can be transient storage
     mapping(bytes32 userOpHash => IHook) internal executionHook;
@@ -87,6 +103,37 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         bytes memory hookRet = _checkEntryPointOrSelfOrRoot();
         _;
         _postCheckHook(hookRet);
+    }
+
+    /// @dev Prevents reentrancy during module install/uninstall.
+    ///      Uses transient storage (EIP-1153) matching the existing _EXECUTOR_CONTEXT_SLOT pattern.
+    modifier nonReentrantModuleOp() {
+        assembly {
+            if tload(_MODULE_INSTALL_LOCK_SLOT) {
+                mstore(0x00, 0xab143c06) // Reentrancy()
+                revert(0x1c, 0x04)
+            }
+            tstore(_MODULE_INSTALL_LOCK_SLOT, 1)
+        }
+        _;
+        assembly {
+            tstore(_MODULE_INSTALL_LOCK_SLOT, 0)
+        }
+    }
+
+    function _delegatecallWhitelistStorage() internal pure returns (DelegatecallWhitelistStorage storage s) {
+        bytes32 slot = _DELEGATECALL_WHITELIST_SLOT;
+        assembly {
+            s.slot := slot
+        }
+    }
+
+    /// @dev Reverts if the delegatecall whitelist is enforced and target is not whitelisted.
+    function _checkDelegatecallTarget(address target) internal view {
+        DelegatecallWhitelistStorage storage wl = _delegatecallWhitelistStorage();
+        if (wl.enforceWhitelist && !wl.allowed[target]) {
+            revert DelegatecallTargetNotWhitelisted(target);
+        }
     }
 
     function _postCheckHook(bytes memory hookRet) internal {
@@ -241,6 +288,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         if (config.callType == CALLTYPE_SINGLE) {
             (success, result) = ExecLib.doFallback2771Call(config.target);
         } else if (config.callType == CALLTYPE_DELEGATECALL) {
+            _checkDelegatecallTarget(config.target);
             (success, result) = ExecLib.executeDelegatecall(config.target, msg.data);
         } else {
             revert NotSupportedCallType();
@@ -385,6 +433,10 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         payable
         returns (bytes[] memory returnData)
     {
+        if (ExecLib.getCallType(execMode) == CALLTYPE_DELEGATECALL) {
+            (address delegate,) = LibERC7579.decodeDelegate(executionCalldata);
+            _checkDelegatecallTarget(delegate);
+        }
         // no modifier needed, checking if msg.sender is registered executor will replace the modifier
         IHook hook = _executorConfig(IExecutor(msg.sender)).hook;
         if (address(hook) == HOOK_MODULE_NOT_INSTALLED) {
@@ -404,6 +456,10 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     }
 
     function execute(ExecMode execMode, bytes calldata executionCalldata) external payable onlyEntryPointOrSelfOrRoot {
+        if (ExecLib.getCallType(execMode) == CALLTYPE_DELEGATECALL) {
+            (address delegate,) = LibERC7579.decodeDelegate(executionCalldata);
+            _checkDelegatecallTarget(delegate);
+        }
         ValidationStorage storage vs = _validationStorage();
         IHook hook = vs.validationConfig[vs.rootValidator].hook;
         bytes memory context;
@@ -422,7 +478,14 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         payable
         override
         onlyEntryPointOrSelfOrRoot
+        nonReentrantModuleOp
     {
+        _installModuleInternal(moduleType, module, initData);
+        emit ModuleInstalled(moduleType, module);
+    }
+
+    /// @dev Shared install logic for installModule and replaceModule.
+    function _installModuleInternal(uint256 moduleType, address module, bytes calldata initData) internal {
         if (moduleType == MODULE_TYPE_VALIDATOR) {
             ValidationStorage storage vs = _validationStorage();
             ValidationId vId = ValidatorLib.validatorToIdentifier(IValidator(module));
@@ -482,7 +545,6 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         } else {
             revert InvalidModuleType();
         }
-        emit ModuleInstalled(moduleType, module);
     }
 
     function grantAccess(ValidationId vId, bytes4 selector, bool allow) external payable onlyEntryPointOrSelfOrRoot {
@@ -494,7 +556,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         ValidationConfig[] memory configs,
         bytes[] calldata validationData,
         bytes[] calldata hookData
-    ) external payable onlyEntryPointOrSelfOrRoot {
+    ) external payable onlyEntryPointOrSelfOrRoot nonReentrantModuleOp {
         _installValidations(vIds, configs, validationData, hookData);
     }
 
@@ -502,12 +564,17 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         external
         payable
         onlyEntryPointOrSelfOrRoot
+        nonReentrantModuleOp
     {
         IHook hook = _clearValidationData(vId);
         ValidationType vType = ValidatorLib.getType(vId);
         if (vType == VALIDATION_TYPE_VALIDATOR) {
             IValidator validator = ValidatorLib.getValidator(vId);
-            ModuleLib.uninstallModule(address(validator), deinitData);
+            // Direct call — validator can reject (revert rolls back _clearValidationData)
+            (bool success,) = address(validator).call(
+                abi.encodeWithSelector(IModule.onUninstall.selector, deinitData)
+            );
+            if (!success) revert ModuleOnUninstallFailed(MODULE_TYPE_VALIDATOR, address(validator));
             emit IERC7579Account.ModuleUninstalled(MODULE_TYPE_VALIDATOR, address(validator));
         } else if (vType == VALIDATION_TYPE_PERMISSION) {
             PermissionId permission = ValidatorLib.getPermissionId(vId);
@@ -522,43 +589,173 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         _invalidateNonce(nonce);
     }
 
+    /// @notice Set a gas limit for a specific hook's preCheck/postCheck calls.
+    ///         0 = unlimited (default). Prevents a malicious hook from consuming
+    ///         all gas and causing account-wide DoS.
+    function setHookGasLimit(IHook hook, uint256 gasLimit) external payable onlyEntryPointOrSelfOrRoot {
+        _hookGasLimitStorage().gasLimit[hook] = gasLimit;
+        emit HookGasLimitSet(address(hook), gasLimit);
+    }
+
+    /// @notice Add or remove a delegatecall target from the whitelist.
+    function setDelegatecallWhitelist(address target, bool allowed) external payable onlyEntryPointOrSelfOrRoot {
+        _delegatecallWhitelistStorage().allowed[target] = allowed;
+        emit DelegatecallWhitelistUpdated(target, allowed);
+    }
+
+    /// @notice Enable or disable delegatecall whitelist enforcement.
+    ///         When false (default), all delegatecall targets are allowed.
+    function setEnforceDelegatecallWhitelist(bool enforce) external payable onlyEntryPointOrSelfOrRoot {
+        _delegatecallWhitelistStorage().enforceWhitelist = enforce;
+        emit DelegatecallWhitelistEnforced(enforce);
+    }
+
+    /// @notice Uninstall a module. The module's onUninstall is called directly,
+    ///         allowing the module to reject removal (e.g., MicroLoanPlugin with active loans).
+    ///         Use forceUninstallModule() for emergency removal of malicious modules.
     function uninstallModule(uint256 moduleType, address module, bytes calldata deInitData)
         external
         payable
         override
         onlyEntryPointOrSelfOrRoot
+        nonReentrantModuleOp
+    {
+        // 1. Validate module is installed, get adjusted deInitData for onUninstall
+        uint256 deInitOffset = _prepareModuleUninstall(moduleType, module, deInitData);
+
+        // 2. Per-module hook pre-check (before state changes)
+        IHook moduleHook = _extractModuleHook(moduleType, module, deInitData);
+        bool callModuleHook = _isActiveHook(moduleHook);
+        bytes memory moduleHookContext;
+        if (callModuleHook) {
+            moduleHookContext = _doPreHook(moduleHook, msg.value, msg.data);
+        }
+
+        // 3. Direct call — module CAN reject (revert wraps as ModuleOnUninstallFailed)
+        (bool success,) = address(module).call(
+            abi.encodeWithSelector(IModule.onUninstall.selector, deInitData[deInitOffset:])
+        );
+        if (!success) revert ModuleOnUninstallFailed(moduleType, module);
+
+        // 4. Clear state (only reached on successful onUninstall)
+        _clearModuleState(moduleType, module, deInitData);
+        emit ModuleUninstalled(moduleType, module);
+
+        // 5. Per-module hook post-check
+        if (callModuleHook) {
+            _doPostHook(moduleHook, moduleHookContext);
+        }
+    }
+
+    /// @notice Force-uninstall a module. State is cleared first, then onUninstall
+    ///         is called via ExcessivelySafeCall (failure does not block removal).
+    ///         Use for emergency removal of malicious or stuck modules.
+    function forceUninstallModule(uint256 moduleType, address module, bytes calldata deInitData)
+        external
+        payable
+        onlyEntryPointOrSelfOrRoot
+        nonReentrantModuleOp
+    {
+        // 1. Validate module is installed, get adjusted deInitData for onUninstall
+        uint256 deInitOffset = _prepareModuleUninstall(moduleType, module, deInitData);
+
+        // 2. Per-module hook pre-check (before state changes)
+        IHook moduleHook = _extractModuleHook(moduleType, module, deInitData);
+        bool callModuleHook = _isActiveHook(moduleHook);
+        bytes memory moduleHookContext;
+        if (callModuleHook) {
+            moduleHookContext = _doPreHook(moduleHook, msg.value, msg.data);
+        }
+
+        // 3. Clear state FIRST (always succeeds, persists even if onUninstall fails)
+        _clearModuleState(moduleType, module, deInitData);
+
+        // 4. ExcessivelySafeCall — failure tracked via ModuleUninstallResult event
+        ModuleLib.uninstallModule(module, deInitData[deInitOffset:]);
+        emit ModuleUninstalled(moduleType, module);
+
+        // 5. Per-module hook post-check
+        if (callModuleHook) {
+            _doPostHook(moduleHook, moduleHookContext);
+        }
+    }
+
+    /// @notice Atomically replace one module with another of the same type.
+    ///         Supported types: VALIDATOR(1), EXECUTOR(2), FALLBACK(3).
+    ///         If the old module's onUninstall reverts, the entire operation reverts (no partial state).
+    ///         If the new module's onInstall reverts, the entire operation reverts (no partial state).
+    /// @param moduleType Module type (1=Validator, 2=Executor, 3=Fallback)
+    /// @param oldModule Address of the module to remove
+    /// @param deInitData De-initialization data for old module
+    /// @param newModule Address of the module to install
+    /// @param initData Initialization data for new module
+    function replaceModule(
+        uint256 moduleType,
+        address oldModule,
+        bytes calldata deInitData,
+        address newModule,
+        bytes calldata initData
+    ) external payable onlyEntryPointOrSelfOrRoot nonReentrantModuleOp {
+        // Only VALIDATOR, EXECUTOR, FALLBACK support atomic replacement
+        if (moduleType != MODULE_TYPE_VALIDATOR && moduleType != MODULE_TYPE_EXECUTOR && moduleType != MODULE_TYPE_FALLBACK) {
+            revert InvalidModuleType();
+        }
+
+        // 1. Validate + extract per-module hook from old module
+        uint256 deInitOffset = _prepareModuleUninstall(moduleType, oldModule, deInitData);
+        IHook moduleHook = _extractModuleHook(moduleType, oldModule, deInitData);
+        bool callModuleHook = _isActiveHook(moduleHook);
+        bytes memory moduleHookContext;
+        if (callModuleHook) {
+            moduleHookContext = _doPreHook(moduleHook, msg.value, msg.data);
+        }
+
+        // 2. Uninstall old module (direct call — can reject)
+        (bool success,) = address(oldModule).call(
+            abi.encodeWithSelector(IModule.onUninstall.selector, deInitData[deInitOffset:])
+        );
+        if (!success) revert ModuleOnUninstallFailed(moduleType, oldModule);
+        _clearModuleState(moduleType, oldModule, deInitData);
+        emit ModuleUninstalled(moduleType, oldModule);
+
+        // 3. Install new module (failure reverts everything = atomicity)
+        _installModuleInternal(moduleType, newModule, initData);
+        emit ModuleInstalled(moduleType, newModule);
+
+        // 4. Per-module hook post-check (old module's hook validates the replacement)
+        if (callModuleHook) {
+            _doPostHook(moduleHook, moduleHookContext);
+        }
+    }
+
+    /// @dev Validates module is installed and returns the byte offset for onUninstall deInitData.
+    ///      For FALLBACK type, offset is 4 (strips selector prefix). All others return 0.
+    function _prepareModuleUninstall(uint256 moduleType, address module, bytes calldata deInitData)
+        internal
+        view
+        returns (uint256 deInitOffset)
     {
         if (moduleType == MODULE_TYPE_VALIDATOR) {
             ValidationId vId = ValidatorLib.validatorToIdentifier(IValidator(module));
             if (_validationStorage().validationConfig[vId].hook == IHook(HOOK_MODULE_NOT_INSTALLED)) {
                 revert ModuleNotInstalled(moduleType, module);
             }
-            _clearValidationData(vId);
         } else if (moduleType == MODULE_TYPE_EXECUTOR) {
             if (address(_executorConfig(IExecutor(module)).hook) == HOOK_MODULE_NOT_INSTALLED) {
                 revert ModuleNotInstalled(moduleType, module);
             }
-            _clearExecutorData(IExecutor(module));
         } else if (moduleType == MODULE_TYPE_FALLBACK) {
             bytes4 selector = bytes4(deInitData[0:4]);
-            (, address target) = _clearSelectorData(selector);
-            if (target == address(0)) {
+            SelectorConfig storage config = _selectorConfig(selector);
+            if (config.target == address(0)) {
                 revert ModuleNotInstalled(moduleType, module);
             }
-            if (target != module) {
+            if (config.target != module) {
                 revert InvalidSelector();
             }
-            deInitData = deInitData[4:];
+            deInitOffset = 4;
         } else if (moduleType == MODULE_TYPE_HOOK) {
-            ValidationId vId = _validationStorage().rootValidator;
-            if (_validationStorage().validationConfig[vId].hook == IHook(module)) {
-                // when root validator hook is being removed
-                // remove hook on root validator to prevent kernel from being locked
-                _validationStorage().validationConfig[vId].hook = IHook(HOOK_MODULE_INSTALLED);
-            }
-            // force call onUninstall for hook
-            // NOTE: for hook, kernel does not support independent hook install,
-            // hook is expected to be paired with proper validator/executor/selector
+            // hooks don't require specific install check
         } else if (moduleType == MODULE_TYPE_POLICY || moduleType == MODULE_TYPE_SIGNER) {
             ValidationId rootValidator = _validationStorage().rootValidator;
             bytes32 permissionId = bytes32(deInitData[0:32]);
@@ -567,19 +764,55 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
                     revert RootValidatorCannotBeRemoved();
                 }
             }
-            // force call onUninstall for policy
-            // NOTE: for policy, kernel does not support independent policy install,
-            // policy is expected to be paired with proper permissionId
-            // to "REMOVE" permission, use "uninstallValidation()" function
-            // NOTE: for signer, kernel does not support independent signer install,
-            // signer is expected to be paired with proper permissionId
-            // to "REMOVE" permission, use "uninstallValidation()" function
         } else {
             revert InvalidModuleType();
         }
-        ModuleLib.uninstallModule(module, deInitData);
-        // onUninstall failure is tracked via the ModuleUninstallResult event emitted by ModuleLib
-        emit ModuleUninstalled(moduleType, module);
+    }
+
+    /// @dev Clears module state from storage.
+    function _clearModuleState(uint256 moduleType, address module, bytes calldata deInitData) internal {
+        if (moduleType == MODULE_TYPE_VALIDATOR) {
+            ValidationId vId = ValidatorLib.validatorToIdentifier(IValidator(module));
+            _clearValidationData(vId);
+        } else if (moduleType == MODULE_TYPE_EXECUTOR) {
+            _clearExecutorData(IExecutor(module));
+        } else if (moduleType == MODULE_TYPE_FALLBACK) {
+            bytes4 selector = bytes4(deInitData[0:4]);
+            _clearSelectorData(selector);
+        } else if (moduleType == MODULE_TYPE_HOOK) {
+            ValidationId vId = _validationStorage().rootValidator;
+            if (_validationStorage().validationConfig[vId].hook == IHook(module)) {
+                _validationStorage().validationConfig[vId].hook = IHook(HOOK_MODULE_INSTALLED);
+            }
+        }
+        // POLICY/SIGNER: state managed via uninstallValidation -> _uninstallPermission
+    }
+
+    /// @dev Extracts the per-module hook for VALIDATOR/EXECUTOR/FALLBACK.
+    ///      Returns IHook(address(0)) for types that don't have per-module hooks (HOOK/POLICY/SIGNER).
+    function _extractModuleHook(uint256 moduleType, address module, bytes calldata deInitData)
+        internal
+        view
+        returns (IHook moduleHook)
+    {
+        if (moduleType == MODULE_TYPE_VALIDATOR) {
+            ValidationId vId = ValidatorLib.validatorToIdentifier(IValidator(module));
+            moduleHook = _validationStorage().validationConfig[vId].hook;
+        } else if (moduleType == MODULE_TYPE_EXECUTOR) {
+            moduleHook = _executorConfig(IExecutor(module)).hook;
+        } else if (moduleType == MODULE_TYPE_FALLBACK) {
+            bytes4 selector = bytes4(deInitData[0:4]);
+            moduleHook = _selectorConfig(selector).hook;
+        }
+        // else: moduleHook remains IHook(address(0)) — sentinel for "no hook"
+    }
+
+    /// @dev Returns true if the hook address represents an actual hook contract
+    ///      (not a sentinel value like NOT_INSTALLED, INSTALLED, or ONLY_ENTRYPOINT).
+    function _isActiveHook(IHook hook) internal pure returns (bool) {
+        return address(hook) != HOOK_MODULE_NOT_INSTALLED
+            && address(hook) != HOOK_MODULE_INSTALLED
+            && address(hook) != HOOK_ONLY_ENTRYPOINT;
     }
 
     function supportsModule(uint256 moduleTypeId) external pure override returns (bool) {
@@ -629,7 +862,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     }
 
     function accountId() external pure override returns (string memory accountImplementationId) {
-        return "kernel.advanced.v0.3.3";
+        return "kernel.advanced.0.3.3";
     }
 
     /// @notice Reports supported execution modes.

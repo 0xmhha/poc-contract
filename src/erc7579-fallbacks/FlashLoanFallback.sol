@@ -443,26 +443,18 @@ contract FlashLoanFallback is IFallback {
     // ============ Internal Functions ============
 
     /**
-     * @dev Extract context from extended ERC-2771 calldata
-     * The smart account appends 40 bytes: [original_caller:20][smart_account:20]
+     * @dev Extract context from ERC-2771 calldata
+     * Kernel appends 20 bytes (original caller) per ERC-2771 standard.
+     * msg.sender is the smart account (Kernel) that forwarded the call.
      * @return originalCaller The original msg.sender of the smart account (e.g., flash loan provider)
-     * @return smartAccount The smart account address
+     * @return smartAccount The smart account address (Kernel)
      */
-    function _extractContext() internal pure returns (address originalCaller, address smartAccount) {
+    function _extractContext() internal view returns (address originalCaller, address smartAccount) {
+        // msg.sender = Kernel (smart account) that called this fallback module
+        smartAccount = msg.sender;
         assembly {
-            // Last 20 bytes = smart account
-            smartAccount := shr(96, calldataload(sub(calldatasize(), 20)))
-            // Previous 20 bytes = original caller (protocol)
-            originalCaller := shr(96, calldataload(sub(calldatasize(), 40)))
-        }
-    }
-
-    /**
-     * @dev Extract only the smart account from ERC-2771 context (backwards compatible)
-     */
-    function _extractMsgSender() internal pure returns (address sender) {
-        assembly {
-            sender := shr(96, calldataload(sub(calldatasize(), 20)))
+            // Last 20 bytes = original caller (appended by Kernel per ERC-2771)
+            originalCaller := shr(96, calldataload(sub(calldatasize(), 20)))
         }
     }
 

@@ -13,7 +13,7 @@ import { FlashLoanFallback } from "../../src/erc7579-fallbacks/FlashLoanFallback
  * @dev Deploys fallback modules for smart account callback handling
  *
  * Fallback Modules:
- *   - TokenReceiverFallback: Handles ERC-721/1155/777 token receive callbacks
+ *   - TokenReceiverFallback: Handles ERC-777 token receive callbacks
  *   - FlashLoanFallback: Handles flash loan callbacks (AAVE, Uniswap, Balancer, ERC-3156)
  *
  * Deployment Order: 6 (after Hooks)
@@ -68,7 +68,7 @@ contract DeployFallbacksScript is DeploymentHelper {
         console.log("TokenReceiverFallback:", address(tokenReceiverFallback));
         console.log("FlashLoanFallback:", address(flashLoanFallback));
         console.log("\nNote: Fallbacks are installed on SmartAccounts via installModule()");
-        console.log("  - TokenReceiverFallback: Use for NFT marketplace, airdrops, DeFi LP tokens");
+        console.log("  - TokenReceiverFallback: Use for ERC-777 token reception (e.g., advanced DeFi tokens)");
         console.log("  - FlashLoanFallback: Use for arbitrage, liquidations, collateral swaps");
     }
 }

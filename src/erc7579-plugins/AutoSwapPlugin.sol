@@ -126,9 +126,10 @@ contract AutoSwapPlugin is IExecutor {
 
     // ============ IModule Implementation ============
 
-    function onInstall(bytes calldata) external payable override {
-        // No initialization needed
-    }
+    /// @dev BY DESIGN: No per-account initialization needed.
+    ///      Orders are created lazily via createOrder(), so state is only
+    ///      allocated when the account actively uses the plugin.
+    function onInstall(bytes calldata) external payable override { }
 
     function onUninstall(bytes calldata) external payable override {
         AccountStorage storage store = accountStorage[msg.sender];

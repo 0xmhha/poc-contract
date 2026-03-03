@@ -4,6 +4,8 @@ pragma solidity ^0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { StealthVault, IStealthVault } from "../../src/privacy/enterprise/StealthVault.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title MockERC20
@@ -291,8 +293,10 @@ contract StealthVaultTest is Test {
 
         // Non-admin tries emergency withdraw
         address random = makeAddr("random");
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, random, vault.EMERGENCY_ROLE())
+        );
         vm.prank(random);
-        vm.expectRevert(); // AccessControl error
         vault.emergencyWithdraw(depositId, random);
     }
 
@@ -345,7 +349,7 @@ contract StealthVaultTest is Test {
         vault.pause();
 
         vm.prank(depositor);
-        vm.expectRevert(); // EnforcedPause
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         vault.depositETH{ value: 1 ether }(testStealthHash);
     }
 

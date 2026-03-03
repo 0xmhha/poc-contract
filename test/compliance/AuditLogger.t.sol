@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { AuditLogger } from "../../src/compliance/AuditLogger.sol";
 
 contract AuditLoggerTest is Test {
@@ -148,8 +149,10 @@ contract AuditLoggerTest is Test {
     }
 
     function test_CreateLog_RevertsOnUnauthorized() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, target, logger.LOGGER_ROLE())
+        );
         vm.prank(target);
-        vm.expectRevert();
         logger.createLog(
             AuditLogger.ActionType.CONFIG_CHANGE,
             target,

@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { BridgeValidator } from "../../src/bridge/BridgeValidator.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract BridgeValidatorTest is Test {
     BridgeValidator public validator;
@@ -461,7 +462,7 @@ contract BridgeValidatorTest is Test {
         BridgeValidator.BridgeMessage memory message = _createTestMessage();
         bytes[] memory signatures = _signMessage(message, THRESHOLD);
 
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         validator.verifyMpcSignatures(message, signatures);
     }
 

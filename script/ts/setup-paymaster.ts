@@ -3,13 +3,14 @@
  * Paymaster Post-Deployment Setup Script
  *
  * Runs ALL paymaster setup tasks after contract deployment:
- *   1. Deposit native token (KRC/ETH) to EntryPoint for all paymasters
- *   2. Add USDC as supported token for ERC20Paymaster
- *   3. Whitelist addresses for SponsorPaymaster
- *   4. Set default budget for SponsorPaymaster
- *   5. Stake bundler in EntryPoint (deposit + addStake)
- *   6. Stake factory in EntryPoint
- *   7. Show final configuration
+ *   1. Transfer paymaster ownership from deployer to paymaster account
+ *   2. Deposit native token (KRC/ETH) to EntryPoint for all paymasters
+ *   3. Add USDC as supported token for ERC20Paymaster
+ *   4. Stake bundler in EntryPoint (deposit + addStake)
+ *   5. Stake factory in EntryPoint
+ *   6. Show final configuration
+ *
+ * Note: SponsorPaymaster uses off-chain policy model (no on-chain whitelist/budget)
  *
  * Usage:
  *   npx ts-node script/ts/setup-paymaster.ts [options]
@@ -18,8 +19,6 @@
  *   --dry-run                 Show what would be executed without running
  *   --skip-deposit            Skip paymaster EntryPoint deposits
  *   --skip-token              Skip ERC20Paymaster token setup
- *   --skip-whitelist          Skip SponsorPaymaster whitelist
- *   --skip-budget             Skip SponsorPaymaster default budget
  *   --skip-bundler            Skip bundler EntryPoint staking
  *   --skip-factory            Skip factory EntryPoint staking
  *   --deposit=<amount>        Override deposit amount per paymaster (default: 10)
@@ -44,26 +43,16 @@ import * as dotenv from "dotenv";
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
-// Default deposit amount per paymaster (in ETH/KRC)
-const DEFAULT_DEPOSIT = "10000";
+// Default deposit amount per paymaster (in ETH/KRC) — generous for testing
+const DEFAULT_DEPOSIT = "100000";
 
-// Default SponsorPaymaster budget
-const DEFAULT_BUDGET_LIMIT = "1"; // 1 ETH per user
-const DEFAULT_BUDGET_PERIOD = "86400"; // 24 hours
+// Default bundler stake — generous for testing
+const DEFAULT_BUNDLER_DEPOSIT = "100";
+const DEFAULT_BUNDLER_STAKE = "10";
+const DEFAULT_UNSTAKE_DELAY = "60"; // 1 minute (fast unstake for testing)
 
-// Default bundler stake
-const DEFAULT_BUNDLER_DEPOSIT = "10";
-const DEFAULT_BUNDLER_STAKE = "1";
-const DEFAULT_UNSTAKE_DELAY = "86400";
-
-// Default factory stake
-const DEFAULT_FACTORY_STAKE = "1";
-
-// Whitelist addresses for SponsorPaymaster
-const WHITELIST_ADDRESSES = [
-  "0x056DB290F8Ba3250ca64a45D16284D04Bc6f5FBf", // deployer
-  "0x1D828C255Fa0E158371155e08BAdd836412b8e69", // test user
-];
+// Default factory stake — generous for testing
+const DEFAULT_FACTORY_STAKE = "10";
 
 // Paymaster name to JSON key mapping
 const PAYMASTER_KEYS: { [key: string]: string } = {
@@ -85,8 +74,7 @@ const SETUP_STEPS: SetupStep[] = [
   { name: "transfer-ownership", description: "Transfer paymaster ownership from deployer to paymaster account", category: "paymaster" },
   { name: "deposit", description: "Deposit native token to EntryPoint for all paymasters", category: "paymaster" },
   { name: "token", description: "Add USDC as supported token for ERC20Paymaster", category: "erc20" },
-  { name: "whitelist", description: "Whitelist addresses for SponsorPaymaster", category: "sponsor" },
-  { name: "budget", description: "Set default budget for SponsorPaymaster", category: "sponsor" },
+  // NOTE: SponsorPaymaster uses off-chain policy (Visa 4-Party model) — no on-chain whitelist/budget
   { name: "bundler", description: "Stake bundler in EntryPoint (deposit + addStake)", category: "infra" },
   { name: "factory", description: "Stake factory in EntryPoint", category: "infra" },
   { name: "info", description: "Show final paymaster configuration", category: "info" },
@@ -100,8 +88,6 @@ interface Args {
   deposit: string;
   skipDeposit: boolean;
   skipToken: boolean;
-  skipWhitelist: boolean;
-  skipBudget: boolean;
   skipBundler: boolean;
   skipFactory: boolean;
   from: string | null;
@@ -115,8 +101,6 @@ function parseArgs(): Args {
     deposit: DEFAULT_DEPOSIT,
     skipDeposit: false,
     skipToken: false,
-    skipWhitelist: false,
-    skipBudget: false,
     skipBundler: false,
     skipFactory: false,
     from: null,
@@ -128,8 +112,6 @@ function parseArgs(): Args {
     else if (arg.startsWith("--deposit=")) result.deposit = arg.split("=")[1];
     else if (arg === "--skip-deposit") result.skipDeposit = true;
     else if (arg === "--skip-token") result.skipToken = true;
-    else if (arg === "--skip-whitelist") result.skipWhitelist = true;
-    else if (arg === "--skip-budget") result.skipBudget = true;
     else if (arg === "--skip-bundler") result.skipBundler = true;
     else if (arg === "--skip-factory") result.skipFactory = true;
     else if (arg.startsWith("--from=")) result.from = arg.split("=")[1];
@@ -579,139 +561,6 @@ function stepAddToken(
   }
 }
 
-// ============ Step: Whitelist ============
-
-function stepWhitelist(
-  addresses: DeployedAddresses,
-  rpcUrl: string,
-  privateKey: string,
-  dryRun: boolean
-): boolean {
-  console.log(`\n${"─".repeat(60)}`);
-  console.log(`  Step 3: Whitelist addresses for SponsorPaymaster`);
-  console.log(`${"─".repeat(60)}`);
-
-  const sponsorPaymaster = addresses["sponsorPaymaster"];
-
-  if (!sponsorPaymaster) {
-    console.log("  ⚠️  SponsorPaymaster not deployed, skipping...");
-    return true;
-  }
-
-  if (dryRun) {
-    console.log(`  [DRY RUN] Would whitelist ${WHITELIST_ADDRESSES.length} addresses:`);
-    for (const addr of WHITELIST_ADDRESSES) {
-      console.log(`    - ${addr}`);
-    }
-    return true;
-  }
-
-  let allSuccess = true;
-
-  for (const addr of WHITELIST_ADDRESSES) {
-    try {
-      // Check if already whitelisted
-      const isWhitelisted = execCast(
-        ["call", sponsorPaymaster, "whitelist(address)(bool)", addr],
-        { rpcUrl }
-      );
-
-      if (isWhitelisted.includes("true")) {
-        console.log(`  ${addr}: already whitelisted, skipping...`);
-        continue;
-      }
-
-      console.log(`  Whitelisting ${addr}...`);
-      const cmd = [
-        "cast", "send", sponsorPaymaster,
-        `"setWhitelist(address,bool)"`, addr, "true",
-        "--rpc-url", rpcUrl,
-        "--private-key", privateKey,
-      ];
-
-      execSync(cmd.join(" "), {
-        cwd: PROJECT_ROOT,
-        stdio: "inherit",
-        shell: "/bin/bash",
-      });
-
-      console.log(`  ✅ ${addr} whitelisted`);
-    } catch {
-      console.error(`  ❌ Failed to whitelist ${addr}`);
-      allSuccess = false;
-    }
-  }
-
-  return allSuccess;
-}
-
-// ============ Step: Default Budget ============
-
-function stepDefaultBudget(
-  addresses: DeployedAddresses,
-  rpcUrl: string,
-  privateKey: string,
-  dryRun: boolean
-): boolean {
-  console.log(`\n${"─".repeat(60)}`);
-  console.log(`  Step 4: Set default budget for SponsorPaymaster`);
-  console.log(`${"─".repeat(60)}`);
-
-  const sponsorPaymaster = addresses["sponsorPaymaster"];
-
-  if (!sponsorPaymaster) {
-    console.log("  ⚠️  SponsorPaymaster not deployed, skipping...");
-    return true;
-  }
-
-  console.log(`  Limit: ${DEFAULT_BUDGET_LIMIT} KRC`);
-  console.log(`  Period: ${DEFAULT_BUDGET_PERIOD} seconds (${parseInt(DEFAULT_BUDGET_PERIOD) / 86400} days)`);
-
-  if (dryRun) {
-    console.log(`  [DRY RUN] Would set default budget`);
-    return true;
-  }
-
-  // Check current default budget
-  try {
-    const currentLimit = execCast(
-      ["call", sponsorPaymaster, "defaultBudgetLimit()(uint256)"],
-      { rpcUrl }
-    );
-    const cleanedLimit = cleanCastResult(currentLimit);
-
-    if (BigInt(cleanedLimit) > BigInt(0)) {
-      console.log(`  Default budget already set (${formatEther(cleanedLimit)} KRC), skipping...`);
-      return true;
-    }
-  } catch {
-    // Proceed to set
-  }
-
-  try {
-    const limitWei = toWei(DEFAULT_BUDGET_LIMIT);
-
-    const cmd = [
-      "cast", "send", sponsorPaymaster,
-      `"setDefaultBudget(uint256,uint256)"`, limitWei, DEFAULT_BUDGET_PERIOD,
-      "--rpc-url", rpcUrl,
-      "--private-key", privateKey,
-    ];
-
-    execSync(cmd.join(" "), {
-      cwd: PROJECT_ROOT,
-      stdio: "inherit",
-      shell: "/bin/bash",
-    });
-
-    console.log(`  ✅ Default budget set`);
-    return true;
-  } catch {
-    console.error(`  ❌ Failed to set default budget`);
-    return false;
-  }
-}
-
 // ============ Step: Bundler Staking ============
 
 function stepBundlerStake(
@@ -911,28 +760,15 @@ function stepInfo(
     }
   }
 
-  // SponsorPaymaster config
+  // SponsorPaymaster config (off-chain policy model — no on-chain whitelist/budget)
   const sponsorPaymaster = addresses["sponsorPaymaster"];
   if (sponsorPaymaster) {
     console.log("\n[SponsorPaymaster]");
     console.log("-".repeat(60));
     try {
-      const signer = execCast(["call", sponsorPaymaster, "signer()(address)"], { rpcUrl });
-      const defaultLimit = execCast(["call", sponsorPaymaster, "defaultBudgetLimit()(uint256)"], { rpcUrl });
-      const defaultPeriod = execCast(["call", sponsorPaymaster, "defaultBudgetPeriod()(uint256)"], { rpcUrl });
-      console.log(`  Signer: ${signer}`);
-      const cleanedPeriod = cleanCastResult(defaultPeriod);
-      console.log(`  Default Budget: ${formatEther(defaultLimit)} KRC / ${cleanedPeriod}s (${parseInt(cleanedPeriod) / 86400} days)`);
-
-      // Check whitelist status for known addresses
-      for (const addr of WHITELIST_ADDRESSES) {
-        const isWhitelisted = execCast(
-          ["call", sponsorPaymaster, "whitelist(address)(bool)", addr],
-          { rpcUrl }
-        );
-        const status = isWhitelisted.includes("true") ? "✅" : "❌";
-        console.log(`  ${status} Whitelist ${addr}: ${isWhitelisted}`);
-      }
+      const signer = execCast(["call", sponsorPaymaster, "verifyingSigner()(address)"], { rpcUrl });
+      console.log(`  Verifying Signer: ${signer}`);
+      console.log(`  Model: Off-chain policy (Visa 4-Party)`);
     } catch {
       console.log(`  Error reading config`);
     }
@@ -1042,8 +878,6 @@ function main(): void {
     "transfer-ownership": false,
     deposit: args.skipDeposit,
     token: args.skipToken,
-    whitelist: args.skipWhitelist,
-    budget: args.skipBudget,
     bundler: args.skipBundler,
     factory: args.skipFactory,
     info: false,
@@ -1093,14 +927,6 @@ function main(): void {
       case "token":
         // Paymaster owner configures supported tokens
         success = stepAddToken(addresses, env.rpcUrl, env.privateKeyPaymaster, args.dryRun);
-        break;
-      case "whitelist":
-        // Paymaster owner manages whitelist
-        success = stepWhitelist(addresses, env.rpcUrl, env.privateKeyPaymaster, args.dryRun);
-        break;
-      case "budget":
-        // Paymaster owner sets budget limits
-        success = stepDefaultBudget(addresses, env.rpcUrl, env.privateKeyPaymaster, args.dryRun);
         break;
       case "bundler":
         success = stepBundlerStake(entryPoint, env.rpcUrl, env.privateKeyBundler, args.dryRun);

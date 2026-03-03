@@ -330,7 +330,7 @@ contract SubscriptionIntegrationTest is Test {
         // Process third payment (this should use up most of the limit: 100 + 100 + 100 = 300 > 250)
         // Third payment should fail due to spending limit
         vm.prank(processor);
-        vm.expectRevert(); // Should fail due to limit exceeded
+        vm.expectRevert(ISubscriptionManager.NotDueForPayment.selector);
         subManager.processPayment(subscriptionId);
     }
 

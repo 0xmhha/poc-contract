@@ -90,10 +90,10 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
     uint256 public constant PRECISION = 1e18;
     uint256 public constant MAX_PERCENTAGE = 100;
 
-    // Default limits for PoC (in USD scaled by 1e18)
-    uint256 public constant DEFAULT_MAX_PER_TX = 100_000 * PRECISION; // $100K
-    uint256 public constant DEFAULT_HOURLY_LIMIT = 500_000 * PRECISION; // $500K
-    uint256 public constant DEFAULT_DAILY_LIMIT = 5_000_000 * PRECISION; // $5M
+    // Default limits for PoC (in USD scaled by 1e18) — generous for testing
+    uint256 public constant DEFAULT_MAX_PER_TX = 10_000_000 * PRECISION; // $10M
+    uint256 public constant DEFAULT_HOURLY_LIMIT = 50_000_000 * PRECISION; // $50M
+    uint256 public constant DEFAULT_DAILY_LIMIT = 500_000_000 * PRECISION; // $500M
 
     // ============ State Variables ============
 

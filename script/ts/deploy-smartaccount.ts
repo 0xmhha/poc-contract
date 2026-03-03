@@ -102,6 +102,9 @@ function buildDeployCommand(options: {
     options.rpcUrl,
     "--private-key",
     options.privateKey,
+    "--non-interactive",
+    "--code-size-limit",
+    "30000",
   ];
 
   if (options.broadcast) {
@@ -193,10 +196,12 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
     ? addresses.entryPoint.toLowerCase().replace("0x", "").padStart(64, "0")
     : undefined;
 
-  // KernelFactory: constructor(address _impl)
-  const kernelFactoryConstructorArgs = addresses.kernel
-    ? addresses.kernel.toLowerCase().replace("0x", "").padStart(64, "0")
-    : undefined;
+  // KernelFactory: constructor(address _impl, IEntryPoint _entryPoint)
+  const kernelFactoryConstructorArgs =
+    addresses.kernel && addresses.entryPoint
+      ? addresses.kernel.toLowerCase().replace("0x", "").padStart(64, "0") +
+        addresses.entryPoint.toLowerCase().replace("0x", "").padStart(64, "0")
+      : undefined;
 
   // FactoryStaker: constructor(address _owner) — owner = ADMIN_ADDRESS (deployer/admin)
   const adminAddr = process.env.ADMIN_ADDRESS || deployerAddress;

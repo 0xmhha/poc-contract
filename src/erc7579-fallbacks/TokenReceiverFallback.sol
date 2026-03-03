@@ -6,23 +6,27 @@ import { MODULE_TYPE_FALLBACK } from "../erc7579-smartaccount/types/Constants.so
 
 /**
  * @title TokenReceiverFallback
- * @notice ERC-7579 Fallback module for token receiver callbacks
- * @dev Implements various token receiver interfaces for smart accounts
+ * @notice ERC-7579 Fallback module for ERC-777 token receiver callbacks
+ * @dev Handles token standards NOT natively supported by Kernel.
  *
  * Supported Interfaces:
- * - ERC-721: onERC721Received
- * - ERC-1155: onERC1155Received, onERC1155BatchReceived
  * - ERC-777: tokensReceived
  *
+ * NOT supported (handled by Kernel built-in pure functions):
+ * - ERC-721: onERC721Received — Kernel natively returns selector
+ * - ERC-1155: onERC1155Received, onERC1155BatchReceived — Kernel natively returns selector
+ *
+ * Design Note:
+ * Kernel (following ZeroDev upstream) declares onERC721Received/onERC1155Received/
+ * onERC1155BatchReceived as explicit pure functions. Solidity dispatches explicit
+ * functions before fallback(), so these selectors can never reach a fallback module.
+ * This is intentional — it guarantees token reception safety regardless of module state.
+ * See: https://github.com/zerodevapp/kernel (same pattern in all versions)
+ *
  * Features:
- * - Token whitelist/blacklist per account
+ * - Token whitelist/blacklist per account (for ERC-777)
  * - Transfer logging for compliance
  * - Configurable acceptance rules
- *
- * Use Cases:
- * - NFT marketplace interactions
- * - Token airdrops
- * - DeFi protocol integrations
  */
 contract TokenReceiverFallback is IFallback {
     /// @notice Configuration for each smart account
@@ -53,12 +57,7 @@ contract TokenReceiverFallback is IFallback {
     /// @notice Account address => AccountStorage
     mapping(address => AccountStorage) internal accountStorage;
 
-    // ERC-721 callback selector
-    bytes4 private constant ERC721_RECEIVED = 0x15_0b7_a02;
-    // ERC-1155 callback selectors
-    bytes4 private constant ERC1155_RECEIVED = 0xf2_3a6_e61;
-    bytes4 private constant ERC1155_BATCH_RECEIVED = 0xbc_197_c81;
-    // ERC-777 callback selector
+    // ERC-777 callback selector (only standard handled by this fallback)
     bytes4 private constant ERC777_TOKENS_RECEIVED = 0x00_23d_e29;
 
     // Events
@@ -117,87 +116,13 @@ contract TokenReceiverFallback is IFallback {
         return accountStorage[smartAccount].config.isEnabled;
     }
 
-    // ============ ERC-721 Receiver ============
-
-    /**
-     * @notice Handle ERC-721 token received
-     * @param from The address which previously owned the token
-     * @param tokenId The NFT identifier
-     * @param data Additional data with no specified format
-     * @return bytes4 `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`
-     */
-    function onERC721Received(address, address from, uint256 tokenId, bytes calldata data) external returns (bytes4) {
-        (address token, address smartAccount) = _extractContext();
-
-        _validateAndLogTransfer(smartAccount, token, from, tokenId, 1, data, "ERC721");
-
-        return ERC721_RECEIVED;
-    }
-
-    // ============ ERC-1155 Receiver ============
-
-    /**
-     * @notice Handle ERC-1155 single token received
-     * @param from The address which previously owned the token
-     * @param id The token identifier
-     * @param value The amount of tokens transferred
-     * @param data Additional data with no specified format
-     * @return bytes4 `bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))`
-     */
-    function onERC1155Received(address, address from, uint256 id, uint256 value, bytes calldata data)
-        external
-        returns (bytes4)
-    {
-        (address token, address smartAccount) = _extractContext();
-
-        _validateAndLogTransfer(smartAccount, token, from, id, value, data, "ERC1155");
-
-        return ERC1155_RECEIVED;
-    }
-
-    /**
-     * @notice Handle ERC-1155 batch token received
-     * @param from The address which previously owned the tokens
-     * @param ids Array of token identifiers
-     * @param values Array of token amounts
-     * @param data Additional data with no specified format
-     * @return bytes4 `bytes4(keccak256("onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)"))`
-     */
-    function onERC1155BatchReceived(
-        address,
-        address from,
-        uint256[] calldata ids,
-        uint256[] calldata values,
-        bytes calldata data
-    ) external returns (bytes4) {
-        (address token, address smartAccount) = _extractContext();
-
-        // Validate token first
-        AccountStorage storage store = accountStorage[smartAccount];
-        if (!store.config.isEnabled) revert ModuleNotEnabled();
-
-        if (store.tokenBlacklist[token]) {
-            emit TokenRejected(smartAccount, token, "Token blacklisted");
-            revert TokenBlacklisted(token);
-        }
-
-        if (!store.config.acceptAllTokens && !store.tokenWhitelist[token]) {
-            emit TokenRejected(smartAccount, token, "Token not whitelisted");
-            revert TokenNotWhitelisted(token);
-        }
-
-        // Log each transfer
-        if (store.config.logTransfers) {
-            for (uint256 i = 0; i < ids.length; i++) {
-                _logTransfer(store, token, from, ids[i], values[i], data);
-                emit TokenReceived(smartAccount, token, from, ids[i], values[i], "ERC1155Batch");
-            }
-        }
-
-        return ERC1155_BATCH_RECEIVED;
-    }
-
     // ============ ERC-777 Receiver ============
+    //
+    // NOTE: ERC-721 and ERC-1155 handlers are intentionally NOT implemented here.
+    // Kernel declares onERC721Received/onERC1155Received/onERC1155BatchReceived as
+    // explicit pure functions, so those selectors never reach fallback(). This is a
+    // deliberate design choice (matching ZeroDev upstream) that guarantees token
+    // reception safety regardless of module installation state.
 
     /**
      * @notice Handle ERC-777 tokens received
@@ -373,26 +298,18 @@ contract TokenReceiverFallback is IFallback {
     // ============ Internal Functions ============
 
     /**
-     * @dev Extract context from extended ERC-2771 calldata
-     * The smart account appends 40 bytes: [original_caller:20][smart_account:20]
+     * @dev Extract context from ERC-2771 calldata
+     * Kernel appends 20 bytes (original caller) per ERC-2771 standard.
+     * msg.sender is the smart account (Kernel) that forwarded the call.
      * @return originalCaller The original msg.sender of the smart account (e.g., token contract)
-     * @return smartAccount The smart account address
+     * @return smartAccount The smart account address (Kernel)
      */
-    function _extractContext() internal pure returns (address originalCaller, address smartAccount) {
+    function _extractContext() internal view returns (address originalCaller, address smartAccount) {
+        // msg.sender = Kernel (smart account) that called this fallback module
+        smartAccount = msg.sender;
         assembly {
-            // Last 20 bytes = smart account
-            smartAccount := shr(96, calldataload(sub(calldatasize(), 20)))
-            // Previous 20 bytes = original caller
-            originalCaller := shr(96, calldataload(sub(calldatasize(), 40)))
-        }
-    }
-
-    /**
-     * @dev Extract only the smart account from ERC-2771 context (backwards compatible)
-     */
-    function _extractMsgSender() internal pure returns (address sender) {
-        assembly {
-            sender := shr(96, calldataload(sub(calldatasize(), 20)))
+            // Last 20 bytes = original caller (appended by Kernel per ERC-2771)
+            originalCaller := shr(96, calldataload(sub(calldatasize(), 20)))
         }
     }
 

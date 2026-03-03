@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
-import { ERC6538Registry } from "../../src/privacy/ERC6538Registry.sol";
+import { ERC6538Registry, IERC6538Registry } from "../../src/privacy/ERC6538Registry.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract ERC6538RegistryTest is Test {
     ERC6538Registry public registry;
@@ -109,7 +110,7 @@ contract ERC6538RegistryTest is Test {
         // Create invalid signature
         bytes memory invalidSignature = new bytes(65);
 
-        vm.expectRevert(); // ERC6538Registry__InvalidSignature
+        vm.expectRevert(ECDSA.ECDSAInvalidSignature.selector);
         registry.registerKeysOnBehalf(registrant, 1, invalidSignature, stealthMetaAddress);
     }
 
@@ -133,7 +134,7 @@ contract ERC6538RegistryTest is Test {
         registry.registerKeysOnBehalf(registrant, 1, signature, stealthMetaAddress);
 
         // Replay fails (nonce incremented)
-        vm.expectRevert(); // ERC6538Registry__InvalidSignature
+        vm.expectRevert(IERC6538Registry.ERC6538Registry__InvalidSignature.selector);
         registry.registerKeysOnBehalf(registrant, 1, signature, stealthMetaAddress);
     }
 

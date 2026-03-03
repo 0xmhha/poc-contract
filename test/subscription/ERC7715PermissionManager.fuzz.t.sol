@@ -163,7 +163,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
 
         // Attempt to spend more than limit should fail
         vm.prank(executor);
-        vm.expectRevert();
+        vm.expectRevert(IERC7715PermissionManager.InsufficientAllowance.selector);
         permManager.usePermission(permissionId, excessAmount);
     }
 
@@ -321,7 +321,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
         bytes32 fakeId = keccak256("fake");
 
         vm.prank(granter);
-        vm.expectRevert();
+        vm.expectRevert(IERC7715PermissionManager.PermissionNotFound.selector);
         permManager.revokePermission(fakeId);
     }
 
@@ -346,7 +346,7 @@ contract ERC7715PermissionManagerFuzzTest is Test {
 
         // Second revocation should fail
         vm.prank(granter);
-        vm.expectRevert();
+        vm.expectRevert(IERC7715PermissionManager.PermissionNotFound.selector);
         permManager.revokePermission(permissionId);
     }
 }

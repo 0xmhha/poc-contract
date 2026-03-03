@@ -30,8 +30,8 @@ import * as dotenv from "dotenv";
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
-const DEFAULT_DEPOSIT = "1";
-const DEFAULT_UNSTAKE_DELAY = 86400; // 1 day
+const DEFAULT_DEPOSIT = "100"; // generous for testing
+const DEFAULT_UNSTAKE_DELAY = 60; // 1 minute (fast unstake for testing)
 
 // ============ Argument Parsing ============
 

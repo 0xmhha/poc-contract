@@ -11,6 +11,7 @@ import { MockPriceOracle } from "./mocks/MockPriceOracle.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import { PaymasterDataLib } from "../../src/erc4337-paymaster/PaymasterDataLib.sol";
 import { PaymasterPayload } from "../../src/erc4337-paymaster/PaymasterPayload.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract ERC20PaymasterTest is Test {
     ERC20Paymaster public paymaster;
@@ -85,7 +86,7 @@ contract ERC20PaymasterTest is Test {
         MockPriceOracle newOracle = new MockPriceOracle();
 
         vm.prank(user);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         paymaster.setOracle(IPriceOracle(address(newOracle)));
     }
 
@@ -190,8 +191,12 @@ contract ERC20PaymasterTest is Test {
         uint48 validAfter = uint48(block.timestamp);
         PackedUserOperation memory userOp = _createSampleUserOp(user, address(token), validUntil, validAfter);
 
+        uint256 maxTokenCost = paymaster.getTokenAmount(address(token), 0.001 ether);
+
         vm.prank(address(entryPoint));
-        vm.expectRevert(); // InsufficientTokenBalance
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC20Paymaster.InsufficientTokenBalance.selector, maxTokenCost, 0)
+        );
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
     }
 
@@ -204,8 +209,12 @@ contract ERC20PaymasterTest is Test {
         uint48 validAfter = uint48(block.timestamp);
         PackedUserOperation memory userOp = _createSampleUserOp(user, address(token), validUntil, validAfter);
 
+        uint256 maxTokenCost = paymaster.getTokenAmount(address(token), 0.001 ether);
+
         vm.prank(address(entryPoint));
-        vm.expectRevert(); // InsufficientTokenAllowance
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC20Paymaster.InsufficientTokenAllowance.selector, maxTokenCost, 0)
+        );
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
     }
 
@@ -233,8 +242,12 @@ contract ERC20PaymasterTest is Test {
         uint48 validAfter = uint48(block.timestamp);
         PackedUserOperation memory userOp = _createSampleUserOp(user, address(token), validUntil, validAfter);
 
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ERC20Paymaster.StalePrice.selector, block.timestamp - 2 hours, paymaster.MAX_PRICE_STALENESS()
+            )
+        );
         vm.prank(address(entryPoint));
-        vm.expectRevert(); // StalePrice
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
     }
 

@@ -130,13 +130,13 @@ contract DeployAllScript is DeploymentHelper {
     address public admin;
     address public verifyingSigner;
 
-    // Default constants
+    // Default constants — relaxed for testing
     uint256 constant DEFAULT_RETENTION_PERIOD = 365 days;
     uint256 constant DEFAULT_AUTO_PAUSE_THRESHOLD = 3;
     uint256 constant DEFAULT_MARKUP = 1000; // 10%
-    uint256 constant DEFAULT_CHALLENGE_PERIOD = 6 hours;
-    uint256 constant DEFAULT_CHALLENGE_BOND = 0.1 ether;
-    uint256 constant DEFAULT_CHALLENGER_REWARD = 0.05 ether;
+    uint256 constant DEFAULT_CHALLENGE_PERIOD = 5 minutes; // short for testing
+    uint256 constant DEFAULT_CHALLENGE_BOND = 0.001 ether; // low for testing
+    uint256 constant DEFAULT_CHALLENGER_REWARD = 0.0005 ether; // low for testing
 
     function setUp() public { }
 
@@ -257,7 +257,7 @@ contract DeployAllScript is DeploymentHelper {
         // 2. KernelFactory (depends on Kernel)
         address kernelAddr = _getAddress(DeploymentAddresses.KEY_KERNEL);
         if (_getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY) == address(0)) {
-            KernelFactory factory = new KernelFactory(kernelAddr);
+            KernelFactory factory = new KernelFactory(kernelAddr, IEntryPoint(entryPointAddr));
             _setAddress(DeploymentAddresses.KEY_KERNEL_FACTORY, address(factory));
             console.log("  [NEW] KernelFactory:", address(factory));
         } else {
@@ -519,11 +519,12 @@ contract DeployAllScript is DeploymentHelper {
         address rewardToken = vm.envOr("REWARD_TOKEN", stakingToken);
 
         if (_getAddress(DeploymentAddresses.KEY_STAKING_VAULT) == address(0)) {
+            // Relaxed defaults for testing
             IStakingVault.VaultConfig memory config = IStakingVault.VaultConfig({
-                rewardRate: vm.envOr("REWARD_RATE", uint256(1e15)), // 0.001 tokens/sec
-                lockPeriod: vm.envOr("LOCK_PERIOD", uint256(7 days)),
+                rewardRate: vm.envOr("REWARD_RATE", uint256(1e16)), // 0.01 tokens/sec (10x)
+                lockPeriod: vm.envOr("LOCK_PERIOD", uint256(5 minutes)), // short for testing
                 earlyWithdrawPenalty: vm.envOr("EARLY_WITHDRAW_PENALTY", uint256(1000)), // 10%
-                minStake: vm.envOr("MIN_STAKE", uint256(1e18)), // 1 token
+                minStake: vm.envOr("MIN_STAKE", uint256(1e15)), // 0.001 token (low for testing)
                 maxStake: vm.envOr("MAX_STAKE", uint256(0)), // unlimited
                 isActive: true
             });

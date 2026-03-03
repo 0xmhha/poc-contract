@@ -66,14 +66,13 @@ contract MockFallbackAccount {
     }
 
     /// @notice Fallback function that forwards to registered fallback handlers
-    /// This allows the mock account to receive ERC-721, ERC-1155, and flash loan callbacks
+    /// This allows the mock account to receive ERC-777 and flash loan callbacks
     fallback() external payable {
         address handler = fallbackHandlers[msg.sig];
         if (handler != address(0)) {
-            // Forward with extended ERC-2771 context:
-            // Append original caller (msg.sender) + smart account address (this)
-            // Total 40 bytes appended: [original_caller:20][smart_account:20]
-            bytes memory callData = abi.encodePacked(msg.data, msg.sender, address(this));
+            // Forward with ERC-2771 context:
+            // Append original caller (msg.sender) as 20 bytes per ERC-2771 standard
+            bytes memory callData = abi.encodePacked(msg.data, msg.sender);
             (bool success, bytes memory result) = handler.call(callData);
 
             if (!success) {
@@ -89,164 +88,6 @@ contract MockFallbackAccount {
     }
 
     receive() external payable { }
-}
-
-/**
- * @title MockERC721
- * @notice Simple ERC-721 mock for testing token receiver fallback
- */
-contract MockERC721 {
-    string public name;
-    string public symbol;
-
-    mapping(uint256 => address) public ownerOf;
-    mapping(address => uint256) public balanceOf;
-    mapping(uint256 => address) public getApproved;
-    mapping(address => mapping(address => bool)) public isApprovedForAll;
-
-    uint256 private _tokenIdCounter;
-
-    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
-    event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
-
-    constructor(string memory _name, string memory _symbol) {
-        name = _name;
-        symbol = _symbol;
-    }
-
-    function mint(address to) external returns (uint256) {
-        uint256 tokenId = _tokenIdCounter++;
-        ownerOf[tokenId] = to;
-        balanceOf[to]++;
-        emit Transfer(address(0), to, tokenId);
-        return tokenId;
-    }
-
-    function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata data) external {
-        require(ownerOf[tokenId] == from, "Not owner");
-        require(
-            msg.sender == from || getApproved[tokenId] == msg.sender || isApprovedForAll[from][msg.sender],
-            "Not approved"
-        );
-
-        ownerOf[tokenId] = to;
-        balanceOf[from]--;
-        balanceOf[to]++;
-
-        emit Transfer(from, to, tokenId);
-
-        // Call onERC721Received if recipient is a contract
-        if (to.code.length > 0) {
-            bytes4 retval = IERC721Receiver(to).onERC721Received(msg.sender, from, tokenId, data);
-            require(retval == IERC721Receiver.onERC721Received.selector, "ERC721: transfer rejected");
-        }
-    }
-
-    function safeTransferFrom(address from, address to, uint256 tokenId) external {
-        this.safeTransferFrom(from, to, tokenId, "");
-    }
-
-    function approve(address to, uint256 tokenId) external {
-        require(ownerOf[tokenId] == msg.sender, "Not owner");
-        getApproved[tokenId] = to;
-        emit Approval(msg.sender, to, tokenId);
-    }
-
-    function setApprovalForAll(address operator, bool approved) external {
-        isApprovedForAll[msg.sender][operator] = approved;
-    }
-}
-
-interface IERC721Receiver {
-    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
-        external
-        returns (bytes4);
-}
-
-/**
- * @title MockERC1155
- * @notice Simple ERC-1155 mock for testing token receiver fallback
- */
-contract MockERC1155 {
-    mapping(address => mapping(uint256 => uint256)) public balanceOf;
-    mapping(address => mapping(address => bool)) public isApprovedForAll;
-
-    event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
-    event TransferBatch(
-        address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values
-    );
-
-    function mint(address to, uint256 id, uint256 amount) external {
-        balanceOf[to][id] += amount;
-        emit TransferSingle(msg.sender, address(0), to, id, amount);
-    }
-
-    function mintBatch(address to, uint256[] calldata ids, uint256[] calldata amounts) external {
-        require(ids.length == amounts.length, "Length mismatch");
-        for (uint256 i = 0; i < ids.length; i++) {
-            balanceOf[to][ids[i]] += amounts[i];
-        }
-        emit TransferBatch(msg.sender, address(0), to, ids, amounts);
-    }
-
-    function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata data) external {
-        require(msg.sender == from || isApprovedForAll[from][msg.sender], "Not approved");
-        require(balanceOf[from][id] >= amount, "Insufficient balance");
-
-        balanceOf[from][id] -= amount;
-        balanceOf[to][id] += amount;
-
-        emit TransferSingle(msg.sender, from, to, id, amount);
-
-        // Call onERC1155Received if recipient is a contract
-        if (to.code.length > 0) {
-            bytes4 retval = IERC1155Receiver(to).onERC1155Received(msg.sender, from, id, amount, data);
-            require(retval == IERC1155Receiver.onERC1155Received.selector, "ERC1155: transfer rejected");
-        }
-    }
-
-    function safeBatchTransferFrom(
-        address from,
-        address to,
-        uint256[] calldata ids,
-        uint256[] calldata amounts,
-        bytes calldata data
-    ) external {
-        require(ids.length == amounts.length, "Length mismatch");
-        require(msg.sender == from || isApprovedForAll[from][msg.sender], "Not approved");
-
-        for (uint256 i = 0; i < ids.length; i++) {
-            require(balanceOf[from][ids[i]] >= amounts[i], "Insufficient balance");
-            balanceOf[from][ids[i]] -= amounts[i];
-            balanceOf[to][ids[i]] += amounts[i];
-        }
-
-        emit TransferBatch(msg.sender, from, to, ids, amounts);
-
-        // Call onERC1155BatchReceived if recipient is a contract
-        if (to.code.length > 0) {
-            bytes4 retval = IERC1155Receiver(to).onERC1155BatchReceived(msg.sender, from, ids, amounts, data);
-            require(retval == IERC1155Receiver.onERC1155BatchReceived.selector, "ERC1155: batch transfer rejected");
-        }
-    }
-
-    function setApprovalForAll(address operator, bool approved) external {
-        isApprovedForAll[msg.sender][operator] = approved;
-    }
-}
-
-interface IERC1155Receiver {
-    function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes calldata data)
-        external
-        returns (bytes4);
-
-    function onERC1155BatchReceived(
-        address operator,
-        address from,
-        uint256[] calldata ids,
-        uint256[] calldata values,
-        bytes calldata data
-    ) external returns (bytes4);
 }
 
 /**

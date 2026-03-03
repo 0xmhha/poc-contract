@@ -6,6 +6,7 @@ import {
     ERC7715PermissionManager,
     IERC7715PermissionManager
 } from "../../src/subscription/ERC7715PermissionManager.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract ERC7715PermissionManagerTest is Test {
     ERC7715PermissionManager public manager;
@@ -178,8 +179,8 @@ contract ERC7715PermissionManagerTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
         bytes memory invalidSignature = new bytes(65);
 
-        // ECDSA library throws ECDSAInvalidSignature, which gets caught and re-thrown as InvalidSignature
-        vm.expectRevert();
+        // ECDSA library throws ECDSAInvalidSignature for zero-bytes signature (ecrecover returns address(0))
+        vm.expectRevert(ECDSA.ECDSAInvalidSignature.selector);
         manager.grantPermissionWithSignature(
             granter, grantee, target, defaultPermission, defaultRules, deadline, invalidSignature
         );

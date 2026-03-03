@@ -8,21 +8,46 @@ import { IERC7579Account } from "../interfaces/IERC7579Account.sol";
 import { MODULE_TYPE_HOOK } from "../types/Constants.sol";
 
 abstract contract HookManager {
-    // NOTE: currently, all install/uninstall calls onInstall/onUninstall
-    // I assume this does not pose any security risks, but there should be a way to branch if hook needs call to
-    // onInstall/onUninstall --- Hook ---
+    // keccak256("kernel.hookGasLimit")
+    bytes32 private constant _HOOK_GAS_LIMIT_SLOT = 0x70c2e706a3e44ddaec14078dc596cc85f5d44d6458f35f27f509afdd4a35b54b;
+
+    struct HookGasLimitStorage {
+        mapping(IHook => uint256) gasLimit;
+    }
+
+    event HookGasLimitSet(address indexed hook, uint256 gasLimit);
+
+    function _hookGasLimitStorage() internal pure returns (HookGasLimitStorage storage s) {
+        bytes32 slot = _HOOK_GAS_LIMIT_SLOT;
+        assembly {
+            s.slot := slot
+        }
+    }
+
     // Hook is activated on these scenarios
     // - on 4337 flow, userOp.calldata starts with executeUserOp.selector && validator requires hook
     // - executeFromExecutor() is invoked and executor requires hook
     // - when fallback function has been invoked and fallback requires hook => native functions will not invoke hook
+
+    /// @dev Calls hook.preCheck with optional gas limit.
+    ///      gasLimit == 0 means unlimited (default, backward compatible).
     function _doPreHook(IHook hook, uint256 value, bytes calldata callData) internal returns (bytes memory context) {
-        context = hook.preCheck(msg.sender, value, callData);
+        uint256 limit = _hookGasLimitStorage().gasLimit[hook];
+        if (limit == 0) {
+            context = hook.preCheck(msg.sender, value, callData);
+        } else {
+            context = hook.preCheck{gas: limit}(msg.sender, value, callData);
+        }
     }
 
+    /// @dev Calls hook.postCheck with optional gas limit.
     function _doPostHook(IHook hook, bytes memory context) internal {
-        // bool success,
-        // bytes memory result
-        hook.postCheck(context);
+        uint256 limit = _hookGasLimitStorage().gasLimit[hook];
+        if (limit == 0) {
+            hook.postCheck(context);
+        } else {
+            hook.postCheck{gas: limit}(context);
+        }
     }
 
     // @notice if hook is not initialized before, kernel will call hook.onInstall no matter what flag it shows, with

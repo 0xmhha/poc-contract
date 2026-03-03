@@ -19,7 +19,7 @@ import {
     PassFlag
 } from "../utils/ValidationTypeLib.sol";
 
-import { CALLTYPE_SINGLE, MODULE_TYPE_POLICY, MODULE_TYPE_SIGNER, MODULE_TYPE_VALIDATOR } from "../types/Constants.sol";
+import { CALLTYPE_SINGLE, MODULE_TYPE_POLICY, MODULE_TYPE_SIGNER, MODULE_TYPE_VALIDATOR, SIG_VALIDATION_FAILED } from "../types/Constants.sol";
 import { calldataKeccak, getSender } from "../utils/Utils.sol";
 
 import { PermissionId, getValidationResult, CallType } from "../types/Types.sol";
@@ -564,7 +564,10 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
                         ValidationData.wrap(policy.checkUserOpPolicy(bytes32(PermissionId.unwrap(pId)), userOp));
                     address result = getValidationResult(vd);
                     if (result != address(0)) {
-                        revert PolicyFailed(i);
+                        // Return SIG_VALIDATION_FAILED instead of reverting so the bundler
+                        // can accurately estimate gas. A revert here would cause the entire
+                        // simulateValidation to revert, making gas estimation impossible.
+                        return (SIG_VALIDATION_FAILED, state.permissionConfig[pId].signer);
                     }
                     validationData = _intersectValidationData(validationData, vd);
                 }
@@ -626,7 +629,10 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
                     );
                     address result = getValidationResult(vd);
                     if (result != address(0)) {
-                        revert PolicyFailed(i);
+                        // Return SIG_VALIDATION_FAILED instead of reverting to allow
+                        // the bundler to accurately estimate gas for failed validations.
+                        mSig.validationData = SIG_VALIDATION_FAILED;
+                        return;
                     }
 
                     mSig.validationData = _intersectValidationData(mSig.validationData, vd);

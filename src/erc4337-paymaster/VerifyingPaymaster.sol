@@ -134,7 +134,10 @@ contract VerifyingPaymaster is BasePaymaster {
             return ("", _packValidationDataFailure(env.validUntil, env.validAfter));
         }
 
-        // Increment nonce to prevent replay.
+        // Verify and increment nonce to prevent signature replay.
+        // The nonce is included in the signed envelope hash, so a valid signature binds to a
+        // specific nonce value. Without this on-chain check, a signature for a future nonce
+        // could be submitted (and accepted) before the expected nonce is reached.
         //
         // [EIP-4337 Bundler Compatibility Warning — State Change in Validation]
         //   EIP-4337 simulation rules discourage storage writes during validation because bundlers
@@ -144,13 +147,19 @@ contract VerifyingPaymaster is BasePaymaster {
         //   This paymaster is designed for trusted/whitelisted bundler environments. For public
         //   mempool compatibility, consider moving nonce consumption to _postOp or removing it
         //   entirely in favor of the EntryPoint's built-in nonce management.
+        if (uint256(env.nonce) != senderNonce[userOp.sender]) {
+            return ("", _packValidationDataFailure(env.validUntil, env.validAfter));
+        }
         senderNonce[userOp.sender]++;
 
         // Emit event for tracking
         emit GasSponsored(userOp.sender, keccak256(abi.encode(userOp)), maxCost);
 
-        // Return success with time range and sender context
-        return (abi.encode(userOp.sender), _packValidationDataSuccess(env.validUntil, env.validAfter));
+        // Return success with time range.
+        // Empty context: _postOp is a no-op, so no context is needed.
+        // Returning "" avoids unnecessary abi.encode overhead and signals the EntryPoint
+        // to skip postOp invocation, saving gas.
+        return ("", _packValidationDataSuccess(env.validUntil, env.validAfter));
     }
 
     /**

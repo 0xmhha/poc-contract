@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
+import { ERC20 } from "solady/tokens/ERC20.sol";
 import { wKRC } from "../../src/tokens/wKRC.sol";
 
 contract wKRCTest is Test {
@@ -137,14 +138,14 @@ contract wKRCTest is Test {
         vm.startPrank(user1);
         token.deposit{ value: 1 ether }();
 
-        vm.expectRevert();
+        vm.expectRevert(ERC20.InsufficientBalance.selector);
         token.withdraw(2 ether);
         vm.stopPrank();
     }
 
     function test_Withdraw_RevertIfNoBalance() public {
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert(ERC20.InsufficientBalance.selector);
         token.withdraw(1 ether);
     }
 
@@ -174,7 +175,7 @@ contract wKRCTest is Test {
         vm.startPrank(user1);
         token.deposit{ value: 1 ether }();
 
-        vm.expectRevert();
+        vm.expectRevert(ERC20.InsufficientBalance.selector);
         token.withdrawTo(user2, 2 ether);
         vm.stopPrank();
     }

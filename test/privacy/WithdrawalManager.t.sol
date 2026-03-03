@@ -7,6 +7,8 @@ import {
     IWithdrawalManager,
     IStealthVaultReader
 } from "../../src/privacy/enterprise/WithdrawalManager.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
@@ -258,7 +260,7 @@ contract WithdrawalManagerTest is Test {
         _setupValidDeposit(TEST_DEPOSIT_ID, requester, address(token), 100 ether);
 
         vm.prank(requester);
-        vm.expectRevert(); // EnforcedPause
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.requestWithdrawal(TEST_DEPOSIT_ID, recipient, address(token), 100 ether);
     }
 
@@ -390,8 +392,12 @@ contract WithdrawalManagerTest is Test {
     function test_ApproveWithdrawal_RevertsOnUnauthorized() public {
         bytes32 requestId = _createValidRequest(TEST_DEPOSIT_ID, address(token), 100 ether);
 
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, unauthorized, manager.APPROVER_ROLE()
+            )
+        );
         vm.prank(unauthorized);
-        vm.expectRevert(); // AccessControl error
         manager.approveWithdrawal(requestId);
     }
 
@@ -447,7 +453,7 @@ contract WithdrawalManagerTest is Test {
         manager.pause();
 
         vm.prank(approver);
-        vm.expectRevert(); // EnforcedPause
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.approveWithdrawal(requestId);
     }
 
@@ -569,8 +575,12 @@ contract WithdrawalManagerTest is Test {
 
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
 
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, unauthorized, manager.EXECUTOR_ROLE()
+            )
+        );
         vm.prank(unauthorized);
-        vm.expectRevert(); // AccessControl error
         manager.executeWithdrawal(requestId);
     }
 
@@ -583,7 +593,7 @@ contract WithdrawalManagerTest is Test {
         manager.pause();
 
         vm.prank(executor);
-        vm.expectRevert(); // EnforcedPause
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.executeWithdrawal(requestId);
     }
 
@@ -712,8 +722,12 @@ contract WithdrawalManagerTest is Test {
     function test_RejectWithdrawal_RevertsOnUnauthorized() public {
         bytes32 requestId = _createValidRequest(TEST_DEPOSIT_ID, address(token), 100 ether);
 
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, unauthorized, manager.APPROVER_ROLE()
+            )
+        );
         vm.prank(unauthorized);
-        vm.expectRevert(); // AccessControl error
         manager.rejectWithdrawal(requestId, "Reason");
     }
 
@@ -745,7 +759,7 @@ contract WithdrawalManagerTest is Test {
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
 
         vm.prank(executor);
-        vm.expectRevert(); // RequestNotPending or similar
+        vm.expectRevert(IWithdrawalManager.RequestNotPending.selector);
         manager.executeWithdrawal(requestId);
     }
 
@@ -820,7 +834,7 @@ contract WithdrawalManagerTest is Test {
         vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
 
         vm.prank(executor);
-        vm.expectRevert(); // RequestNotPending or similar
+        vm.expectRevert(IWithdrawalManager.RequestNotPending.selector);
         manager.executeWithdrawal(requestId);
     }
 
@@ -952,8 +966,14 @@ contract WithdrawalManagerTest is Test {
     }
 
     function test_SetCooldownPeriod_RevertsOnUnauthorized() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                unauthorized,
+                manager.WITHDRAWAL_ADMIN_ROLE()
+            )
+        );
         vm.prank(unauthorized);
-        vm.expectRevert(); // AccessControl error
         manager.setCooldownPeriod(1 hours);
     }
 
@@ -969,8 +989,14 @@ contract WithdrawalManagerTest is Test {
     }
 
     function test_SetApprovalThreshold_RevertsOnUnauthorized() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                unauthorized,
+                manager.WITHDRAWAL_ADMIN_ROLE()
+            )
+        );
         vm.prank(unauthorized);
-        vm.expectRevert(); // AccessControl error
         manager.setApprovalThreshold(50_000 ether);
     }
 
@@ -984,8 +1010,14 @@ contract WithdrawalManagerTest is Test {
     }
 
     function test_SetStealthVault_RevertsOnUnauthorized() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                unauthorized,
+                manager.WITHDRAWAL_ADMIN_ROLE()
+            )
+        );
         vm.prank(unauthorized);
-        vm.expectRevert(); // AccessControl error
         manager.setStealthVault(makeAddr("vault"));
     }
 
@@ -1006,8 +1038,14 @@ contract WithdrawalManagerTest is Test {
     }
 
     function test_Pause_RevertsOnUnauthorized() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                unauthorized,
+                manager.WITHDRAWAL_ADMIN_ROLE()
+            )
+        );
         vm.prank(unauthorized);
-        vm.expectRevert(); // AccessControl error
         manager.pause();
     }
 
@@ -1015,8 +1053,14 @@ contract WithdrawalManagerTest is Test {
         vm.prank(admin);
         manager.pause();
 
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                unauthorized,
+                manager.WITHDRAWAL_ADMIN_ROLE()
+            )
+        );
         vm.prank(unauthorized);
-        vm.expectRevert(); // AccessControl error
         manager.unpause();
     }
 

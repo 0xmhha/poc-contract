@@ -174,7 +174,7 @@ contract FlashLoanFallbackTest is Test {
         modes[0] = 0;
 
         // Should revert because provider not whitelisted
-        vm.expectRevert();
+        vm.expectRevert("Transaction reverted silently");
         flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
     }
 

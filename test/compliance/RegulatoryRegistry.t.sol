@@ -2,6 +2,8 @@
 pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { RegulatoryRegistry } from "../../src/compliance/RegulatoryRegistry.sol";
 
 contract RegulatoryRegistryTest is Test {
@@ -232,8 +234,10 @@ contract RegulatoryRegistryTest is Test {
         registry.deactivateRegulator(regulator, "Test");
 
         // After deactivation, regulator loses REGULATOR_ROLE, so AccessControl check fails first
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, regulator, registry.REGULATOR_ROLE())
+        );
         vm.prank(regulator);
-        vm.expectRevert(); // AccessControlUnauthorizedAccount
         registry.setMrkPublicKey(keccak256("test"));
     }
 
@@ -518,7 +522,7 @@ contract RegulatoryRegistryTest is Test {
         assertTrue(registry.paused());
 
         vm.prank(regulator);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         registry.createTraceRequest(targetAccount, keccak256("test"), 1);
     }
 

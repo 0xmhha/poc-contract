@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { MultiChainValidator, DUMMY_ECDSA_SIG } from "../../src/erc7579-validators/MultiChainValidator.sol";
+import { IModule } from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_SUCCESS_UINT,
@@ -68,7 +69,7 @@ contract MultiChainValidatorTest is Test {
 
     function test_onUninstall_revertIfNotInitialized() public {
         vm.prank(smartAccount);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(IModule.NotInitialized.selector, smartAccount));
         validator.onUninstall("");
     }
 

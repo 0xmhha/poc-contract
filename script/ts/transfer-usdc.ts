@@ -28,7 +28,7 @@ const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
 const USDC_DECIMALS = 6;
-const DEFAULT_AMOUNT = 1000;
+const DEFAULT_AMOUNT = 1000000; // 1M USDC (generous for testing)
 
 // ============ Argument Parsing ============
 

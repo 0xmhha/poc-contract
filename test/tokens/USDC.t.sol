@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { USDC } from "../../src/tokens/USDC.sol";
 
 contract USDCTest is Test {
@@ -80,7 +81,7 @@ contract USDCTest is Test {
 
     function test_AddMinter_RevertIfNotOwner() public {
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
         usdc.addMinter(minter);
     }
 
@@ -104,7 +105,7 @@ contract USDCTest is Test {
 
     function test_RemoveMinter_RevertIfNotOwner() public {
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
         usdc.removeMinter(minter);
     }
 
@@ -135,13 +136,13 @@ contract USDCTest is Test {
 
     function test_Blacklist_RevertIfNotOwner() public {
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
         usdc.blacklist(user2);
     }
 
     function test_UnBlacklist_RevertIfNotOwner() public {
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
         usdc.unBlacklist(user2);
     }
 
@@ -172,13 +173,13 @@ contract USDCTest is Test {
 
     function test_Pause_RevertIfNotOwner() public {
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
         usdc.pause();
     }
 
     function test_Unpause_RevertIfNotOwner() public {
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
         usdc.unpause();
     }
 

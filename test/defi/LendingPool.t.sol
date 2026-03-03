@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { LendingPool } from "../../src/defi/LendingPool.sol";
 import { ILendingPool, IFlashLoanReceiver } from "../../src/defi/interfaces/ILendingPool.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 // Mock ERC20 token for testing
 contract MockERC20 is ERC20 {
@@ -182,7 +183,7 @@ contract LendingPoolTest is Test {
 
     function test_ConfigureAsset_OnlyOwner() public {
         vm.prank(alice);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
         pool.configureAsset(address(usdc), ILendingPool.AssetConfig(8000, 8500, 500, 1000, true, true, true));
     }
 

@@ -353,9 +353,10 @@ contract PaymasterHashFixtureTest is Test {
         vm.prank(makeAddr("owner"));
         pm.deposit{ value: 10 ether }();
 
-        // Build userOp and envelope
+        // Build userOp and envelope (read on-chain nonce for round-trip consistency)
+        uint64 currentNonce = uint64(pm.getNonce(FX_SENDER));
         PackedUserOperation memory userOp = _createFixtureUserOp();
-        bytes memory envelope = _createFixtureEnvelope_verifying();
+        bytes memory envelope = _createFixtureEnvelope_verifying(currentNonce);
         userOp.paymasterAndData = abi.encodePacked(address(pm), uint128(100_000), uint128(50_000), envelope);
 
         // Sign using contract's getHash
@@ -389,8 +390,10 @@ contract PaymasterHashFixtureTest is Test {
         vm.prank(makeAddr("owner"));
         pm.deposit{ value: 10 ether }();
 
+        // Read on-chain nonce for round-trip consistency
+        uint64 currentNonce = uint64(pm.getNonce(FX_SENDER));
         PackedUserOperation memory userOp = _createFixtureUserOp();
-        bytes memory envelope = _createFixtureEnvelope_sponsor();
+        bytes memory envelope = _createFixtureEnvelope_sponsor(currentNonce);
         userOp.paymasterAndData = abi.encodePacked(address(pm), uint128(100_000), uint128(50_000), envelope);
 
         bytes32 hash = pm.getHash(userOp, envelope);
@@ -444,17 +447,25 @@ contract PaymasterHashFixtureTest is Test {
     }
 
     function _createFixtureEnvelope_verifying() internal pure returns (bytes memory) {
+        return _createFixtureEnvelope_verifying(FX_PM_NONCE);
+    }
+
+    function _createFixtureEnvelope_verifying(uint64 nonce) internal pure returns (bytes memory) {
         bytes memory payload = PaymasterPayload.encodeVerifying(
             PaymasterPayload.VerifyingPayload({
                 policyId: bytes32(uint256(1)), sponsor: address(0xBEEF), maxCost: 1 ether, verifierExtra: ""
             })
         );
         return PaymasterDataLib.encode(
-            uint8(PaymasterDataLib.PaymasterType.VERIFYING), 0, FX_VALID_UNTIL, FX_VALID_AFTER, FX_PM_NONCE, payload
+            uint8(PaymasterDataLib.PaymasterType.VERIFYING), 0, FX_VALID_UNTIL, FX_VALID_AFTER, nonce, payload
         );
     }
 
     function _createFixtureEnvelope_sponsor() internal pure returns (bytes memory) {
+        return _createFixtureEnvelope_sponsor(FX_PM_NONCE);
+    }
+
+    function _createFixtureEnvelope_sponsor(uint64 nonce) internal pure returns (bytes memory) {
         bytes memory payload = PaymasterPayload.encodeSponsor(
             PaymasterPayload.SponsorPayload({
                 campaignId: bytes32(uint256(42)),
@@ -465,7 +476,7 @@ contract PaymasterHashFixtureTest is Test {
             })
         );
         return PaymasterDataLib.encode(
-            uint8(PaymasterDataLib.PaymasterType.SPONSOR), 0, FX_VALID_UNTIL, FX_VALID_AFTER, FX_PM_NONCE, payload
+            uint8(PaymasterDataLib.PaymasterType.SPONSOR), 0, FX_VALID_UNTIL, FX_VALID_AFTER, nonce, payload
         );
     }
 

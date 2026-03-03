@@ -94,11 +94,12 @@ contract DeployDeFiScript is DeploymentHelper {
             address rewardToken = vm.envOr("REWARD_TOKEN", stakingToken);
 
             // Build vault config
+            // Relaxed defaults for testing
             IStakingVault.VaultConfig memory config = IStakingVault.VaultConfig({
-                rewardRate: vm.envOr("REWARD_RATE", uint256(1e15)), // 0.001 tokens/sec
-                lockPeriod: vm.envOr("LOCK_PERIOD", uint256(7 days)),
+                rewardRate: vm.envOr("REWARD_RATE", uint256(1e16)), // 0.01 tokens/sec (10x)
+                lockPeriod: vm.envOr("LOCK_PERIOD", uint256(5 minutes)), // short for testing
                 earlyWithdrawPenalty: vm.envOr("EARLY_WITHDRAW_PENALTY", uint256(1000)), // 10%
-                minStake: vm.envOr("MIN_STAKE", uint256(1e18)), // 1 token
+                minStake: vm.envOr("MIN_STAKE", uint256(1e15)), // 0.001 token (low for testing)
                 maxStake: vm.envOr("MAX_STAKE", uint256(0)), // unlimited
                 isActive: true
             });

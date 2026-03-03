@@ -4,6 +4,8 @@ pragma solidity ^0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { FraudProofVerifier } from "../../src/bridge/FraudProofVerifier.sol";
 import { BridgeValidator } from "../../src/bridge/BridgeValidator.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract FraudProofVerifierTest is Test {
     FraudProofVerifier public verifier;
@@ -573,7 +575,7 @@ contract FraudProofVerifierTest is Test {
             evidence: ""
         });
 
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         verifier.submitFraudProof(proof);
     }
 
@@ -638,38 +640,44 @@ contract FraudProofVerifierTest is Test {
     // ============ Access Control Tests ============
 
     function test_OnlyOwner_SetOptimisticVerifier() public {
-        vm.prank(makeAddr("random"));
-        vm.expectRevert();
+        address random = makeAddr("random");
+        vm.prank(random);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, random));
         verifier.setOptimisticVerifier(makeAddr("newVerifier"));
     }
 
     function test_OnlyOwner_SetBridgeValidator() public {
-        vm.prank(makeAddr("random"));
-        vm.expectRevert();
+        address random = makeAddr("random");
+        vm.prank(random);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, random));
         verifier.setBridgeValidator(makeAddr("newValidator"));
     }
 
     function test_OnlyOwner_UpdateStateRoot() public {
-        vm.prank(makeAddr("random"));
-        vm.expectRevert();
+        address random = makeAddr("random");
+        vm.prank(random);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, random));
         verifier.updateStateRoot(1, keccak256("root"), 100);
     }
 
     function test_OnlyOwner_SetAuthorizedToken() public {
-        vm.prank(makeAddr("random"));
-        vm.expectRevert();
+        address random = makeAddr("random");
+        vm.prank(random);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, random));
         verifier.setAuthorizedToken(1, makeAddr("token"), true);
     }
 
     function test_OnlyOwner_RecordUsedNonce() public {
-        vm.prank(makeAddr("random"));
-        vm.expectRevert();
+        address random = makeAddr("random");
+        vm.prank(random);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, random));
         verifier.recordUsedNonce(keccak256("nonce"));
     }
 
     function test_OnlyOwner_Pause() public {
-        vm.prank(makeAddr("random"));
-        vm.expectRevert();
+        address random = makeAddr("random");
+        vm.prank(random);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, random));
         verifier.pause();
     }
 }

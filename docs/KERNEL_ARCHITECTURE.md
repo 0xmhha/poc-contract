@@ -30,8 +30,9 @@ Kernel은 ERC-7579 표준을 구현한 모듈러 Smart Account입니다. 두 가
 | **KernelFactory** | Kernel Proxy 인스턴스 생성 |
 | **FactoryStaker** | Factory의 EntryPoint 스테이킹 관리 |
 | **Validators** | UserOperation 서명 검증 모듈 |
-| **Hooks** | 실행 전/후 로직 (optional) |
+| **Hooks** | 실행 전/후 로직 (optional), Gas Limit 지원 |
 | **Executors** | 외부 트리거 실행 모듈 |
+| **Delegatecall Whitelist** | delegatecall 대상 제한 (보안) |
 
 ---
 
@@ -473,9 +474,9 @@ contract Kernel {
 │   }                                                                         │
 │                                                                             │
 │   executeUserOp(userOp, userOpHash) {                                       │
-│     1. hook.preCheck() (있는 경우)                                          │
+│     1. hook.preCheck() (있는 경우, gas limit 적용 가능)                      │
 │     2. delegatecall로 실제 callData 실행                                     │
-│     3. hook.postCheck() (있는 경우)                                         │
+│     3. hook.postCheck() (있는 경우, gas limit 적용 가능)                     │
 │   }                                                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
                               │
@@ -656,8 +657,25 @@ Proxy 모델 사용 권장:
 
 ---
 
+## 모듈 관리 확장 기능
+
+Kernel v0.3.3은 표준 `installModule`/`uninstallModule` 외에 다음 확장 기능을 제공한다:
+
+- **`forceUninstallModule`**: 악의적/버그 모듈에 대한 비상 제거 (onUninstall 실패해도 제거 진행)
+- **`replaceModule`**: 원자적 모듈 교체 (제거+설치를 단일 트랜잭션으로 수행)
+- **`setHookGasLimit`**: hook별 gas 한도 설정 (DoS 방지)
+- **`setDelegatecallWhitelist`/`setEnforceDelegatecallWhitelist`**: delegatecall 대상 제한
+- **`nonReentrantModuleOp`**: EIP-1153 기반 모듈 작업 재진입 방지
+
+상세 내용은 `docs/KERNEL_CODE_STRUCTURE.md` 및 `docs/KERNEL_SPEC_COMPLIANCE_REVIEW.md` 참고.
+
+---
+
 ## 관련 문서
 
+- `docs/KERNEL_CODE_STRUCTURE.md` - Kernel 코드 구조 정리
+- `docs/KERNEL_SPEC_COMPLIANCE_REVIEW.md` - ERC-4337/ERC-7579 스펙 준수 검토
+- `docs/KERNEL_IERC7579_MODULE_CONFIG_COMPLIANCE.md` - Module Config 준수 체크리스트
 - `docs/ENTRYPOINT_DEPOSIT_STAKE.md` - EntryPoint Deposit & Stake 가이드
 - `DEPLOYMENT_ORDER.md` - 배포 순서 및 스크립트
 

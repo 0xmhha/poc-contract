@@ -96,6 +96,7 @@ function buildDeployCommand(options: {
     options.rpcUrl,
     "--private-key",
     options.privateKey,
+    "--non-interactive",
   ];
 
   if (options.broadcast) {

@@ -15,7 +15,7 @@ import {
     ISenderCreator,
     PackedUserOperation
 } from "./interfaces/IEntryPoint.sol";
-import { IEntryPointSimulations } from "./interfaces/IEntryPointSimulations.sol";
+
 import { IPaymaster } from "./interfaces/IPaymaster.sol";
 
 import { UserOperationLib } from "./UserOperationLib.sol";
@@ -37,7 +37,7 @@ import { MessageHashUtils } from "./vendor/openzeppelin/utils/cryptography/Messa
  * Only one instance required on each chain.
  * @custom:security-contact https://bounty.ethereum.org
  */
-contract EntryPoint is IEntryPointSimulations, StakeManager, NonceManager, ERC165, EIP712 {
+contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, EIP712 {
     using UserOperationLib for PackedUserOperation;
     using Eip7702Support for address;
 
@@ -954,131 +954,5 @@ contract EntryPoint is IEntryPointSimulations, StakeManager, NonceManager, ERC16
             uint256 unusedGasPenalty = (unusedGas * UNUSED_GAS_PENALTY_PERCENT) / 100;
             return unusedGasPenalty;
         }
-    }
-
-    // ============ Simulation Methods (IEntryPointSimulations) ============
-
-    /**
-     * @notice Simulation-specific error for returning validation results
-     * @param result The validation result to return
-     */
-    error SimulationResult(IEntryPointSimulations.ValidationResult result);
-
-    /**
-     * @notice Simulation-specific error for returning execution results
-     * @param result The execution result to return
-     */
-    error SimulationResultForExecution(IEntryPointSimulations.ExecutionResult result);
-
-    /// @inheritdoc IEntryPointSimulations
-    function simulateValidation(PackedUserOperation calldata userOp)
-        external
-        virtual
-        override
-        returns (IEntryPointSimulations.ValidationResult memory)
-    {
-        UserOpInfo memory outOpInfo;
-
-        // Validate the UserOperation
-        (uint256 validationData, uint256 paymasterValidationData) = _validatePrepayment(0, userOp, outOpInfo);
-
-        // Parse validation data
-        ValidationData memory accountData = _parseValidationData(validationData);
-
-        // Get stake info for all parties
-        IStakeManager.StakeInfo memory senderInfo = _getStakeInfo(outOpInfo.mUserOp.sender);
-        IStakeManager.StakeInfo memory factoryInfo = _getFactoryStakeInfo(userOp.initCode);
-        IStakeManager.StakeInfo memory paymasterInfo = _getStakeInfo(outOpInfo.mUserOp.paymaster);
-
-        // Build aggregator info if present
-        IEntryPointSimulations.AggregatorStakeInfo memory aggregatorInfo;
-        if (accountData.aggregator != address(0) && accountData.aggregator != address(1)) {
-            aggregatorInfo = IEntryPointSimulations.AggregatorStakeInfo({
-                aggregator: accountData.aggregator, stakeInfo: _getStakeInfo(accountData.aggregator)
-            });
-        }
-
-        // Get paymaster context
-        bytes memory paymasterContext = _getMemoryBytesFromOffset(outOpInfo.contextOffset);
-
-        // Build return info
-        ReturnInfo memory returnInfo = ReturnInfo({
-            preOpGas: outOpInfo.preOpGas,
-            prefund: outOpInfo.prefund,
-            accountValidationData: validationData,
-            paymasterValidationData: paymasterValidationData,
-            paymasterContext: paymasterContext
-        });
-
-        // Build and return validation result (via revert)
-        IEntryPointSimulations.ValidationResult memory result = IEntryPointSimulations.ValidationResult({
-            returnInfo: returnInfo,
-            senderInfo: senderInfo,
-            factoryInfo: factoryInfo,
-            paymasterInfo: paymasterInfo,
-            aggregatorInfo: aggregatorInfo
-        });
-
-        revert SimulationResult(result);
-    }
-
-    /// @inheritdoc IEntryPointSimulations
-    function simulateHandleOp(PackedUserOperation calldata op, address target, bytes calldata targetCallData)
-        external
-        virtual
-        override
-        returns (IEntryPointSimulations.ExecutionResult memory)
-    {
-        UserOpInfo memory opInfo;
-
-        // Validate the UserOperation
-        (uint256 validationData, uint256 paymasterValidationData) = _validatePrepayment(0, op, opInfo);
-
-        // Execute the UserOperation
-        uint256 preOpGas = opInfo.preOpGas;
-        uint256 paid = 0;
-        bool targetSuccess = false;
-        bytes memory targetResult;
-
-        // Try to execute
-        bytes calldata callData = op.callData;
-
-        if (callData.length > 0) {
-            // Execute the call
-            (bool success,) = opInfo.mUserOp.sender.call{ gas: opInfo.mUserOp.callGasLimit }(callData);
-            if (success) {
-                paid = opInfo.prefund;
-            }
-        }
-
-        // Call target if specified
-        if (target != address(0)) {
-            (targetSuccess, targetResult) = target.call(targetCallData);
-        }
-
-        // Build and return execution result (via revert)
-        IEntryPointSimulations.ExecutionResult memory result = IEntryPointSimulations.ExecutionResult({
-            preOpGas: preOpGas,
-            paid: paid,
-            accountValidationData: validationData,
-            paymasterValidationData: paymasterValidationData,
-            targetSuccess: targetSuccess,
-            targetResult: targetResult
-        });
-
-        revert SimulationResultForExecution(result);
-    }
-
-    /**
-     * @notice Get stake info for factory from initCode
-     * @param initCode The initCode containing factory address
-     * @return info The factory stake info
-     */
-    function _getFactoryStakeInfo(bytes calldata initCode) internal view returns (IStakeManager.StakeInfo memory info) {
-        if (initCode.length < 20) {
-            return IStakeManager.StakeInfo({ stake: 0, unstakeDelaySec: 0 });
-        }
-        address factory = address(bytes20(initCode[0:20]));
-        return _getStakeInfo(factory);
     }
 }

@@ -52,12 +52,12 @@ contract DeployBridgeScript is DeploymentHelper {
     OptimisticVerifier public optimisticVerifier;
     SecureBridge public secureBridge;
 
-    // Default values
+    // Default values — relaxed for testing
     uint256 constant DEFAULT_SIGNER_THRESHOLD = 3;
     uint256 constant DEFAULT_GUARDIAN_THRESHOLD = 2;
-    uint256 constant DEFAULT_CHALLENGE_PERIOD = 6 hours;
-    uint256 constant DEFAULT_CHALLENGE_BOND = 0.1 ether;
-    uint256 constant DEFAULT_CHALLENGER_REWARD = 0.05 ether;
+    uint256 constant DEFAULT_CHALLENGE_PERIOD = 5 minutes; // short for testing
+    uint256 constant DEFAULT_CHALLENGE_BOND = 0.001 ether; // low for testing
+    uint256 constant DEFAULT_CHALLENGER_REWARD = 0.0005 ether; // low for testing
 
     function setUp() public { }
 

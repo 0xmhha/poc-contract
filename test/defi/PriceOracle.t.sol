@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { PriceOracle } from "../../src/defi/PriceOracle.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title MockChainlinkAggregator
@@ -213,7 +214,7 @@ contract PriceOracleTest is Test {
 
     function test_SetChainlinkFeed_RevertsOnNonOwner() public {
         vm.prank(user);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         oracle.setChainlinkFeed(address(testToken), address(chainlinkFeed));
     }
 
@@ -257,7 +258,7 @@ contract PriceOracleTest is Test {
 
     function test_SetUniswapPool_RevertsOnNonOwner() public {
         vm.prank(user);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         oracle.setUniswapPool(address(testToken), address(uniswapPool), 1800, address(0));
     }
 

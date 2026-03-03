@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { MultiSigValidator } from "../../src/erc7579-validators/MultiSigValidator.sol";
+import { IModule } from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import {
     SIG_VALIDATION_SUCCESS_UINT,
@@ -110,7 +111,7 @@ contract MultiSigValidatorTest is Test {
         signers[0] = signer1;
 
         vm.prank(smartAccount);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(IModule.AlreadyInitialized.selector, smartAccount));
         validator.onInstall(abi.encode(signers, uint8(1)));
     }
 
@@ -188,7 +189,7 @@ contract MultiSigValidatorTest is Test {
 
     function test_OnUninstall_RevertsOnNotInitialized() public {
         vm.prank(smartAccount);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(IModule.NotInitialized.selector, smartAccount));
         validator.onUninstall("");
     }
 

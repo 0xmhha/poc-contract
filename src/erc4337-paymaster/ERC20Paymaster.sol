@@ -27,6 +27,12 @@ import { PaymasterPayload } from "./PaymasterPayload.sol";
  * 1. User pre-approves tokens to this paymaster
  * 2. validatePaymasterUserOp decodes envelope, checks balance and calculates max token cost
  * 3. postOp transfers actual token cost from user to paymaster
+ *
+ * [Staking Requirement]
+ *   This paymaster returns non-empty context and uses postOp, which requires staking
+ *   on the EntryPoint per ERC-7562. Additionally, it reads external ERC-20 storage
+ *   (balanceOf/allowance) during validation, which also requires staking to relax
+ *   associated storage rules. Call addStake() after deployment.
  */
 contract ERC20Paymaster is BasePaymaster {
     using SafeERC20 for IERC20;
@@ -269,9 +275,11 @@ contract ERC20Paymaster is BasePaymaster {
             actualTokenCost = 1;
         }
 
-        // Transfer tokens from user to paymaster
-        // Note: This will fail if user doesn't have enough balance or allowance
-        // In that case, the postOp will revert and the paymaster loses the gas cost
+        // Transfer tokens from user to paymaster.
+        // Note: If safeTransferFrom fails, postOp reverts and the paymaster absorbs the gas cost
+        // from its EntryPoint deposit (prefund). In v0.9, the EntryPoint handles postOp revert
+        // internally and settles from the prefund — it does NOT re-call postOp with postOpReverted.
+        // The postOpReverted guard below is thus never triggered in v0.9 but is kept for safety.
         if (mode != PostOpMode.postOpReverted) {
             IERC20(ctx.token).safeTransferFrom(ctx.sender, address(this), actualTokenCost);
             emit GasPaidWithToken(ctx.sender, ctx.token, actualTokenCost, actualGasCost);

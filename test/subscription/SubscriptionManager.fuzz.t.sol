@@ -174,7 +174,7 @@ contract SubscriptionManagerFuzzTest is Test {
         feeBps = bound(feeBps, 1001, type(uint256).max);
 
         vm.prank(owner);
-        vm.expectRevert(); // Expect revert for fee too high
+        vm.expectRevert(bytes("Fee too high"));
         subManager.setProtocolFee(feeBps);
     }
 

@@ -257,6 +257,10 @@ contract AuditHookTest is Test {
 
         bytes memory msgData = abi.encodePacked(recipient, uint256(2 ether), "");
 
+        // Pre-compute values BEFORE any external calls to prevent optimizer deferral of TIMESTAMP
+        bytes32 txHash = _getTxHash(address(account), recipient, 2 ether, msgData);
+        uint256 allowedAfter = block.timestamp + FLAGGED_DELAY;
+
         // Queue the transaction first
         vm.prank(address(account));
         hook.queueFlaggedTransaction(recipient, 2 ether, msgData);
@@ -265,7 +269,7 @@ contract AuditHookTest is Test {
         vm.warp(block.timestamp + FLAGGED_DELAY / 2);
 
         vm.prank(address(account));
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(AuditHook.TransactionPending.selector, txHash, allowedAfter));
         hook.preCheck(user, 2 ether, msgData);
     }
 

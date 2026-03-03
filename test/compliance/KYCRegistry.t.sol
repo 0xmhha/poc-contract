@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { KYCRegistry } from "../../src/compliance/KYCRegistry.sol";
 
 contract KYCRegistryTest is Test {
@@ -452,7 +453,7 @@ contract KYCRegistryTest is Test {
         assertTrue(registry.paused());
 
         vm.prank(kycAdmin);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         registry.initiateKyc(user);
     }
 

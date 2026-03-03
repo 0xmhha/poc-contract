@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { MerchantRegistry } from "../../src/subscription/MerchantRegistry.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title MerchantRegistry Test
@@ -190,7 +191,7 @@ contract MerchantRegistryTest is Test {
         _registerAndVerifyMerchant(merchant1);
 
         vm.prank(user);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         registry.setMerchantFee(merchant1, 500);
     }
 
@@ -229,7 +230,7 @@ contract MerchantRegistryTest is Test {
 
     function test_addVerifier_RevertsIf_NotOwner() public {
         vm.prank(user);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         registry.addVerifier(verifier);
     }
 

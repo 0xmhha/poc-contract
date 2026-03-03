@@ -56,7 +56,7 @@ contract DeployKernelScript is DeploymentHelper {
         // Deploy KernelFactory
         existing = _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY);
         if (existing == address(0)) {
-            kernelFactory = new KernelFactory(address(kernelImpl));
+            kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(entryPointAddress));
             _setAddress(DeploymentAddresses.KEY_KERNEL_FACTORY, address(kernelFactory));
             console.log("KernelFactory deployed at:", address(kernelFactory));
         } else {

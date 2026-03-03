@@ -34,8 +34,8 @@ import * as dotenv from "dotenv";
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
-// Paymaster deposit amount in ETH (passed to setup-paymaster.sh)
-const PAYMASTER_DEPOSIT = "10000";
+// Paymaster deposit amount in ETH (passed to setup-paymaster.sh) — generous for testing
+const PAYMASTER_DEPOSIT = "100000";
 
 // ============ Deployment Steps ============
 
@@ -526,6 +526,16 @@ function displayDeployedAddresses(chainId: string): void {
 
 // ============ Execution ============
 
+// Wait between deployment steps to avoid RPC in-flight transaction limits
+const INTER_STEP_DELAY_MS = 3000;
+
+function sleep(ms: number): void {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    // busy-wait (synchronous sleep for child_process workflow)
+  }
+}
+
 function runCommand(command: string, description: string, dryRun: boolean): boolean {
   console.log(`\n${"─".repeat(60)}`);
   console.log(`📦 ${description}`);
@@ -634,6 +644,12 @@ function main(): void {
       if (!args.dryRun) {
         console.log(`\n⚠️  Step "${step.name}" failed. Continuing with remaining steps...`);
       }
+    }
+
+    // Wait between deploy steps to let the node process pending transactions
+    if (!args.dryRun && step.phase === "deploy" && steps.indexOf(step) < steps.length - 1) {
+      console.log(`   ⏳ Waiting ${INTER_STEP_DELAY_MS / 1000}s for node to process transactions...`);
+      sleep(INTER_STEP_DELAY_MS);
     }
   }
 

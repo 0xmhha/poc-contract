@@ -168,9 +168,10 @@ contract OnRampPlugin is IExecutor, Ownable {
 
     // ============ IModule Implementation ============
 
-    function onInstall(bytes calldata) external payable override {
-        // No initialization needed
-    }
+    /// @dev BY DESIGN: No per-account initialization needed.
+    ///      This plugin operates on global provider state (addProvider/removeProvider).
+    ///      Individual accounts interact via stateless ramp operations.
+    function onInstall(bytes calldata) external payable override { }
 
     function onUninstall(bytes calldata) external payable override {
         // No cleanup needed

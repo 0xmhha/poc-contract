@@ -25,6 +25,11 @@ import { PaymasterPayload } from "./PaymasterPayload.sol";
  *   Permit2 signature goes inside the Permit2Payload (user's sig, not paymaster's).
  *   No trailing paymaster signature.
  *
+ * [Staking Requirement]
+ *   This paymaster returns non-empty context and uses postOp, which requires staking
+ *   on the EntryPoint per ERC-7562. It also calls Permit2.permit() during validation
+ *   (external storage write), which strictly requires staking. Call addStake() after deployment.
+ *
  * Flow:
  * 1. User signs Permit2 permit off-chain
  * 2. validatePaymasterUserOp decodes envelope, executes permit to approve this paymaster
@@ -283,7 +288,9 @@ contract Permit2Paymaster is BasePaymaster {
             actualTokenCost = 1;
         }
 
-        // Transfer tokens via Permit2
+        // Transfer tokens via Permit2.
+        // In v0.9, the EntryPoint settles from prefund if postOp reverts — it does NOT
+        // re-call postOp with postOpReverted mode. This guard is kept for safety.
         if (mode != PostOpMode.postOpReverted) {
             // Casting to 'uint160' is safe because actualTokenCost is derived from gas costs
             // which are bounded by block gas limit and will never exceed uint160 max value
