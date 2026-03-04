@@ -1,13 +1,17 @@
 #!/usr/bin/env npx ts-node
 /**
- * ERC-7579 Executors Deployment Script
+ * Bridge Contracts Deployment Script
  *
- * Deploys Executor modules using forge script
- * - SessionKeyExecutor: Temporary session keys with time/target/function restrictions
- * - RecurringPaymentExecutor: Automated recurring payments (subscriptions, salary, etc.)
+ * Deploys Bridge contracts using forge script
+ * - FraudProofVerifier: Dispute resolution via fraud proofs
+ * - BridgeRateLimiter: Volume and rate controls
+ * - BridgeValidator: MPC signing (threshold signatures)
+ * - BridgeGuardian: Emergency response system
+ * - OptimisticVerifier: Challenge period verification
+ * - SecureBridge: Main bridge integrating all security layers
  *
  * Usage:
- *   npx ts-node script/ts/deploy-executors.ts [--broadcast] [--verify] [--force]
+ *   npx ts-node script/ts/deploy-bridge.ts [--broadcast] [--verify] [--force]
  *
  * Options:
  *   --broadcast  Actually broadcast transactions (otherwise dry run)
@@ -15,10 +19,10 @@
  *   --force      Force redeploy even if contracts already exist
  *
  * Examples:
- *   npx ts-node script/ts/deploy-executors.ts                    # Dry run
- *   npx ts-node script/ts/deploy-executors.ts --broadcast        # Deploy
- *   npx ts-node script/ts/deploy-executors.ts --verify           # Verify only
- *   npx ts-node script/ts/deploy-executors.ts --broadcast --verify  # Deploy + verify
+ *   npx ts-node script/ts/deploy-bridge.ts                    # Dry run
+ *   npx ts-node script/ts/deploy-bridge.ts --broadcast        # Deploy
+ *   npx ts-node script/ts/deploy-bridge.ts --verify           # Verify only
+ *   npx ts-node script/ts/deploy-bridge.ts --broadcast --verify  # Deploy + verify
  */
 
 import { execSync } from "child_process";
@@ -31,17 +35,22 @@ import * as dotenv from "dotenv";
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
-const FORGE_SCRIPT = "script/deploy-contract/DeployExecutors.s.sol:DeployExecutorsScript";
-const FOUNDRY_PROFILE = "executors";
+const FORGE_SCRIPT = "script/deploy-contract/DeployBridge.s.sol:DeployBridgeScript";
+const FOUNDRY_PROFILE = "bridge";
 
 // Contract names, artifacts, and their JSON keys
 const CONTRACTS = [
-  { name: "SessionKeyExecutor", artifact: "src/erc7579-executors/SessionKeyExecutor.sol:SessionKeyExecutor", jsonKey: "sessionKeyExecutor" },
-  { name: "RecurringPaymentExecutor", artifact: "src/erc7579-executors/RecurringPaymentExecutor.sol:RecurringPaymentExecutor", jsonKey: "recurringPaymentExecutor" },
-  { name: "SwapExecutor", artifact: "src/erc7579-executors/SwapExecutor.sol:SwapExecutor", jsonKey: "swapExecutor" },
-  { name: "StakingExecutor", artifact: "src/erc7579-executors/StakingExecutor.sol:StakingExecutor", jsonKey: "stakingExecutor" },
-  { name: "LendingExecutor", artifact: "src/erc7579-executors/LendingExecutor.sol:LendingExecutor", jsonKey: "lendingExecutor" },
+  { name: "FraudProofVerifier", artifact: "src/bridge/FraudProofVerifier.sol:FraudProofVerifier", jsonKey: "fraudProofVerifier" },
+  { name: "BridgeRateLimiter", artifact: "src/bridge/BridgeRateLimiter.sol:BridgeRateLimiter", jsonKey: "bridgeRateLimiter" },
+  { name: "BridgeValidator", artifact: "src/bridge/BridgeValidator.sol:BridgeValidator", jsonKey: "bridgeValidator" },
+  { name: "BridgeGuardian", artifact: "src/bridge/BridgeGuardian.sol:BridgeGuardian", jsonKey: "bridgeGuardian" },
+  { name: "OptimisticVerifier", artifact: "src/bridge/OptimisticVerifier.sol:OptimisticVerifier", jsonKey: "optimisticVerifier" },
+  { name: "SecureBridge", artifact: "src/bridge/SecureBridge.sol:SecureBridge", jsonKey: "secureBridge" },
 ];
+
+// NOTE: This script uses execSync for forge CLI invocations with controlled inputs only.
+// All command arguments are hardcoded or derived from validated environment variables,
+// not from user-supplied input, so shell injection is not a concern here.
 
 // ============ Argument Parsing ============
 
@@ -158,7 +167,7 @@ function verifyContracts(chainId: string): void {
 
   const hasAnyAddress = CONTRACTS.some((c) => addresses[c.jsonKey]);
   if (!hasAnyAddress) {
-    console.log("No deployed Executor addresses found to verify");
+    console.log("No deployed Bridge addresses found to verify");
     return;
   }
 
@@ -166,7 +175,6 @@ function verifyContracts(chainId: string): void {
   console.log("Starting contract verification...");
   console.log("-".repeat(60));
 
-  // All executors have no constructor arguments
   for (const contract of CONTRACTS) {
     const address = addresses[contract.jsonKey];
 
@@ -213,7 +221,7 @@ function main(): void {
   const verifyOnly = verify && !broadcast && !force;
 
   console.log("=".repeat(60));
-  console.log("  ERC-7579 Executors Deployment");
+  console.log("  Bridge Contracts Deployment");
   console.log("=".repeat(60));
 
   if (verifyOnly) {
@@ -265,7 +273,7 @@ function main(): void {
 
     console.log("\n" + "=".repeat(60));
     if (broadcast) {
-      console.log("✅ Executors deployment completed!");
+      console.log("✅ Bridge deployment completed!");
       console.log("\nDeployed addresses saved to: deployments/" + chainId + "/addresses.json");
 
       // Step 2: Verify contracts (if requested and deployment was broadcast)
@@ -273,18 +281,12 @@ function main(): void {
         verifyContracts(chainId);
       }
 
-      console.log("\n🎉 ERC-7579 Modules deployment complete!");
-      console.log("\nAll ERC-7579 modules deployed:");
-      console.log("  - Validators: ECDSAValidator, WeightedECDSAValidator, MultiChainValidator, MultiSigValidator, WebAuthnValidator");
-      console.log("  - Hooks: SpendingLimitHook, AuditHook");
-      console.log("  - Fallbacks: TokenReceiverFallback, FlashLoanFallback");
-      console.log("  - Executors: SessionKeyExecutor, RecurringPaymentExecutor");
-      console.log("\nNext steps:");
-      console.log("  1. Deploy compliance modules: ./script/deploy-compliance.sh --broadcast");
-      console.log("  2. Install modules on Smart Accounts via installModule()");
-      console.log("\nExecutor Use Cases:");
-      console.log("  - SessionKeyExecutor: Gaming dApps, DeFi automation, delegated execution");
-      console.log("  - RecurringPaymentExecutor: Subscriptions, salary, donations, rent");
+      console.log("\nSecurity Layers:");
+      console.log("  1. MPC Signing (BridgeValidator)");
+      console.log("  2. Optimistic Verification (OptimisticVerifier)");
+      console.log("  3. Fraud Proofs (FraudProofVerifier)");
+      console.log("  4. Rate Limiting (BridgeRateLimiter)");
+      console.log("  5. Guardian System (BridgeGuardian)");
     } else {
       console.log("✅ Dry run completed. Use --broadcast to deploy.");
     }

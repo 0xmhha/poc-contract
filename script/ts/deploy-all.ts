@@ -110,7 +110,7 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
   },
   {
     name: "privacy",
-    description: "Deploy Privacy (ERC-5564/6538) contracts",
+    description: "Deploy Privacy (ERC-5564/6538 + Enterprise) contracts",
     command: "./script/deploy-privacy.sh --broadcast --force",
     phase: "deploy",
   },
@@ -118,6 +118,18 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
     name: "permit2",
     description: "Deploy Permit2",
     command: "./script/deploy-permit2.sh --broadcast --force",
+    phase: "deploy",
+  },
+  {
+    name: "subscription",
+    description: "Deploy Subscription (ERC-7715 + MerchantRegistry) contracts",
+    command: "./script/deploy-subscription.sh --broadcast --force",
+    phase: "deploy",
+  },
+  {
+    name: "bridge",
+    description: "Deploy Bridge (Defense-in-depth) contracts",
+    command: "./script/deploy-bridge.sh --broadcast --force",
     phase: "deploy",
   },
 
@@ -138,6 +150,12 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
     name: "paymasters",
     description: "Deploy ERC-4337 Paymasters",
     command: "./script/deploy-paymasters.sh --broadcast --force",
+    phase: "deploy",
+  },
+  {
+    name: "plugins",
+    description: "Deploy ERC-7579 Plugins (AutoSwap, MicroLoan, OnRamp)",
+    command: "./script/deploy-plugins.sh --broadcast --force",
     phase: "deploy",
   },
 
@@ -225,6 +243,8 @@ const CONTRACT_NAME_TO_KEY: { [name: string]: string } = {
   // Hooks
   SpendingLimitHook: "spendingLimitHook",
   AuditHook: "auditHook",
+  HealthFactorHook: "healthFactorHook",
+  PolicyHook: "policyHook",
 
   // Fallbacks
   TokenReceiverFallback: "tokenReceiverFallback",
@@ -233,10 +253,14 @@ const CONTRACT_NAME_TO_KEY: { [name: string]: string } = {
   // Executors
   SessionKeyExecutor: "sessionKeyExecutor",
   RecurringPaymentExecutor: "recurringPaymentExecutor",
+  SwapExecutor: "swapExecutor",
+  StakingExecutor: "stakingExecutor",
+  LendingExecutor: "lendingExecutor",
 
   // Subscription
   ERC7715PermissionManager: "erc7715PermissionManager",
   SubscriptionManager: "subscriptionManager",
+  MerchantRegistry: "merchantRegistry",
 
   // Compliance
   KYCRegistry: "kycRegistry",
@@ -248,6 +272,12 @@ const CONTRACT_NAME_TO_KEY: { [name: string]: string } = {
   ERC5564Announcer: "erc5564Announcer",
   ERC6538Registry: "erc6538Registry",
   PrivateBank: "privateBank",
+
+  // Privacy Enterprise
+  RoleManager: "roleManager",
+  StealthLedger: "stealthLedger",
+  StealthVault: "stealthVault",
+  WithdrawalManager: "withdrawalManager",
 
   // Permit2
   Permit2: "permit2",
@@ -380,6 +410,8 @@ const CONTRACT_CATEGORIES: { [category: string]: { [key: string]: string } } = {
   "ERC-7579 Hooks": {
     spendingLimitHook: "SpendingLimitHook",
     auditHook: "AuditHook",
+    healthFactorHook: "HealthFactorHook",
+    policyHook: "PolicyHook",
   },
   "ERC-7579 Fallbacks": {
     tokenReceiverFallback: "TokenReceiverFallback",
@@ -388,10 +420,14 @@ const CONTRACT_CATEGORIES: { [category: string]: { [key: string]: string } } = {
   "ERC-7579 Executors": {
     sessionKeyExecutor: "SessionKeyExecutor",
     recurringPaymentExecutor: "RecurringPaymentExecutor",
+    swapExecutor: "SwapExecutor",
+    stakingExecutor: "StakingExecutor",
+    lendingExecutor: "LendingExecutor",
   },
   "Subscription (ERC-7715)": {
     erc7715PermissionManager: "ERC7715PermissionManager",
     subscriptionManager: "SubscriptionManager",
+    merchantRegistry: "MerchantRegistry",
   },
   "Compliance": {
     kycRegistry: "KYCRegistry",
@@ -403,6 +439,12 @@ const CONTRACT_CATEGORIES: { [category: string]: { [key: string]: string } } = {
     erc5564Announcer: "ERC5564Announcer (Stealth Announcer)",
     erc6538Registry: "ERC6538Registry (Stealth Registry)",
     privateBank: "PrivateBank",
+  },
+  "Privacy Enterprise": {
+    roleManager: "RoleManager",
+    stealthLedger: "StealthLedger",
+    stealthVault: "StealthVault",
+    withdrawalManager: "WithdrawalManager",
   },
   "Permit2": {
     permit2: "Permit2",

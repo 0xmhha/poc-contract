@@ -38,6 +38,8 @@ const FOUNDRY_PROFILE = "hooks";
 const CONTRACTS = [
   { name: "SpendingLimitHook", artifact: "src/erc7579-hooks/SpendingLimitHook.sol:SpendingLimitHook", jsonKey: "spendingLimitHook" },
   { name: "AuditHook", artifact: "src/erc7579-hooks/AuditHook.sol:AuditHook", jsonKey: "auditHook" },
+  { name: "HealthFactorHook", artifact: "src/erc7579-hooks/HealthFactorHook.sol:HealthFactorHook", jsonKey: "healthFactorHook" },
+  { name: "PolicyHook", artifact: "src/erc7579-hooks/PolicyHook.sol:PolicyHook", jsonKey: "policyHook" },
 ];
 
 // ============ Argument Parsing ============

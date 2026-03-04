@@ -40,6 +40,10 @@ const CONTRACTS = [
   { name: "ERC5564Announcer", artifact: "src/privacy/ERC5564Announcer.sol:ERC5564Announcer", jsonKey: "erc5564Announcer", hasConstructorArgs: false },
   { name: "ERC6538Registry", artifact: "src/privacy/ERC6538Registry.sol:ERC6538Registry", jsonKey: "erc6538Registry", hasConstructorArgs: false },
   { name: "PrivateBank", artifact: "src/privacy/PrivateBank.sol:PrivateBank", jsonKey: "privateBank", hasConstructorArgs: true },
+  { name: "RoleManager", artifact: "src/privacy/enterprise/RoleManager.sol:RoleManager", jsonKey: "roleManager", hasConstructorArgs: true },
+  { name: "StealthLedger", artifact: "src/privacy/enterprise/StealthLedger.sol:StealthLedger", jsonKey: "stealthLedger", hasConstructorArgs: true },
+  { name: "StealthVault", artifact: "src/privacy/enterprise/StealthVault.sol:StealthVault", jsonKey: "stealthVault", hasConstructorArgs: true },
+  { name: "WithdrawalManager", artifact: "src/privacy/enterprise/WithdrawalManager.sol:WithdrawalManager", jsonKey: "withdrawalManager", hasConstructorArgs: true },
 ];
 
 // ============ Argument Parsing ============

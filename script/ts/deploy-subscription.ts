@@ -1,13 +1,14 @@
 #!/usr/bin/env npx ts-node
 /**
- * ERC-7579 Executors Deployment Script
+ * Subscription Contracts Deployment Script
  *
- * Deploys Executor modules using forge script
- * - SessionKeyExecutor: Temporary session keys with time/target/function restrictions
- * - RecurringPaymentExecutor: Automated recurring payments (subscriptions, salary, etc.)
+ * Deploys Subscription contracts using forge script
+ * - ERC7715PermissionManager: On-chain permission management based on ERC-7715
+ * - SubscriptionManager: Recurring subscription payments using ERC-7715 permissions
+ * - MerchantRegistry: On-chain merchant registration and verification
  *
  * Usage:
- *   npx ts-node script/ts/deploy-executors.ts [--broadcast] [--verify] [--force]
+ *   npx ts-node script/ts/deploy-subscription.ts [--broadcast] [--verify] [--force]
  *
  * Options:
  *   --broadcast  Actually broadcast transactions (otherwise dry run)
@@ -15,11 +16,16 @@
  *   --force      Force redeploy even if contracts already exist
  *
  * Examples:
- *   npx ts-node script/ts/deploy-executors.ts                    # Dry run
- *   npx ts-node script/ts/deploy-executors.ts --broadcast        # Deploy
- *   npx ts-node script/ts/deploy-executors.ts --verify           # Verify only
- *   npx ts-node script/ts/deploy-executors.ts --broadcast --verify  # Deploy + verify
+ *   npx ts-node script/ts/deploy-subscription.ts                    # Dry run
+ *   npx ts-node script/ts/deploy-subscription.ts --broadcast        # Deploy
+ *   npx ts-node script/ts/deploy-subscription.ts --verify           # Verify only
+ *   npx ts-node script/ts/deploy-subscription.ts --broadcast --verify  # Deploy + verify
  */
+
+// NOTE: This deployment script uses execSync for forge CLI invocations only.
+// All command arguments are hardcoded constants or validated environment variables,
+// not user-supplied input. The execFileNoThrow utility in src/utils is for the
+// DApp codebase, not for these Foundry deployment scripts.
 
 import { execSync } from "child_process";
 import * as fs from "fs";
@@ -31,16 +37,14 @@ import * as dotenv from "dotenv";
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
-const FORGE_SCRIPT = "script/deploy-contract/DeployExecutors.s.sol:DeployExecutorsScript";
-const FOUNDRY_PROFILE = "executors";
+const FORGE_SCRIPT = "script/deploy-contract/DeploySubscription.s.sol:DeploySubscriptionScript";
+const FOUNDRY_PROFILE = "subscription";
 
 // Contract names, artifacts, and their JSON keys
 const CONTRACTS = [
-  { name: "SessionKeyExecutor", artifact: "src/erc7579-executors/SessionKeyExecutor.sol:SessionKeyExecutor", jsonKey: "sessionKeyExecutor" },
-  { name: "RecurringPaymentExecutor", artifact: "src/erc7579-executors/RecurringPaymentExecutor.sol:RecurringPaymentExecutor", jsonKey: "recurringPaymentExecutor" },
-  { name: "SwapExecutor", artifact: "src/erc7579-executors/SwapExecutor.sol:SwapExecutor", jsonKey: "swapExecutor" },
-  { name: "StakingExecutor", artifact: "src/erc7579-executors/StakingExecutor.sol:StakingExecutor", jsonKey: "stakingExecutor" },
-  { name: "LendingExecutor", artifact: "src/erc7579-executors/LendingExecutor.sol:LendingExecutor", jsonKey: "lendingExecutor" },
+  { name: "ERC7715PermissionManager", artifact: "src/subscription/ERC7715PermissionManager.sol:ERC7715PermissionManager", jsonKey: "erc7715PermissionManager" },
+  { name: "SubscriptionManager", artifact: "src/subscription/SubscriptionManager.sol:SubscriptionManager", jsonKey: "subscriptionManager" },
+  { name: "MerchantRegistry", artifact: "src/subscription/MerchantRegistry.sol:MerchantRegistry", jsonKey: "merchantRegistry" },
 ];
 
 // ============ Argument Parsing ============
@@ -158,7 +162,7 @@ function verifyContracts(chainId: string): void {
 
   const hasAnyAddress = CONTRACTS.some((c) => addresses[c.jsonKey]);
   if (!hasAnyAddress) {
-    console.log("No deployed Executor addresses found to verify");
+    console.log("No deployed Subscription addresses found to verify");
     return;
   }
 
@@ -166,7 +170,6 @@ function verifyContracts(chainId: string): void {
   console.log("Starting contract verification...");
   console.log("-".repeat(60));
 
-  // All executors have no constructor arguments
   for (const contract of CONTRACTS) {
     const address = addresses[contract.jsonKey];
 
@@ -209,11 +212,10 @@ function verifyContracts(chainId: string): void {
 function main(): void {
   const { broadcast, verify, force } = parseArgs();
 
-  // Verify-only mode: skip deployment, just verify existing contracts
   const verifyOnly = verify && !broadcast && !force;
 
   console.log("=".repeat(60));
-  console.log("  ERC-7579 Executors Deployment");
+  console.log("  Subscription Contracts Deployment");
   console.log("=".repeat(60));
 
   if (verifyOnly) {
@@ -243,7 +245,6 @@ function main(): void {
   CONTRACTS.forEach((c) => console.log(`  - ${c.name}`));
   console.log("=".repeat(60));
 
-  // Step 1: Deploy contracts
   const deployCmd = buildDeployCommand({
     rpcUrl,
     privateKey,
@@ -265,26 +266,19 @@ function main(): void {
 
     console.log("\n" + "=".repeat(60));
     if (broadcast) {
-      console.log("✅ Executors deployment completed!");
+      console.log("✅ Subscription deployment completed!");
       console.log("\nDeployed addresses saved to: deployments/" + chainId + "/addresses.json");
 
-      // Step 2: Verify contracts (if requested and deployment was broadcast)
       if (verify) {
         verifyContracts(chainId);
       }
 
-      console.log("\n🎉 ERC-7579 Modules deployment complete!");
-      console.log("\nAll ERC-7579 modules deployed:");
-      console.log("  - Validators: ECDSAValidator, WeightedECDSAValidator, MultiChainValidator, MultiSigValidator, WebAuthnValidator");
-      console.log("  - Hooks: SpendingLimitHook, AuditHook");
-      console.log("  - Fallbacks: TokenReceiverFallback, FlashLoanFallback");
-      console.log("  - Executors: SessionKeyExecutor, RecurringPaymentExecutor");
-      console.log("\nNext steps:");
-      console.log("  1. Deploy compliance modules: ./script/deploy-compliance.sh --broadcast");
-      console.log("  2. Install modules on Smart Accounts via installModule()");
-      console.log("\nExecutor Use Cases:");
-      console.log("  - SessionKeyExecutor: Gaming dApps, DeFi automation, delegated execution");
-      console.log("  - RecurringPaymentExecutor: Subscriptions, salary, donations, rent");
+      console.log("\nSubscription system is ready for use:");
+      console.log("  1. Merchants register in MerchantRegistry");
+      console.log("  2. Merchants create subscription plans");
+      console.log("  3. Users grant permission via PermissionManager");
+      console.log("  4. Users subscribe to plans, linking the permission");
+      console.log("  5. Payments are processed automatically");
     } else {
       console.log("✅ Dry run completed. Use --broadcast to deploy.");
     }

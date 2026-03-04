@@ -9,8 +9,8 @@
 #   Phase 0: Tokens (wKRC, USDC), EntryPoint (via CREATE2/CREATE)
 #   Phase 1: Smart Account (Kernel, KernelFactory, FactoryStaker)
 #   Phase 2: Modules (Validators, Hooks, Fallbacks, Executors)
-#   Phase 3: Features (Compliance, Privacy, Permit2)
-#   Phase 4: DeFi (UniswapV3, DeFi, Paymasters)
+#   Phase 3: Features (Compliance, Privacy, Permit2, Subscription, Bridge)
+#   Phase 4: DeFi (UniswapV3, DeFi, Paymasters, Plugins)
 #   Config:  Paymaster setup (deposit, token, bundler, factory)
 #
 # Usage:
@@ -36,8 +36,8 @@
 # Available Steps:
 #   tokens, transfer-usdc, entrypoint, smartaccount,
 #   validators, hooks, fallbacks, executors,
-#   compliance, privacy, permit2,
-#   uniswap, defi, paymasters,
+#   compliance, privacy, permit2, subscription, bridge,
+#   uniswap, defi, paymasters, plugins,
 #   setup-paymaster
 # =============================================================================
 

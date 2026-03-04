@@ -6,6 +6,7 @@ import { Script, console } from "forge-std/Script.sol";
 import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
 import { ERC7715PermissionManager } from "../../src/subscription/ERC7715PermissionManager.sol";
 import { SubscriptionManager } from "../../src/subscription/SubscriptionManager.sol";
+import { MerchantRegistry } from "../../src/subscription/MerchantRegistry.sol";
 
 /**
  * @title DeploySubscriptionScript
@@ -15,6 +16,7 @@ import { SubscriptionManager } from "../../src/subscription/SubscriptionManager.
  * Deployed Contracts:
  *   - ERC7715PermissionManager: On-chain permission management based on ERC-7715
  *   - SubscriptionManager: Recurring subscription payments using ERC-7715 permissions
+ *   - MerchantRegistry: On-chain merchant registration and verification
  *
  * Deployment Order:
  *   1. ERC7715PermissionManager (Layer 0 - no dependencies)
@@ -31,6 +33,7 @@ import { SubscriptionManager } from "../../src/subscription/SubscriptionManager.
 contract DeploySubscriptionScript is DeploymentHelper {
     ERC7715PermissionManager public permissionManager;
     SubscriptionManager public subscriptionManager;
+    MerchantRegistry public merchantRegistry;
 
     function setUp() public { }
 
@@ -69,6 +72,19 @@ contract DeploySubscriptionScript is DeploymentHelper {
             console.log("SubscriptionManager: Using existing at", existing);
         }
 
+        // ============ Layer 0: MerchantRegistry (independent) ============
+
+        // Deploy MerchantRegistry
+        existing = _getAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY);
+        if (existing == address(0)) {
+            merchantRegistry = new MerchantRegistry();
+            _setAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY, address(merchantRegistry));
+            console.log("MerchantRegistry deployed at:", address(merchantRegistry));
+        } else {
+            merchantRegistry = MerchantRegistry(existing);
+            console.log("MerchantRegistry: Using existing at", existing);
+        }
+
         vm.stopBroadcast();
 
         _saveAddresses();
@@ -86,6 +102,7 @@ contract DeploySubscriptionScript is DeploymentHelper {
         console.log("SubscriptionManager:", address(subscriptionManager));
         console.log("  Protocol Fee:", subscriptionManager.protocolFeeBps(), "bps");
         console.log("  Fee Recipient:", subscriptionManager.feeRecipient());
+        console.log("MerchantRegistry:", address(merchantRegistry));
         console.log("\nSubscription system is ready for use:");
         console.log("  1. Merchants create subscription plans");
         console.log("  2. Users grant permission via PermissionManager");

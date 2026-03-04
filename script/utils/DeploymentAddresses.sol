@@ -64,10 +64,15 @@ library DeploymentAddresses {
     // Executors
     string constant KEY_SESSION_KEY_EXECUTOR = "sessionKeyExecutor";
     string constant KEY_RECURRING_PAYMENT_EXECUTOR = "recurringPaymentExecutor";
+    string constant KEY_SWAP_EXECUTOR = "swapExecutor";
+    string constant KEY_STAKING_EXECUTOR = "stakingExecutor";
+    string constant KEY_LENDING_EXECUTOR = "lendingExecutor";
 
     // Hooks
     string constant KEY_AUDIT_HOOK = "auditHook";
     string constant KEY_SPENDING_LIMIT_HOOK = "spendingLimitHook";
+    string constant KEY_HEALTH_FACTOR_HOOK = "healthFactorHook";
+    string constant KEY_POLICY_HOOK = "policyHook";
 
     // Fallbacks
     string constant KEY_TOKEN_RECEIVER_FALLBACK = "tokenReceiverFallback";
@@ -99,6 +104,12 @@ library DeploymentAddresses {
     string constant KEY_REGISTRY = "erc6538Registry";
     string constant KEY_PRIVATE_BANK = "privateBank";
 
+    // Privacy Enterprise
+    string constant KEY_ROLE_MANAGER = "roleManager";
+    string constant KEY_STEALTH_LEDGER = "stealthLedger";
+    string constant KEY_STEALTH_VAULT = "stealthVault";
+    string constant KEY_WITHDRAWAL_MANAGER = "withdrawalManager";
+
     // Bridge
     string constant KEY_BRIDGE_VALIDATOR = "bridgeValidator";
     string constant KEY_BRIDGE_GUARDIAN = "bridgeGuardian";
@@ -116,6 +127,7 @@ library DeploymentAddresses {
     // Subscription
     string constant KEY_PERMISSION_MANAGER = "erc7715PermissionManager";
     string constant KEY_SUBSCRIPTION_MANAGER = "subscriptionManager";
+    string constant KEY_MERCHANT_REGISTRY = "merchantRegistry";
 }
 
 /**
@@ -196,10 +208,15 @@ abstract contract DeploymentHelper is Script {
                 // Executors
                 _tryParseAddress(json, DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR);
                 _tryParseAddress(json, DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR);
+                _tryParseAddress(json, DeploymentAddresses.KEY_SWAP_EXECUTOR);
+                _tryParseAddress(json, DeploymentAddresses.KEY_STAKING_EXECUTOR);
+                _tryParseAddress(json, DeploymentAddresses.KEY_LENDING_EXECUTOR);
 
                 // Hooks
                 _tryParseAddress(json, DeploymentAddresses.KEY_AUDIT_HOOK);
                 _tryParseAddress(json, DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK);
+                _tryParseAddress(json, DeploymentAddresses.KEY_HEALTH_FACTOR_HOOK);
+                _tryParseAddress(json, DeploymentAddresses.KEY_POLICY_HOOK);
 
                 // Fallbacks
                 _tryParseAddress(json, DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK);
@@ -231,6 +248,12 @@ abstract contract DeploymentHelper is Script {
                 _tryParseAddress(json, DeploymentAddresses.KEY_REGISTRY);
                 _tryParseAddress(json, DeploymentAddresses.KEY_PRIVATE_BANK);
 
+                // Privacy Enterprise
+                _tryParseAddress(json, DeploymentAddresses.KEY_ROLE_MANAGER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_STEALTH_LEDGER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_STEALTH_VAULT);
+                _tryParseAddress(json, DeploymentAddresses.KEY_WITHDRAWAL_MANAGER);
+
                 // Bridge
                 _tryParseAddress(json, DeploymentAddresses.KEY_BRIDGE_VALIDATOR);
                 _tryParseAddress(json, DeploymentAddresses.KEY_BRIDGE_GUARDIAN);
@@ -248,6 +271,7 @@ abstract contract DeploymentHelper is Script {
                 // Subscription
                 _tryParseAddress(json, DeploymentAddresses.KEY_PERMISSION_MANAGER);
                 _tryParseAddress(json, DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_MERCHANT_REGISTRY);
 
                 console.log("Loaded existing deployment addresses from:", path);
             }
@@ -361,6 +385,21 @@ abstract contract DeploymentHelper is Script {
                 _addresses[DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR]
             );
         }
+        if (_addresses[DeploymentAddresses.KEY_SWAP_EXECUTOR] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_SWAP_EXECUTOR, _addresses[DeploymentAddresses.KEY_SWAP_EXECUTOR]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_STAKING_EXECUTOR] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_STAKING_EXECUTOR, _addresses[DeploymentAddresses.KEY_STAKING_EXECUTOR]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_LENDING_EXECUTOR] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_LENDING_EXECUTOR, _addresses[DeploymentAddresses.KEY_LENDING_EXECUTOR]
+            );
+        }
 
         // Hooks
         if (_addresses[DeploymentAddresses.KEY_AUDIT_HOOK] != address(0)) {
@@ -371,6 +410,18 @@ abstract contract DeploymentHelper is Script {
                 obj,
                 DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK,
                 _addresses[DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_HEALTH_FACTOR_HOOK] != address(0)) {
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_HEALTH_FACTOR_HOOK,
+                _addresses[DeploymentAddresses.KEY_HEALTH_FACTOR_HOOK]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_POLICY_HOOK] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_POLICY_HOOK, _addresses[DeploymentAddresses.KEY_POLICY_HOOK]
             );
         }
 
@@ -486,6 +537,28 @@ abstract contract DeploymentHelper is Script {
             );
         }
 
+        // Privacy Enterprise
+        if (_addresses[DeploymentAddresses.KEY_ROLE_MANAGER] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_ROLE_MANAGER, _addresses[DeploymentAddresses.KEY_ROLE_MANAGER]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_STEALTH_LEDGER] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_STEALTH_LEDGER, _addresses[DeploymentAddresses.KEY_STEALTH_LEDGER]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_STEALTH_VAULT] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_STEALTH_VAULT, _addresses[DeploymentAddresses.KEY_STEALTH_VAULT]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_WITHDRAWAL_MANAGER] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_WITHDRAWAL_MANAGER, _addresses[DeploymentAddresses.KEY_WITHDRAWAL_MANAGER]
+            );
+        }
+
         // Bridge
         if (_addresses[DeploymentAddresses.KEY_BRIDGE_VALIDATOR] != address(0)) {
             vm.serializeAddress(
@@ -554,16 +627,23 @@ abstract contract DeploymentHelper is Script {
                 obj, DeploymentAddresses.KEY_PERMISSION_MANAGER, _addresses[DeploymentAddresses.KEY_PERMISSION_MANAGER]
             );
         }
-
-        string memory finalJson;
         if (_addresses[DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER] != address(0)) {
-            finalJson = vm.serializeAddress(
+            vm.serializeAddress(
                 obj,
                 DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER,
                 _addresses[DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER]
             );
+        }
+
+        string memory finalJson;
+        if (_addresses[DeploymentAddresses.KEY_MERCHANT_REGISTRY] != address(0)) {
+            finalJson = vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_MERCHANT_REGISTRY,
+                _addresses[DeploymentAddresses.KEY_MERCHANT_REGISTRY]
+            );
         } else {
-            // Create a dummy entry if subscription manager not set
+            // Create a dummy entry if no final key is set
             finalJson = vm.serializeString(obj, "_chainId", vm.toString(chainId));
         }
 
