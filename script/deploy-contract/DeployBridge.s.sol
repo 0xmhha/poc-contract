@@ -176,13 +176,10 @@ contract DeployBridgeScript is DeploymentHelper {
      * @notice Get signer addresses from env or generate test addresses
      */
     function _getSigners() internal view returns (address[] memory) {
-        string memory signersEnv = vm.envOr("BRIDGE_SIGNERS", string(""));
+        address[] memory envSigners = vm.envOr("BRIDGE_SIGNERS", ",", new address[](0));
 
-        if (bytes(signersEnv).length > 0) {
-            // Parse comma-separated addresses from env
-            // For simplicity, we'll use a fixed array for production
-            // In a real scenario, you'd parse the string
-            revert("BRIDGE_SIGNERS parsing not implemented - use test mode or set individual addresses");
+        if (envSigners.length > 0) {
+            return envSigners;
         }
 
         // Test mode: generate deterministic addresses
@@ -198,10 +195,10 @@ contract DeployBridgeScript is DeploymentHelper {
      * @notice Get guardian addresses from env or generate test addresses
      */
     function _getGuardians() internal view returns (address[] memory) {
-        string memory guardiansEnv = vm.envOr("BRIDGE_GUARDIANS", string(""));
+        address[] memory envGuardians = vm.envOr("BRIDGE_GUARDIANS", ",", new address[](0));
 
-        if (bytes(guardiansEnv).length > 0) {
-            revert("BRIDGE_GUARDIANS parsing not implemented - use test mode or set individual addresses");
+        if (envGuardians.length > 0) {
+            return envGuardians;
         }
 
         // Test mode: generate deterministic addresses
