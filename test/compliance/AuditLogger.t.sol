@@ -150,7 +150,9 @@ contract AuditLoggerTest is Test {
 
     function test_CreateLog_RevertsOnUnauthorized() public {
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, target, logger.LOGGER_ROLE())
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, target, logger.LOGGER_ROLE()
+            )
         );
         vm.prank(target);
         logger.createLog(

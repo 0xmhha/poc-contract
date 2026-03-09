@@ -414,9 +414,7 @@ abstract contract DeploymentHelper is Script {
         }
         if (_addresses[DeploymentAddresses.KEY_HEALTH_FACTOR_HOOK] != address(0)) {
             vm.serializeAddress(
-                obj,
-                DeploymentAddresses.KEY_HEALTH_FACTOR_HOOK,
-                _addresses[DeploymentAddresses.KEY_HEALTH_FACTOR_HOOK]
+                obj, DeploymentAddresses.KEY_HEALTH_FACTOR_HOOK, _addresses[DeploymentAddresses.KEY_HEALTH_FACTOR_HOOK]
             );
         }
         if (_addresses[DeploymentAddresses.KEY_POLICY_HOOK] != address(0)) {
@@ -638,9 +636,7 @@ abstract contract DeploymentHelper is Script {
         string memory finalJson;
         if (_addresses[DeploymentAddresses.KEY_MERCHANT_REGISTRY] != address(0)) {
             finalJson = vm.serializeAddress(
-                obj,
-                DeploymentAddresses.KEY_MERCHANT_REGISTRY,
-                _addresses[DeploymentAddresses.KEY_MERCHANT_REGISTRY]
+                obj, DeploymentAddresses.KEY_MERCHANT_REGISTRY, _addresses[DeploymentAddresses.KEY_MERCHANT_REGISTRY]
             );
         } else {
             // Create a dummy entry if no final key is set

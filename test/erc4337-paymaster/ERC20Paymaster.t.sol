@@ -194,9 +194,7 @@ contract ERC20PaymasterTest is Test {
         uint256 maxTokenCost = paymaster.getTokenAmount(address(token), 0.001 ether);
 
         vm.prank(address(entryPoint));
-        vm.expectRevert(
-            abi.encodeWithSelector(ERC20Paymaster.InsufficientTokenBalance.selector, maxTokenCost, 0)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ERC20Paymaster.InsufficientTokenBalance.selector, maxTokenCost, 0));
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
     }
 
@@ -212,9 +210,7 @@ contract ERC20PaymasterTest is Test {
         uint256 maxTokenCost = paymaster.getTokenAmount(address(token), 0.001 ether);
 
         vm.prank(address(entryPoint));
-        vm.expectRevert(
-            abi.encodeWithSelector(ERC20Paymaster.InsufficientTokenAllowance.selector, maxTokenCost, 0)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ERC20Paymaster.InsufficientTokenAllowance.selector, maxTokenCost, 0));
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
     }
 

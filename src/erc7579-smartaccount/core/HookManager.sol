@@ -36,7 +36,7 @@ abstract contract HookManager {
         if (limit == 0) {
             context = hook.preCheck(msg.sender, value, callData);
         } else {
-            context = hook.preCheck{gas: limit}(msg.sender, value, callData);
+            context = hook.preCheck{ gas: limit }(msg.sender, value, callData);
         }
     }
 
@@ -46,7 +46,7 @@ abstract contract HookManager {
         if (limit == 0) {
             hook.postCheck(context);
         } else {
-            hook.postCheck{gas: limit}(context);
+            hook.postCheck{ gas: limit }(context);
         }
     }
 

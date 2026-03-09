@@ -19,7 +19,13 @@ import {
     PassFlag
 } from "../utils/ValidationTypeLib.sol";
 
-import { CALLTYPE_SINGLE, MODULE_TYPE_POLICY, MODULE_TYPE_SIGNER, MODULE_TYPE_VALIDATOR, SIG_VALIDATION_FAILED } from "../types/Constants.sol";
+import {
+    CALLTYPE_SINGLE,
+    MODULE_TYPE_POLICY,
+    MODULE_TYPE_SIGNER,
+    MODULE_TYPE_VALIDATOR,
+    SIG_VALIDATION_FAILED
+} from "../types/Constants.sol";
 import { calldataKeccak, getSender } from "../utils/Utils.sol";
 
 import { PermissionId, getValidationResult, CallType } from "../types/Types.sol";

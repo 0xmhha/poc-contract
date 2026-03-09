@@ -188,7 +188,9 @@ contract KernelModuleGuardsTest is Test {
         // (Kernel propagates the onUninstall failure to the caller)
         vm.prank(account);
         vm.expectRevert(
-            abi.encodeWithSelector(Kernel.ModuleOnUninstallFailed.selector, MODULE_TYPE_EXECUTOR, address(revertingExecutor))
+            abi.encodeWithSelector(
+                Kernel.ModuleOnUninstallFailed.selector, MODULE_TYPE_EXECUTOR, address(revertingExecutor)
+            )
         );
         Kernel(payable(account)).uninstallModule(MODULE_TYPE_EXECUTOR, address(revertingExecutor), hex"");
 

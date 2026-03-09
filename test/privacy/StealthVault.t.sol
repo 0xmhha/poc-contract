@@ -294,7 +294,9 @@ contract StealthVaultTest is Test {
         // Non-admin tries emergency withdraw
         address random = makeAddr("random");
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, random, vault.EMERGENCY_ROLE())
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, random, vault.EMERGENCY_ROLE()
+            )
         );
         vm.prank(random);
         vault.emergencyWithdraw(depositId, random);

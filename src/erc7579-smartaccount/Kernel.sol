@@ -70,13 +70,16 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     IEntryPoint public immutable ENTRYPOINT;
 
     // keccak256("kernel.executorContext")
-    bytes32 private constant _EXECUTOR_CONTEXT_SLOT = 0x94d32978c622e74e02b217b68ed0f70d5794e5d8e2d849356126ce0119977d0c;
+    bytes32 private constant _EXECUTOR_CONTEXT_SLOT =
+        0x94d32978c622e74e02b217b68ed0f70d5794e5d8e2d849356126ce0119977d0c;
 
     // keccak256("kernel.moduleInstallLock")
-    bytes32 private constant _MODULE_INSTALL_LOCK_SLOT = 0x841c5cbc25998af79f1533f1264d641476b7f439c719e42efd0edf29c24ff93d;
+    bytes32 private constant _MODULE_INSTALL_LOCK_SLOT =
+        0x841c5cbc25998af79f1533f1264d641476b7f439c719e42efd0edf29c24ff93d;
 
     // keccak256("kernel.delegatecallWhitelist")
-    bytes32 private constant _DELEGATECALL_WHITELIST_SLOT = 0x2ac218ac6989b584ade6c80b6dcf91742a664d5253adfaec93c4b5d66f9d3785;
+    bytes32 private constant _DELEGATECALL_WHITELIST_SLOT =
+        0x2ac218ac6989b584ade6c80b6dcf91742a664d5253adfaec93c4b5d66f9d3785;
 
     struct DelegatecallWhitelistStorage {
         mapping(address => bool) allowed;
@@ -571,9 +574,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         if (vType == VALIDATION_TYPE_VALIDATOR) {
             IValidator validator = ValidatorLib.getValidator(vId);
             // Direct call — validator can reject (revert rolls back _clearValidationData)
-            (bool success,) = address(validator).call(
-                abi.encodeWithSelector(IModule.onUninstall.selector, deinitData)
-            );
+            (bool success,) = address(validator).call(abi.encodeWithSelector(IModule.onUninstall.selector, deinitData));
             if (!success) revert ModuleOnUninstallFailed(MODULE_TYPE_VALIDATOR, address(validator));
             emit IERC7579Account.ModuleUninstalled(MODULE_TYPE_VALIDATOR, address(validator));
         } else if (vType == VALIDATION_TYPE_PERMISSION) {
@@ -632,9 +633,8 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         }
 
         // 3. Direct call — module CAN reject (revert wraps as ModuleOnUninstallFailed)
-        (bool success,) = address(module).call(
-            abi.encodeWithSelector(IModule.onUninstall.selector, deInitData[deInitOffset:])
-        );
+        (bool success,) =
+            address(module).call(abi.encodeWithSelector(IModule.onUninstall.selector, deInitData[deInitOffset:]));
         if (!success) revert ModuleOnUninstallFailed(moduleType, module);
 
         // 4. Clear state (only reached on successful onUninstall)
@@ -697,7 +697,10 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         bytes calldata initData
     ) external payable onlyEntryPointOrSelfOrRoot nonReentrantModuleOp {
         // Only VALIDATOR, EXECUTOR, FALLBACK support atomic replacement
-        if (moduleType != MODULE_TYPE_VALIDATOR && moduleType != MODULE_TYPE_EXECUTOR && moduleType != MODULE_TYPE_FALLBACK) {
+        if (
+            moduleType != MODULE_TYPE_VALIDATOR && moduleType != MODULE_TYPE_EXECUTOR
+                && moduleType != MODULE_TYPE_FALLBACK
+        ) {
             revert InvalidModuleType();
         }
 
@@ -711,9 +714,8 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         }
 
         // 2. Uninstall old module (direct call — can reject)
-        (bool success,) = address(oldModule).call(
-            abi.encodeWithSelector(IModule.onUninstall.selector, deInitData[deInitOffset:])
-        );
+        (bool success,) =
+            address(oldModule).call(abi.encodeWithSelector(IModule.onUninstall.selector, deInitData[deInitOffset:]));
         if (!success) revert ModuleOnUninstallFailed(moduleType, oldModule);
         _clearModuleState(moduleType, oldModule, deInitData);
         emit ModuleUninstalled(moduleType, oldModule);
@@ -810,8 +812,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     /// @dev Returns true if the hook address represents an actual hook contract
     ///      (not a sentinel value like NOT_INSTALLED, INSTALLED, or ONLY_ENTRYPOINT).
     function _isActiveHook(IHook hook) internal pure returns (bool) {
-        return address(hook) != HOOK_MODULE_NOT_INSTALLED
-            && address(hook) != HOOK_MODULE_INSTALLED
+        return address(hook) != HOOK_MODULE_NOT_INSTALLED && address(hook) != HOOK_MODULE_INSTALLED
             && address(hook) != HOOK_ONLY_ENTRYPOINT;
     }
 

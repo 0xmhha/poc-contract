@@ -235,7 +235,9 @@ contract RegulatoryRegistryTest is Test {
 
         // After deactivation, regulator loses REGULATOR_ROLE, so AccessControl check fails first
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, regulator, registry.REGULATOR_ROLE())
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, regulator, registry.REGULATOR_ROLE()
+            )
         );
         vm.prank(regulator);
         registry.setMrkPublicKey(keccak256("test"));

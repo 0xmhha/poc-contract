@@ -968,9 +968,7 @@ contract WithdrawalManagerTest is Test {
     function test_SetCooldownPeriod_RevertsOnUnauthorized() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                unauthorized,
-                manager.WITHDRAWAL_ADMIN_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector, unauthorized, manager.WITHDRAWAL_ADMIN_ROLE()
             )
         );
         vm.prank(unauthorized);
@@ -991,9 +989,7 @@ contract WithdrawalManagerTest is Test {
     function test_SetApprovalThreshold_RevertsOnUnauthorized() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                unauthorized,
-                manager.WITHDRAWAL_ADMIN_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector, unauthorized, manager.WITHDRAWAL_ADMIN_ROLE()
             )
         );
         vm.prank(unauthorized);
@@ -1012,9 +1008,7 @@ contract WithdrawalManagerTest is Test {
     function test_SetStealthVault_RevertsOnUnauthorized() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                unauthorized,
-                manager.WITHDRAWAL_ADMIN_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector, unauthorized, manager.WITHDRAWAL_ADMIN_ROLE()
             )
         );
         vm.prank(unauthorized);
@@ -1040,9 +1034,7 @@ contract WithdrawalManagerTest is Test {
     function test_Pause_RevertsOnUnauthorized() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                unauthorized,
-                manager.WITHDRAWAL_ADMIN_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector, unauthorized, manager.WITHDRAWAL_ADMIN_ROLE()
             )
         );
         vm.prank(unauthorized);
@@ -1055,9 +1047,7 @@ contract WithdrawalManagerTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                unauthorized,
-                manager.WITHDRAWAL_ADMIN_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector, unauthorized, manager.WITHDRAWAL_ADMIN_ROLE()
             )
         );
         vm.prank(unauthorized);
