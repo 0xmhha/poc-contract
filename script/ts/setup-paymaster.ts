@@ -72,6 +72,7 @@ interface SetupStep {
 
 const SETUP_STEPS: SetupStep[] = [
   { name: "transfer-ownership", description: "Transfer paymaster ownership from deployer to paymaster account", category: "paymaster" },
+  { name: "set-signer", description: "Set verifyingSigner on VerifyingPaymaster and SponsorPaymaster", category: "paymaster" },
   { name: "deposit", description: "Deposit native token to EntryPoint for all paymasters", category: "paymaster" },
   { name: "token", description: "Add USDC as supported token for ERC20Paymaster", category: "erc20" },
   // NOTE: SponsorPaymaster uses off-chain policy (Visa 4-Party model) — no on-chain whitelist/budget
@@ -414,6 +415,85 @@ function stepTransferOwnership(
       }
     } catch (error) {
       console.error(`    ❌ Failed to transfer ownership for ${name}`);
+      allSuccess = false;
+    }
+  }
+
+  return allSuccess;
+}
+
+// ============ Step: Set VerifyingSigner ============
+
+function stepSetVerifyingSigner(
+  addresses: DeployedAddresses,
+  rpcUrl: string,
+  privateKeyPaymaster: string,
+  dryRun: boolean
+): boolean {
+  console.log(`\n${"─".repeat(60)}`);
+  console.log(`  Step 0.5: Set verifyingSigner on VerifyingPaymaster and SponsorPaymaster`);
+  console.log(`${"─".repeat(60)}`);
+
+  if (!privateKeyPaymaster) {
+    console.log("  ⚠️  PRIVATE_KEY_PAYMASTER not set, skipping...");
+    return true;
+  }
+
+  const signerAddress = process.env.VERIFYING_SIGNER || getWalletAddress(privateKeyPaymaster);
+  console.log(`  Target verifyingSigner: ${signerAddress}`);
+
+  if (dryRun) {
+    console.log(`  [DRY RUN] Would set verifyingSigner to ${signerAddress}`);
+    return true;
+  }
+
+  const paymasters: Array<{ name: string; key: keyof DeployedAddresses }> = [
+    { name: "VerifyingPaymaster", key: "verifyingPaymaster" },
+    { name: "SponsorPaymaster", key: "sponsorPaymaster" },
+  ];
+
+  let allSuccess = true;
+
+  for (const pm of paymasters) {
+    const contractAddr = addresses[pm.key];
+    if (!contractAddr) {
+      console.log(`  ⚠️  ${pm.name}: NOT DEPLOYED (skipping)`);
+      continue;
+    }
+
+    try {
+      const currentSigner = execCast(
+        ["call", contractAddr, "verifyingSigner()(address)"],
+        { rpcUrl }
+      ).trim();
+
+      console.log(`\n  ${pm.name} (${contractAddr})`);
+      console.log(`    Current signer: ${currentSigner}`);
+
+      if (currentSigner.toLowerCase() === signerAddress.toLowerCase()) {
+        console.log(`    Already set to target signer, skipping...`);
+        continue;
+      }
+
+      console.log(`    Setting verifyingSigner to ${signerAddress}...`);
+      execCast(
+        ["send", contractAddr, "setVerifyingSigner(address)", signerAddress],
+        { rpcUrl, privateKey: privateKeyPaymaster }
+      );
+
+      const newSigner = execCast(
+        ["call", contractAddr, "verifyingSigner()(address)"],
+        { rpcUrl }
+      ).trim();
+
+      if (newSigner.toLowerCase() === signerAddress.toLowerCase()) {
+        console.log(`    ✅ Signer updated`);
+      } else {
+        console.log(`    ❌ Signer update may have failed (signer: ${newSigner})`);
+        allSuccess = false;
+      }
+    } catch (error) {
+      console.error(`    ❌ Failed to set verifyingSigner for ${pm.name}`);
       allSuccess = false;
     }
   }
@@ -919,6 +999,10 @@ function main(): void {
       case "transfer-ownership":
         // Deployer transfers ownership to paymaster account (runs once)
         success = stepTransferOwnership(addresses, env.rpcUrl, env.privateKeyDeployer, env.privateKeyPaymaster, args.dryRun);
+        break;
+      case "set-signer":
+        // Owner sets verifyingSigner to match paymaster-proxy signer
+        success = stepSetVerifyingSigner(addresses, env.rpcUrl, env.privateKeyPaymaster, args.dryRun);
         break;
       case "deposit":
         // Paymaster account funds the EntryPoint deposit
