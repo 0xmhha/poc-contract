@@ -39,11 +39,15 @@ ERC-4337 interfaces within this module are licensed under GPL-3.0 per their orig
 
 ### ERC-7579 Validators (`src/erc7579-validators/`)
 
-Validator module patterns inspired by the Kernel ecosystem.
+Validator modules derived from the Kernel V3 plugin ecosystem by ZeroDev.
+`ECDSAValidator.sol` and `MultiChainValidator.sol` are directly based on kernel-v3 validators.
+`WeightedECDSAValidator.sol` extends kernel-v3 patterns with weighted guardian voting.
+`WebAuthnValidator.sol` is a reimplementation inspired by the kernel-7579-plugins WebAuthn validator.
 
-- **Reference**: https://github.com/zerodevapp/kernel
+- **Source**: https://github.com/nichanank/kernel-7579-plugins (validators/)
+- **Source**: https://github.com/zerodevapp/kernel
 - **License**: MIT
-- **Copyright**: Copyright (c) 2023 ZeroDev
+- **Copyright**: Copyright (c) 2024 ZeroDev
 
 ### ERC-7579 Executors (`src/erc7579-executors/`)
 
@@ -55,9 +59,12 @@ Executor module patterns inspired by the ERC-7579 modular account standard.
 ### ERC-7579 Hooks (`src/erc7579-hooks/`)
 
 Hook module patterns following the ERC-7579 specification.
+`SpendingLimitHook.sol` extends concepts from the kernel-7579-plugins SpendingLimit hook.
 
 - **Reference**: https://eips.ethereum.org/EIPS/eip-7579
+- **Source**: https://github.com/nichanank/kernel-7579-plugins (hooks/spendlingLimits/)
 - **License**: MIT
+- **Copyright**: Copyright (c) 2024 ZeroDev (kernel-7579-plugins)
 
 ### ERC-7579 Fallbacks (`src/erc7579-fallbacks/`)
 

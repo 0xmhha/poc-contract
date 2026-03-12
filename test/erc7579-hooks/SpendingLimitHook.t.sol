@@ -43,7 +43,18 @@ contract SpendingLimitHookTest is Test {
     }
 
     function test_OnInstall_WithInitialLimits() public {
-        // Prepare initial configuration
+        _installHookWithEthLimit();
+
+        assertTrue(hook.isInitialized(address(account)), "Should be initialized");
+
+        SpendingLimitHook.SpendingLimit memory ethLimit = hook.getSpendingLimit(address(account), address(0));
+        assertEq(ethLimit.limit, DAILY_LIMIT, "ETH limit should be set");
+        assertEq(ethLimit.allowance, DAILY_LIMIT, "ETH allowance should equal limit");
+        assertEq(ethLimit.periodLength, PERIOD_DAILY, "ETH period should be set");
+        assertTrue(ethLimit.isEnabled, "ETH limit should be enabled");
+    }
+
+    function test_OnInstall_MultipleLimits() public {
         address[] memory tokens = new address[](2);
         tokens[0] = address(0); // ETH
         tokens[1] = address(token);
@@ -61,17 +72,9 @@ contract SpendingLimitHookTest is Test {
         vm.prank(address(account));
         hook.onInstall(installData);
 
-        assertTrue(hook.isInitialized(address(account)), "Should be initialized");
-
-        // Check ETH limit
-        SpendingLimitHook.SpendingLimit memory ethLimit = hook.getSpendingLimit(address(account), address(0));
-        assertEq(ethLimit.limit, 1 ether, "ETH limit should be set");
-        assertEq(ethLimit.periodLength, PERIOD_DAILY, "ETH period should be set");
-        assertTrue(ethLimit.isEnabled, "ETH limit should be enabled");
-
-        // Check token limit
         SpendingLimitHook.SpendingLimit memory tokenLimit = hook.getSpendingLimit(address(account), address(token));
         assertEq(tokenLimit.limit, 100 ether, "Token limit should be set");
+        assertEq(tokenLimit.allowance, 100 ether, "Token allowance should equal limit");
     }
 
     function test_OnUninstall() public {
@@ -99,7 +102,19 @@ contract SpendingLimitHookTest is Test {
 
         SpendingLimitHook.SpendingLimit memory limit = hook.getSpendingLimit(address(account), address(0));
         assertEq(limit.limit, DAILY_LIMIT);
+        assertEq(limit.allowance, DAILY_LIMIT);
         assertEq(limit.periodLength, PERIOD_DAILY);
+        assertTrue(limit.isEnabled);
+    }
+
+    function test_SetSpendingLimit_LifetimeLimit() public {
+        // periodLength = 0 means lifetime limit (no reset)
+        vm.prank(address(account));
+        hook.setSpendingLimit(address(0), DAILY_LIMIT, 0);
+
+        SpendingLimitHook.SpendingLimit memory limit = hook.getSpendingLimit(address(account), address(0));
+        assertEq(limit.limit, DAILY_LIMIT);
+        assertEq(limit.periodLength, 0, "Lifetime limit has period 0");
         assertTrue(limit.isEnabled);
     }
 
@@ -107,12 +122,6 @@ contract SpendingLimitHookTest is Test {
         vm.prank(address(account));
         vm.expectRevert(SpendingLimitHook.InvalidLimit.selector);
         hook.setSpendingLimit(address(0), 0, PERIOD_DAILY);
-    }
-
-    function test_SetSpendingLimit_RevertInvalidPeriod() public {
-        vm.prank(address(account));
-        vm.expectRevert(SpendingLimitHook.InvalidPeriod.selector);
-        hook.setSpendingLimit(address(0), DAILY_LIMIT, 0);
     }
 
     function test_RemoveSpendingLimit() public {
@@ -132,7 +141,6 @@ contract SpendingLimitHookTest is Test {
     }
 
     function test_GetConfiguredTokens() public {
-        // Set up multiple limits
         vm.startPrank(address(account));
         hook.setSpendingLimit(address(0), DAILY_LIMIT, PERIOD_DAILY);
         hook.setSpendingLimit(address(token), 100 ether, PERIOD_DAILY);
@@ -140,32 +148,6 @@ contract SpendingLimitHookTest is Test {
 
         address[] memory tokens = hook.getConfiguredTokens(address(account));
         assertEq(tokens.length, 2);
-    }
-
-    /* //////////////////////////////////////////////////////////////
-                            WHITELIST TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    function test_SetWhitelist() public {
-        vm.prank(address(account));
-        hook.setWhitelist(recipient, true);
-
-        assertTrue(hook.isWhitelisted(address(account), recipient));
-    }
-
-    function test_Whitelist_BypassesLimits() public {
-        _installHookWithEthLimit();
-
-        // Whitelist recipient
-        vm.prank(address(account));
-        hook.setWhitelist(recipient, true);
-
-        // Build transaction data exceeding limit
-        bytes memory msgData = abi.encodePacked(recipient, uint256(10 ether), "");
-
-        // Should not revert even though it exceeds limit
-        vm.prank(address(account));
-        hook.preCheck(user, 10 ether, msgData);
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -189,115 +171,99 @@ contract SpendingLimitHookTest is Test {
     }
 
     function test_PreCheck_RevertWhenPaused() public {
-        _installHookWithEthLimit();
+        _installHookViaAccount();
 
         vm.prank(address(account));
         hook.pause();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(0.1 ether), "");
-
-        vm.prank(address(account));
+        // executeWithHookAndCall triggers preCheck which should revert
         vm.expectRevert(SpendingLimitHook.AccountIsPaused.selector);
-        hook.preCheck(user, 0.1 ether, msgData);
+        account.executeWithHookAndCall(recipient, 0.1 ether, "");
     }
 
     /* //////////////////////////////////////////////////////////////
-                        SPENDING LIMIT ENFORCEMENT
+                    BALANCE-BASED SPENDING ENFORCEMENT
     //////////////////////////////////////////////////////////////*/
 
-    function test_PreCheck_ETH_UnderLimit() public {
-        _installHookWithEthLimit();
+    function test_ETH_UnderLimit() public {
+        _installHookViaAccount();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(0.5 ether), "");
+        // Transfer 0.5 ETH (under 1 ETH limit)
+        account.executeWithHookAndCall(recipient, 0.5 ether, "");
 
-        vm.prank(address(account));
-        bytes memory hookData = hook.preCheck(user, 0.5 ether, msgData);
-
-        // Should pass without revert
-        (address returnedToken, uint256 returnedAmount) = abi.decode(hookData, (address, uint256));
-        assertEq(returnedToken, address(0));
-        assertEq(returnedAmount, 0.5 ether);
-    }
-
-    function test_PreCheck_ETH_AtLimit() public {
-        _installHookWithEthLimit();
-
-        bytes memory msgData = abi.encodePacked(recipient, uint256(DAILY_LIMIT), "");
-
-        vm.prank(address(account));
-        hook.preCheck(user, DAILY_LIMIT, msgData);
-
-        // Verify spending was recorded
         uint256 remaining = hook.getRemainingAllowance(address(account), address(0));
-        assertEq(remaining, 0);
+        assertEq(remaining, 0.5 ether, "Should have 0.5 ETH remaining");
     }
 
-    function test_PreCheck_ETH_ExceedsLimit() public {
-        _installHookWithEthLimit();
+    function test_ETH_AtLimit() public {
+        _installHookViaAccount();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(1.5 ether), "");
+        // Transfer exactly 1 ETH (at limit)
+        account.executeWithHookAndCall(recipient, DAILY_LIMIT, "");
 
-        vm.prank(address(account));
+        uint256 remaining = hook.getRemainingAllowance(address(account), address(0));
+        assertEq(remaining, 0, "Should have 0 remaining after spending full limit");
+    }
+
+    function test_ETH_ExceedsLimit() public {
+        _installHookViaAccount();
+
+        // Transfer 1.5 ETH (over 1 ETH limit) — should revert in postCheck
         vm.expectRevert(
             abi.encodeWithSelector(SpendingLimitHook.SpendingLimitExceeded.selector, address(0), 1.5 ether, DAILY_LIMIT)
         );
-        hook.preCheck(user, 1.5 ether, msgData);
+        account.executeWithHookAndCall(recipient, 1.5 ether, "");
     }
 
-    function test_PreCheck_CumulativeSpending() public {
-        _installHookWithEthLimit();
+    function test_ETH_CumulativeSpending() public {
+        _installHookViaAccount();
 
-        // First transaction: 0.6 ETH
-        bytes memory msgData1 = abi.encodePacked(recipient, uint256(0.6 ether), "");
-        vm.prank(address(account));
-        hook.preCheck(user, 0.6 ether, msgData1);
+        // First: 0.6 ETH
+        account.executeWithHookAndCall(recipient, 0.6 ether, "");
+        assertEq(hook.getRemainingAllowance(address(account), address(0)), 0.4 ether);
 
-        // Check remaining
-        uint256 remaining = hook.getRemainingAllowance(address(account), address(0));
-        assertEq(remaining, 0.4 ether);
-
-        // Second transaction: 0.5 ETH - should fail
-        bytes memory msgData2 = abi.encodePacked(recipient, uint256(0.5 ether), "");
-        vm.prank(address(account));
+        // Second: 0.5 ETH — exceeds remaining 0.4 ETH
         vm.expectRevert(
             abi.encodeWithSelector(SpendingLimitHook.SpendingLimitExceeded.selector, address(0), 0.5 ether, 0.4 ether)
         );
-        hook.preCheck(user, 0.5 ether, msgData2);
+        account.executeWithHookAndCall(recipient, 0.5 ether, "");
     }
 
-    function test_PreCheck_ERC20Transfer() public {
-        _installHookWithTokenLimit();
+    function test_ERC20_UnderLimit() public {
+        _installHookViaAccountWithToken();
 
-        // Build ERC20 transfer calldata
-        bytes memory transferCall =
-            abi.encodeWithSelector(bytes4(keccak256("transfer(address,uint256)")), recipient, 50 ether);
-
-        // msgData format: target (20) + value (32) + callData
-        bytes memory msgData = abi.encodePacked(address(token), uint256(0), transferCall);
-
-        vm.prank(address(account));
-        hook.preCheck(user, 0, msgData);
+        // Transfer 50 tokens (under 100 token limit)
+        bytes memory transferCall = abi.encodeWithSelector(token.transfer.selector, recipient, 50 ether);
+        account.executeWithHookAndCall(address(token), 0, transferCall);
 
         uint256 remaining = hook.getRemainingAllowance(address(account), address(token));
-        assertEq(remaining, 50 ether);
+        assertEq(remaining, 50 ether, "Should have 50 tokens remaining");
     }
 
-    function test_PreCheck_ERC20Transfer_ExceedsLimit() public {
-        _installHookWithTokenLimit();
+    function test_ERC20_ExceedsLimit() public {
+        _installHookViaAccountWithToken();
 
-        // Build ERC20 transfer calldata exceeding limit
-        bytes memory transferCall =
-            abi.encodeWithSelector(bytes4(keccak256("transfer(address,uint256)")), recipient, 150 ether);
+        // Transfer 150 tokens (over 100 token limit)
+        bytes memory transferCall = abi.encodeWithSelector(token.transfer.selector, recipient, 150 ether);
 
-        bytes memory msgData = abi.encodePacked(address(token), uint256(0), transferCall);
-
-        vm.prank(address(account));
         vm.expectRevert(
             abi.encodeWithSelector(
                 SpendingLimitHook.SpendingLimitExceeded.selector, address(token), 150 ether, 100 ether
             )
         );
-        hook.preCheck(user, 0, msgData);
+        account.executeWithHookAndCall(address(token), 0, transferCall);
+    }
+
+    function test_BalanceIncrease_SkipsCheck() public {
+        _installHookViaAccountWithToken();
+
+        // Mint tokens TO the account — balance increases, should not affect limits
+        bytes memory mintCall = abi.encodeWithSelector(token.mint.selector, address(account), 100 ether);
+        account.executeWithHookAndCall(address(token), 0, mintCall);
+
+        // Allowance should be unchanged
+        uint256 remaining = hook.getRemainingAllowance(address(account), address(token));
+        assertEq(remaining, 100 ether, "Receiving tokens should not consume allowance");
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -305,36 +271,43 @@ contract SpendingLimitHookTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_PeriodAutoReset() public {
-        _installHookWithEthLimit();
+        _installHookViaAccount();
 
         // Spend full limit
-        bytes memory msgData = abi.encodePacked(recipient, uint256(DAILY_LIMIT), "");
-        vm.prank(address(account));
-        hook.preCheck(user, DAILY_LIMIT, msgData);
-
-        // Remaining should be 0
+        account.executeWithHookAndCall(recipient, DAILY_LIMIT, "");
         assertEq(hook.getRemainingAllowance(address(account), address(0)), 0);
 
         // Fast forward past the period
         vm.warp(block.timestamp + PERIOD_DAILY + 1);
 
-        // Remaining should be full limit again
+        // Remaining should be full limit again (auto-reset on read)
         assertEq(hook.getRemainingAllowance(address(account), address(0)), DAILY_LIMIT);
     }
 
+    function test_PeriodAutoReset_AllowsSpendingAgain() public {
+        _installHookViaAccount();
+
+        // Spend full limit
+        account.executeWithHookAndCall(recipient, DAILY_LIMIT, "");
+
+        // Fast forward past period
+        vm.warp(block.timestamp + PERIOD_DAILY + 1);
+
+        // Should be able to spend again
+        account.executeWithHookAndCall(recipient, 0.5 ether, "");
+        assertEq(hook.getRemainingAllowance(address(account), address(0)), 0.5 ether);
+    }
+
     function test_ManualPeriodReset() public {
-        _installHookWithEthLimit();
+        _installHookViaAccount();
 
         // Spend some
-        bytes memory msgData = abi.encodePacked(recipient, uint256(0.5 ether), "");
-        vm.prank(address(account));
-        hook.preCheck(user, 0.5 ether, msgData);
+        account.executeWithHookAndCall(recipient, 0.5 ether, "");
 
         // Manual reset
         vm.prank(address(account));
         hook.resetPeriod(address(0));
 
-        // Remaining should be full limit
         assertEq(hook.getRemainingAllowance(address(account), address(0)), DAILY_LIMIT);
     }
 
@@ -360,6 +333,26 @@ contract SpendingLimitHookTest is Test {
         assertEq(timeUntilReset, 0);
     }
 
+    function test_LifetimeLimit_NoReset() public {
+        // Install with periodLength = 0 (lifetime)
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(0);
+        uint256[] memory limits = new uint256[](1);
+        limits[0] = DAILY_LIMIT;
+        uint256[] memory periods = new uint256[](1);
+        periods[0] = 0; // lifetime
+
+        account.installHook(address(hook), abi.encode(tokens, limits, periods));
+
+        // Spend some
+        account.executeWithHookAndCall(recipient, 0.5 ether, "");
+        assertEq(hook.getRemainingAllowance(address(account), address(0)), 0.5 ether);
+
+        // Even after time passes, allowance should NOT reset
+        vm.warp(block.timestamp + 365 days);
+        assertEq(hook.getRemainingAllowance(address(account), address(0)), 0.5 ether);
+    }
+
     /* //////////////////////////////////////////////////////////////
                             VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -377,12 +370,16 @@ contract SpendingLimitHookTest is Test {
     }
 
     /* //////////////////////////////////////////////////////////////
-                            POST CHECK TESTS
+                        POST CHECK EDGE CASES
     //////////////////////////////////////////////////////////////*/
 
-    function test_PostCheck_DoesNotRevert() public {
+    function test_PostCheck_NoConfiguredTokens() public {
+        // Install hook with no limits
+        account.installHook(address(hook), "");
+
+        // Should not revert — no tokens to check
         vm.prank(address(account));
-        hook.postCheck(""); // Should not revert
+        hook.postCheck(abi.encode(new uint256[](0)));
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -405,7 +402,22 @@ contract SpendingLimitHookTest is Test {
         hook.onInstall(installData);
     }
 
-    function _installHookWithTokenLimit() internal {
+    /// @dev Installs hook via account (sets account.hook reference for executeWithHookAndCall)
+    function _installHookViaAccount() internal {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(0);
+
+        uint256[] memory limits = new uint256[](1);
+        limits[0] = DAILY_LIMIT;
+
+        uint256[] memory periods = new uint256[](1);
+        periods[0] = PERIOD_DAILY;
+
+        account.installHook(address(hook), abi.encode(tokens, limits, periods));
+    }
+
+    /// @dev Installs hook via account with ERC20 token limit
+    function _installHookViaAccountWithToken() internal {
         address[] memory tokens = new address[](1);
         tokens[0] = address(token);
 
@@ -415,9 +427,6 @@ contract SpendingLimitHookTest is Test {
         uint256[] memory periods = new uint256[](1);
         periods[0] = PERIOD_DAILY;
 
-        bytes memory installData = abi.encode(tokens, limits, periods);
-
-        vm.prank(address(account));
-        hook.onInstall(installData);
+        account.installHook(address(hook), abi.encode(tokens, limits, periods));
     }
 }

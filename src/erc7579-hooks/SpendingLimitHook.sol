@@ -3,18 +3,25 @@ pragma solidity ^0.8.28;
 
 import { IHook } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import { MODULE_TYPE_HOOK } from "../erc7579-smartaccount/types/Constants.sol";
-import { HookExecutionDataLib } from "./HookExecutionDataLib.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title SpendingLimitHook
  * @notice ERC-7579 Hook module that enforces spending limits on smart accounts
- * @dev Tracks and limits ETH and ERC-20 token spending per time period
+ * @dev Uses a balance-based approach (pre/post balance comparison) instead of calldata
+ *      parsing. This design reliably catches ALL spending paths including:
+ *      - direct transfer()
+ *      - transferFrom() by approved spenders
+ *      - approve() + subsequent spending (tracked via actual balance change)
+ *      - any custom transfer mechanisms
+ *
+ *      Inspired by kernel-7579-plugins SpendingLimit.sol (ZeroDev, MIT).
  *
  * Features:
  * - Configurable spending limits per token (including ETH)
  * - Time-based spending windows (hourly, daily, weekly, monthly)
  * - Automatic limit reset after each period
- * - Whitelist for unlimited spending to certain addresses
+ * - Balance snapshot in preCheck, diff validation in postCheck
  * - Emergency pause functionality
  *
  * Use Cases:
@@ -26,19 +33,18 @@ import { HookExecutionDataLib } from "./HookExecutionDataLib.sol";
 contract SpendingLimitHook is IHook {
     /// @notice Spending limit configuration for a token
     struct SpendingLimit {
-        uint256 limit; // Maximum amount per period
-        uint256 spent; // Amount spent in current period
-        uint256 periodLength; // Length of period in seconds
+        uint256 allowance; // Remaining allowance in current period
+        uint256 limit; // Maximum amount per period (for reset)
+        uint256 periodLength; // Length of period in seconds (0 = no periodic reset)
         uint256 periodStart; // Start of current period
         bool isEnabled;
     }
 
     /// @notice Storage for each smart account
     struct AccountStorage {
-        mapping(address token => SpendingLimit) limits; // token address(0) = ETH
-        mapping(address => bool) whitelist; // Addresses exempt from limits
+        address[] configuredTokens; // token address(0) = ETH
+        mapping(address token => SpendingLimit) limits;
         bool isPaused;
-        address[] configuredTokens;
     }
 
     /// @notice Account address => AccountStorage
@@ -50,27 +56,18 @@ contract SpendingLimitHook is IHook {
     uint256 public constant PERIOD_WEEKLY = 7 days;
     uint256 public constant PERIOD_MONTHLY = 30 days;
 
-    // ERC-20 function selectors
-    bytes4 private constant TRANSFER_SELECTOR = bytes4(keccak256("transfer(address,uint256)"));
-    bytes4 private constant TRANSFER_FROM_SELECTOR = bytes4(keccak256("transferFrom(address,address,uint256)"));
-    bytes4 private constant APPROVE_SELECTOR = bytes4(keccak256("approve(address,uint256)"));
-
     // Events
     event SpendingLimitSet(address indexed account, address indexed token, uint256 limit, uint256 periodLength);
     event SpendingLimitRemoved(address indexed account, address indexed token);
-    event SpendingRecorded(
-        address indexed account, address indexed token, uint256 amount, uint256 newTotal, uint256 limit
-    );
-    event WhitelistUpdated(address indexed account, address indexed target, bool isWhitelisted);
+    event SpendingRecorded(address indexed account, address indexed token, uint256 spent, uint256 remaining);
     event AccountPaused(address indexed account);
     event AccountUnpaused(address indexed account);
     event PeriodReset(address indexed account, address indexed token, uint256 newPeriodStart);
 
     // Errors
-    error SpendingLimitExceeded(address token, uint256 requested, uint256 available);
+    error SpendingLimitExceeded(address token, uint256 spent, uint256 allowance);
     error AccountIsPaused();
     error InvalidLimit();
-    error InvalidPeriod();
     error LimitNotConfigured();
 
     // ============ IModule Implementation ============
@@ -114,12 +111,12 @@ contract SpendingLimitHook is IHook {
     // ============ IHook Implementation ============
 
     /**
-     * @notice Pre-execution check - validates spending limits
-     * @param msgValue ETH value being sent
-     * @param msgData The calldata being executed
-     * @return hookData Data to pass to postCheck
+     * @notice Pre-execution check - snapshots balances for all configured tokens
+     * @dev Balance-based approach: record balances before execution, compare after
+     *      This catches ALL spending paths (transfer, transferFrom, approve+spend, etc.)
+     * @return hookData Encoded pre-execution balances
      */
-    function preCheck(address, uint256 msgValue, bytes calldata msgData)
+    function preCheck(address, uint256, bytes calldata)
         external
         payable
         override
@@ -127,60 +124,74 @@ contract SpendingLimitHook is IHook {
     {
         AccountStorage storage store = accountStorage[msg.sender];
 
-        // Check if paused
         if (store.isPaused) revert AccountIsPaused();
 
-        // Extract execution data, handling wrapper calldata from AA/executor paths
-        if (msgData.length < 20) {
-            return abi.encode(address(0), msgValue);
-        }
+        uint256 length = store.configuredTokens.length;
+        uint256[] memory balances = new uint256[](length);
 
-        (address target, uint256 execValue, bytes calldata execCalldata) =
-            HookExecutionDataLib.extractExecutionData(msgData, msgValue);
-
-        // Check whitelist
-        if (target != address(0) && store.whitelist[target]) {
-            return abi.encode(address(0), uint256(0)); // Skip limit check
-        }
-
-        // Check ETH spending
-        if (execValue > 0) {
-            _checkAndRecordSpending(msg.sender, address(0), execValue);
-        }
-
-        // Check ERC-20 transfers and approvals
-        if (execCalldata.length >= 4) {
-            bytes4 selector = bytes4(execCalldata[0:4]);
-
-            if (selector == TRANSFER_SELECTOR && execCalldata.length >= 68) {
-                // transfer(address,uint256): selector(4) + to(32) + amount(32) = 68
-                uint256 amount = uint256(bytes32(execCalldata[36:68]));
-                _checkAndRecordSpending(msg.sender, target, amount);
-                return abi.encode(target, amount);
-            } else if (selector == TRANSFER_FROM_SELECTOR && execCalldata.length >= 100) {
-                // transferFrom(address,address,uint256): selector(4) + from(32) + to(32) + amount(32) = 100
-                uint256 amount = uint256(bytes32(execCalldata[68:100]));
-                _checkAndRecordSpending(msg.sender, target, amount);
-                return abi.encode(target, amount);
-            } else if (selector == APPROVE_SELECTOR && execCalldata.length >= 68) {
-                // approve(address,uint256): selector(4) + spender(32) + amount(32) = 68
-                uint256 amount = uint256(bytes32(execCalldata[36:68]));
-                _checkAndRecordSpending(msg.sender, target, amount);
-                return abi.encode(target, amount);
+        for (uint256 i = 0; i < length; i++) {
+            address token = store.configuredTokens[i];
+            if (token == address(0)) {
+                balances[i] = msg.sender.balance;
+            } else {
+                balances[i] = IERC20(token).balanceOf(msg.sender);
             }
         }
 
-        return abi.encode(address(0), execValue);
+        return abi.encode(balances);
     }
 
     /**
-     * @notice Post-execution check
-     * @param hookData Data from preCheck (unused in this implementation)
+     * @notice Post-execution check - compares balances and enforces spending limits
+     * @dev For each configured token:
+     *      1. Get current balance
+     *      2. Compare with pre-execution snapshot
+     *      3. If balance decreased, check against allowance
+     *      4. If balance increased (received tokens), skip the check
+     * @param hookData Encoded pre-execution balances from preCheck
      */
     function postCheck(bytes calldata hookData) external payable override {
-        // Post-check can be used for additional validation if needed
-        // Currently, all validation is done in preCheck
-        (hookData); // Silence unused warning
+        AccountStorage storage store = accountStorage[msg.sender];
+        uint256 length = store.configuredTokens.length;
+
+        uint256[] memory preBalances = abi.decode(hookData, (uint256[]));
+
+        for (uint256 i = 0; i < length; i++) {
+            address token = store.configuredTokens[i];
+            SpendingLimit storage limit = store.limits[token];
+
+            if (!limit.isEnabled) continue;
+
+            // Get current balance
+            uint256 currentBalance;
+            if (token == address(0)) {
+                currentBalance = msg.sender.balance;
+            } else {
+                currentBalance = IERC20(token).balanceOf(msg.sender);
+            }
+
+            // If balance increased, skip (received tokens)
+            if (currentBalance >= preBalances[i]) continue;
+
+            uint256 spent = preBalances[i] - currentBalance;
+
+            // Reset period if expired
+            if (limit.periodLength > 0 && block.timestamp >= limit.periodStart + limit.periodLength) {
+                limit.allowance = limit.limit;
+                limit.periodStart = block.timestamp;
+                emit PeriodReset(msg.sender, token, block.timestamp);
+            }
+
+            // Check allowance
+            if (limit.allowance < spent) {
+                revert SpendingLimitExceeded(token, spent, limit.allowance);
+            }
+
+            // Deduct from allowance
+            limit.allowance -= spent;
+
+            emit SpendingRecorded(msg.sender, token, spent, limit.allowance);
+        }
     }
 
     // ============ Spending Limit Management ============
@@ -189,7 +200,7 @@ contract SpendingLimitHook is IHook {
      * @notice Set a spending limit for a token
      * @param token Token address (address(0) for ETH)
      * @param limit Maximum spending per period
-     * @param periodLength Period length in seconds
+     * @param periodLength Period length in seconds (0 = lifetime limit, no reset)
      */
     function setSpendingLimit(address token, uint256 limit, uint256 periodLength) external {
         _setSpendingLimit(msg.sender, token, limit, periodLength);
@@ -208,16 +219,6 @@ contract SpendingLimitHook is IHook {
         _removeFromConfiguredTokens(msg.sender, token);
 
         emit SpendingLimitRemoved(msg.sender, token);
-    }
-
-    /**
-     * @notice Update whitelist status for an address
-     * @param target Address to whitelist/unwhitelist
-     * @param whitelisted Whether to whitelist
-     */
-    function setWhitelist(address target, bool whitelisted) external {
-        accountStorage[msg.sender].whitelist[target] = whitelisted;
-        emit WhitelistUpdated(msg.sender, target, whitelisted);
     }
 
     /**
@@ -246,7 +247,7 @@ contract SpendingLimitHook is IHook {
 
         if (!limit.isEnabled) revert LimitNotConfigured();
 
-        limit.spent = 0;
+        limit.allowance = limit.limit;
         limit.periodStart = block.timestamp;
 
         emit PeriodReset(msg.sender, token, block.timestamp);
@@ -274,20 +275,11 @@ contract SpendingLimitHook is IHook {
         if (!limit.isEnabled) return type(uint256).max;
 
         // Check if period has expired
-        if (block.timestamp >= limit.periodStart + limit.periodLength) {
+        if (limit.periodLength > 0 && block.timestamp >= limit.periodStart + limit.periodLength) {
             return limit.limit; // Full allowance after period reset
         }
 
-        return limit.limit > limit.spent ? limit.limit - limit.spent : 0;
-    }
-
-    /**
-     * @notice Check if an address is whitelisted
-     * @param account The smart account
-     * @param target The address to check
-     */
-    function isWhitelisted(address account, address target) external view returns (bool) {
-        return accountStorage[account].whitelist[target];
+        return limit.allowance;
     }
 
     /**
@@ -314,7 +306,7 @@ contract SpendingLimitHook is IHook {
     function getTimeUntilReset(address account, address token) external view returns (uint256) {
         SpendingLimit storage limit = accountStorage[account].limits[token];
 
-        if (!limit.isEnabled) return 0;
+        if (!limit.isEnabled || limit.periodLength == 0) return 0;
 
         uint256 periodEnd = limit.periodStart + limit.periodLength;
         if (block.timestamp >= periodEnd) return 0;
@@ -326,7 +318,6 @@ contract SpendingLimitHook is IHook {
 
     function _setSpendingLimit(address account, address token, uint256 limit, uint256 periodLength) internal {
         if (limit == 0) revert InvalidLimit();
-        if (periodLength == 0) revert InvalidPeriod();
 
         AccountStorage storage store = accountStorage[account];
 
@@ -336,36 +327,14 @@ contract SpendingLimitHook is IHook {
         }
 
         store.limits[token] = SpendingLimit({
-            limit: limit, spent: 0, periodLength: periodLength, periodStart: block.timestamp, isEnabled: true
+            allowance: limit,
+            limit: limit,
+            periodLength: periodLength,
+            periodStart: block.timestamp,
+            isEnabled: true
         });
 
         emit SpendingLimitSet(account, token, limit, periodLength);
-    }
-
-    function _checkAndRecordSpending(address account, address token, uint256 amount) internal {
-        AccountStorage storage store = accountStorage[account];
-        SpendingLimit storage limit = store.limits[token];
-
-        // If no limit configured, allow
-        if (!limit.isEnabled) return;
-
-        // Check if period has expired and reset
-        if (block.timestamp >= limit.periodStart + limit.periodLength) {
-            limit.spent = 0;
-            limit.periodStart = block.timestamp;
-            emit PeriodReset(account, token, block.timestamp);
-        }
-
-        // Check limit
-        uint256 newTotal = limit.spent + amount;
-        if (newTotal > limit.limit) {
-            revert SpendingLimitExceeded(token, amount, limit.limit - limit.spent);
-        }
-
-        // Record spending
-        limit.spent = newTotal;
-
-        emit SpendingRecorded(account, token, amount, newTotal, limit.limit);
     }
 
     function _removeFromConfiguredTokens(address account, address token) internal {

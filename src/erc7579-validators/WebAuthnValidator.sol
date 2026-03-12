@@ -10,6 +10,7 @@ import {
     ERC1271_MAGICVALUE,
     ERC1271_INVALID
 } from "../erc7579-smartaccount/types/Constants.sol";
+import { P256 } from "./P256.sol";
 
 /**
  * @title WebAuthnValidator
@@ -585,21 +586,7 @@ contract WebAuthnValidator is IValidator {
         view
         returns (bool)
     {
-        // Try EIP-7212 P256VERIFY precompile at address 0x100
-        // Input: hash (32) || r (32) || s (32) || x (32) || y (32) = 160 bytes
-        // Output: 1 if valid, empty or 0 if invalid
-
-        bytes memory input = abi.encodePacked(hash, r, s, pubKeyX, pubKeyY);
-
-        (bool success, bytes memory output) = address(0x100).staticcall(input);
-
-        if (success && output.length == 32) {
-            return abi.decode(output, (uint256)) == 1;
-        }
-
-        // Fallback: Use P256 library verification if precompile not available
-        // This would require importing a P256 verification library like FCL or Daimo's P256Verifier
-        // For now, return false if precompile is not available
-        return false;
+        // Try EIP-7212 precompile first, then fall back to Daimo P256Verifier
+        return P256.verifySignature(hash, r, s, pubKeyX, pubKeyY, true);
     }
 }
