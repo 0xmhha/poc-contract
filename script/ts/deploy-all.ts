@@ -159,7 +159,13 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
     phase: "deploy",
   },
 
-  // Configuration (uses setup-paymaster.sh for all post-deployment tasks)
+  // Configuration
+  {
+    name: "setup-oracle-price",
+    description: "Deploy FixedPriceAggregator and register USDC/KRWC price on PriceOracle",
+    command: "./script/setup-oracle-price.sh",
+    phase: "config",
+  },
   {
     name: "setup-paymaster",
     description: "Run all paymaster post-deployment setup (deposit, token, whitelist, budget, bundler, factory)",

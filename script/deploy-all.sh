@@ -38,7 +38,7 @@
 #   validators, hooks, fallbacks, executors,
 #   compliance, privacy, permit2, subscription, bridge,
 #   uniswap, defi, paymasters, plugins,
-#   setup-paymaster
+#   setup-oracle-price, setup-paymaster
 # =============================================================================
 
 set -e
