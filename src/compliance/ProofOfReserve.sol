@@ -86,6 +86,9 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
     bool public autoPauseEnabled;
     uint256 public minVerificationInterval;
 
+    // Authorized verifier whitelist
+    mapping(address => bool) public authorizedVerifiers;
+
     // ============ Events ============
     event OracleConfigured(address indexed oracle, uint8 decimals, uint256 heartbeat);
     event StablecoinConfigured(address indexed stablecoin);
@@ -98,6 +101,8 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
     event AutoPauseThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
     event AutoPauseToggled(bool enabled);
     event MinVerificationIntervalUpdated(uint256 oldInterval, uint256 newInterval);
+    event VerifierAdded(address indexed verifier);
+    event VerifierRemoved(address indexed verifier);
 
     // ============ Errors ============
     error InvalidAddress();
@@ -111,6 +116,7 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
     error InvalidThreshold();
     error VerificationTooFrequent();
     error InvalidInterval();
+    error NotAuthorizedVerifier();
 
     // ============ Constructor ============
     constructor(address initialOwner, uint256 _autoPauseThreshold) Ownable(initialOwner) {
@@ -210,6 +216,30 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
         reserveOracle.isActive = true;
     }
 
+    // ============ Verifier Management ============
+
+    /**
+     * @notice Add an authorized verifier
+     * @param verifier Address to authorize
+     */
+    function addVerifier(address verifier) external onlyOwner {
+        if (verifier == address(0)) revert InvalidAddress();
+
+        authorizedVerifiers[verifier] = true;
+        emit VerifierAdded(verifier);
+    }
+
+    /**
+     * @notice Remove an authorized verifier
+     * @param verifier Address to deauthorize
+     */
+    function removeVerifier(address verifier) external onlyOwner {
+        if (verifier == address(0)) revert InvalidAddress();
+
+        authorizedVerifiers[verifier] = false;
+        emit VerifierRemoved(verifier);
+    }
+
     // ============ Verification Functions ============
 
     /**
@@ -217,6 +247,7 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
      * @return status The current reserve status
      */
     function verifyReserve() external nonReentrant returns (ReserveStatus memory status) {
+        if (!authorizedVerifiers[msg.sender] && msg.sender != owner()) revert NotAuthorizedVerifier();
         if (block.timestamp < lastVerificationTime + minVerificationInterval) revert VerificationTooFrequent();
 
         status = _performVerification();

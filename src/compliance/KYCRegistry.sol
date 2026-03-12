@@ -319,6 +319,9 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
             isSanctioned: true, listType: listType, addedAt: block.timestamp, sanctionId: sanctionId, reason: reason
         });
 
+        // Cache old risk level before mutation
+        RiskLevel oldLevel = kycRecords[account].riskLevel;
+
         // Also update KYC risk level
         kycRecords[account].riskLevel = RiskLevel.PROHIBITED;
         kycRecords[account].lastUpdated = block.timestamp;
@@ -330,7 +333,7 @@ contract KYCRegistry is AccessControl, Pausable, ReentrancyGuard {
         totalSanctioned++;
 
         emit SanctionsAdded(account, listType, sanctionId, reason);
-        emit RiskLevelUpdated(account, kycRecords[account].riskLevel, RiskLevel.PROHIBITED);
+        emit RiskLevelUpdated(account, oldLevel, RiskLevel.PROHIBITED);
         emit AddedToBlockList(account, "Sanctions list");
     }
 

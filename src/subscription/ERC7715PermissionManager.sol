@@ -255,6 +255,10 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         // Validate deadline
         if (deadline < block.timestamp) revert ExpiredDeadline();
 
+        // Read and increment nonce atomically before signature verification
+        uint256 currentNonce = nonces[granter];
+        nonces[granter] = currentNonce + 1;
+
         // Build and verify signature
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 structHash = keccak256(
@@ -265,7 +269,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
                 target,
                 keccak256(bytes(permission.permissionType)),
                 keccak256(permission.data),
-                nonces[granter],
+                currentNonce,
                 deadline
             )
         );
@@ -278,11 +282,11 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
             revert InvalidSignature();
         }
 
-        return _grantPermission(granter, grantee, target, permission, rules);
+        return _grantPermissionWithNonce(granter, grantee, target, permission, rules, currentNonce);
     }
 
     /**
-     * @notice Internal function to grant permission
+     * @notice Internal function to grant permission (increments nonce internally)
      */
     function _grantPermission(
         address granter,
@@ -290,6 +294,21 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         address target,
         Permission calldata permission,
         Rule[] calldata rules
+    ) internal returns (bytes32 permissionId) {
+        uint256 nonce = nonces[granter]++;
+        return _grantPermissionWithNonce(granter, grantee, target, permission, rules, nonce);
+    }
+
+    /**
+     * @notice Internal function to grant permission with a pre-consumed nonce
+     */
+    function _grantPermissionWithNonce(
+        address granter,
+        address grantee,
+        address target,
+        Permission calldata permission,
+        Rule[] calldata rules,
+        uint256 nonce
     ) internal returns (bytes32 permissionId) {
         // Validate permission type
         // forge-lint: disable-next-line(asm-keccak256)
@@ -301,7 +320,6 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         if (target == address(0)) revert InvalidTarget();
 
         // Generate permission ID
-        uint256 nonce = nonces[granter]++;
         permissionId = getPermissionId(granter, grantee, target, permission.permissionType, nonce);
 
         // Check for existing permission
@@ -376,7 +394,6 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
     function usePermission(bytes32 permissionId, uint256 amount)
         external
         override
-        onlyAuthorizedExecutor
         nonReentrant
         returns (bool success)
     {
@@ -385,8 +402,10 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         if (record.createdAt == 0) revert PermissionNotFound();
         if (!record.active) revert PermissionNotFound();
 
-        // Verify caller is the authorized target for this permission
-        if (msg.sender != record.target) revert UnauthorizedCaller();
+        // Verify caller is the authorized target or an authorized executor
+        if (msg.sender != record.target && !authorizedExecutors[msg.sender] && msg.sender != owner()) {
+            revert UnauthorizedCaller();
+        }
 
         // Check expiry
         uint256 expiry = _getExpiry(record.rules);

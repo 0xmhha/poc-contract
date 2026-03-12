@@ -54,6 +54,15 @@ interface IStealthVault {
     error InvalidProof();
     error Unauthorized();
     error TransferFailed();
+    error WithdrawalManagerNotSet();
+}
+
+/**
+ * @title IStealthVaultTransfer
+ * @notice Interface for WithdrawalManager to pull funds from StealthVault
+ */
+interface IStealthVaultTransfer {
+    function transferToWithdrawalManager(bytes32 depositId, address token, uint256 amount) external;
 }
 
 /**
@@ -78,6 +87,7 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
     bytes32 public constant VAULT_ADMIN_ROLE = keccak256("VAULT_ADMIN_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
+    bytes32 public constant WITHDRAWAL_MANAGER_ROLE = keccak256("WITHDRAWAL_MANAGER_ROLE");
 
     /* //////////////////////////////////////////////////////////////
                               CONSTANTS
@@ -239,8 +249,19 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
 
     /**
      * @notice Verify stealth proof
-     * @dev Includes msg.sender binding (front-running protection), chain ID domain separation,
-     *      and proof reuse prevention via usedProofs mapping
+     * @dev PRIVACY LIMITATION: This verification scheme does NOT provide actual privacy guarantees.
+     *      The `recipient` and `proof` are both visible on-chain in the transaction calldata.
+     *      Anyone can compute `keccak256(abi.encodePacked(knownRecipient, observedProof))` and
+     *      compare it against the stored `stealthHash` to link sender and recipient.
+     *
+     *      TODO: Replace with a ZK proof system (e.g., zk-SNARK based commitment scheme) to
+     *      provide real privacy guarantees. The current implementation only provides pseudonymity
+     *      at the contract storage level, not at the transaction level. A proper redesign would
+     *      require a commitment scheme where the recipient can prove knowledge of a secret
+     *      without revealing the recipient-proof link on-chain.
+     *
+     *      Additional protections included: msg.sender binding (front-running protection),
+     *      chain ID domain separation, and proof reuse prevention via usedProofs mapping.
      */
     function _verifyStealthProof(bytes32 stealthHash, address recipient, bytes calldata proof) internal returns (bool) {
         if (proof.length < 20) return false;
@@ -354,6 +375,43 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
      */
     function unpause() external onlyRole(VAULT_ADMIN_ROLE) {
         _unpause();
+    }
+
+    /* //////////////////////////////////////////////////////////////
+                     WITHDRAWAL MANAGER FUNCTIONS
+    ////////////////////////////////////////////////////////////// */
+
+    /**
+     * @notice Transfer funds from vault to the WithdrawalManager for withdrawal execution
+     * @dev Only callable by an address with WITHDRAWAL_MANAGER_ROLE.
+     *      This function allows the WithdrawalManager to pull funds that are held
+     *      in this vault, solving the issue where executeWithdrawal would fail
+     *      because funds are held here, not in the WithdrawalManager.
+     * @param depositId The deposit ID to transfer funds from
+     * @param token The token address (address(0) for native ETH)
+     * @param amount The amount to transfer
+     */
+    function transferToWithdrawalManager(bytes32 depositId, address token, uint256 amount)
+        external
+        onlyRole(WITHDRAWAL_MANAGER_ROLE)
+        nonReentrant
+    {
+        Deposit storage deposit = deposits[depositId];
+
+        if (deposit.depositor == address(0)) revert DepositNotFound();
+        if (deposit.withdrawn) revert AlreadyWithdrawn();
+        if (deposit.token != token) revert InvalidAmount();
+        if (deposit.amount < amount) revert InvalidAmount();
+
+        deposit.withdrawn = true;
+        totalDeposits[token] -= amount;
+
+        if (token == NATIVE_TOKEN) {
+            (bool success,) = msg.sender.call{ value: amount }("");
+            if (!success) revert TransferFailed();
+        } else {
+            IERC20(token).safeTransfer(msg.sender, amount);
+        }
     }
 
     /* //////////////////////////////////////////////////////////////

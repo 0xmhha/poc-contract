@@ -32,6 +32,7 @@ interface ILendingPool {
     struct ReserveData {
         uint256 totalDeposits; // Total deposits
         uint256 totalBorrows; // Total borrows
+        uint256 totalShares; // Total deposit shares (tracked independently of totalDeposits)
         uint256 liquidityIndex; // Cumulative liquidity index
         uint256 borrowIndex; // Cumulative borrow index
         uint256 currentLiquidityRate; // Current deposit APY (ray, 27 decimals)

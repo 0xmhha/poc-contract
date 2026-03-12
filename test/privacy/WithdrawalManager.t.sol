@@ -39,6 +39,10 @@ contract MockStealthVault is IStealthVaultReader {
     function getDeposit(bytes32 depositId) external view override returns (Deposit memory) {
         return _deposits[depositId];
     }
+
+    function transferToWithdrawalManager(bytes32, address, uint256) external pure override {
+        // Mock: no-op for testing
+    }
 }
 
 /**

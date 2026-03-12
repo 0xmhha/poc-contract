@@ -82,9 +82,6 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
     /// @notice List of supported assets
     address[] public supportedAssets;
 
-    /// @notice Flash loan in progress flag (defense-in-depth with nonReentrant)
-    bool private _flashLoanInProgress;
-
     /// @notice Maximum price staleness (5 minutes)
     uint256 public constant MAX_PRICE_AGE = 5 minutes;
 
@@ -102,7 +99,6 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
     error HealthFactorOk();
     error InvalidAmount();
     error FlashLoanFailed();
-    error ReentrantFlashLoan();
     error StalePriceData();
     error DepositTooSmall();
 
@@ -206,12 +202,13 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
             shares = (amount * _getTotalShares(asset)) / reserve.totalDeposits;
         }
 
+        // Update state (CEI: state changes before external call)
+        depositShares[asset][msg.sender] += shares;
+        reserve.totalShares += shares;
+        reserve.totalDeposits += amount;
+
         // Transfer tokens
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-
-        // Update state
-        depositShares[asset][msg.sender] += shares;
-        reserve.totalDeposits += amount;
 
         emit Deposit(asset, msg.sender, amount, shares);
     }
@@ -243,6 +240,7 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
 
         // Update state
         depositShares[asset][msg.sender] -= sharesToBurn;
+        reserve.totalShares -= sharesToBurn;
         reserve.totalDeposits -= amount;
 
         // Check health factor after withdrawal
@@ -386,9 +384,6 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         nonReentrant
         whenNotPaused
     {
-        if (_flashLoanInProgress) revert ReentrantFlashLoan();
-        _flashLoanInProgress = true;
-
         _validateAsset(asset, true, false, false);
 
         ReserveData storage reserve = _reserves[asset];
@@ -411,8 +406,6 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
 
         // Add fee to protocol reserves
         protocolReserves[asset] += fee;
-
-        _flashLoanInProgress = false;
 
         emit FlashLoan(asset, receiver, amount, fee);
     }
@@ -651,9 +644,7 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
     }
 
     function _getTotalShares(address asset) internal view returns (uint256) {
-        // For simplicity, return totalDeposits as shares (1:1 initially)
-        // In production, track total shares separately
-        return _reserves[asset].totalDeposits;
+        return _reserves[asset].totalShares;
     }
 
     function _getDepositBalanceFromShares(address asset, uint256 shares) internal view returns (uint256) {

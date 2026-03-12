@@ -22,6 +22,7 @@ interface IStealthVaultReader {
     }
 
     function getDeposit(bytes32 depositId) external view returns (Deposit memory);
+    function transferToWithdrawalManager(bytes32 depositId, address token, uint256 amount) external;
 }
 
 /**
@@ -274,7 +275,13 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
 
         request.status = WithdrawalStatus.EXECUTED;
 
-        // Transfer funds
+        // Pull funds from StealthVault into this contract
+        if (stealthVault == address(0)) revert VaultNotConfigured();
+        IStealthVaultReader(stealthVault).transferToWithdrawalManager(
+            request.depositId, request.token, request.amount
+        );
+
+        // Transfer funds to recipient
         if (request.token == NATIVE_TOKEN) {
             (bool success,) = request.recipient.call{ value: request.amount }("");
             if (!success) revert TransferFailed();

@@ -347,25 +347,8 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         }
 
         for (uint256 i = 0; i < subscriptionIds.length; i++) {
-            try this.processPaymentInternal(subscriptionIds[i]) {
-            // Success
-            }
-            catch {
-                // Log failure but continue processing
-                emit PaymentFailedLog(
-                    subscriptionIds[i], subscriptions[subscriptionIds[i]].subscriber, "Payment failed"
-                );
-            }
+            _processPayment(subscriptionIds[i]);
         }
-    }
-
-    /**
-     * @notice Internal payment processing (for batch calls)
-     * @param subscriptionId Subscription to process
-     */
-    function processPaymentInternal(bytes32 subscriptionId) external {
-        require(msg.sender == address(this), "Internal only");
-        _processPayment(subscriptionId);
     }
 
     /**
@@ -411,7 +394,21 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         uint256 fee = (plan.amount * protocolFeeBps) / 10_000;
         uint256 merchantAmount = plan.amount - fee;
 
-        // Update subscription state BEFORE external calls (CEI pattern)
+        // Transfer tokens BEFORE state update to ensure atomicity
+        // If either transfer fails, state remains unchanged
+        if (plan.token == address(0)) {
+            // Native token payments are not supported in pull-based subscription model
+            // Subscribers must use ERC-20 wrapped tokens (e.g., WETH)
+            revert PaymentFailed();
+        } else {
+            // ERC-20 token - both transfers must succeed before state advance
+            IERC20(plan.token).safeTransferFrom(sub.subscriber, plan.merchant, merchantAmount);
+            if (fee > 0) {
+                IERC20(plan.token).safeTransferFrom(sub.subscriber, feeRecipient, fee);
+            }
+        }
+
+        // Update subscription state AFTER successful transfers (atomic guarantee)
         sub.lastPayment = block.timestamp;
         sub.nextPayment = block.timestamp + plan.period;
         sub.paymentCount++;
@@ -419,19 +416,6 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         sub.inGracePeriod = false;
 
         emit PaymentProcessed(subscriptionId, sub.subscriber, plan.merchant, plan.amount, sub.paymentCount);
-
-        // Transfer tokens (external calls last)
-        if (plan.token == address(0)) {
-            // Native token payments are not supported in pull-based subscription model
-            // Subscribers must use ERC-20 wrapped tokens (e.g., WETH)
-            revert PaymentFailed();
-        } else {
-            // ERC-20 token
-            IERC20(plan.token).safeTransferFrom(sub.subscriber, plan.merchant, merchantAmount);
-            if (fee > 0) {
-                IERC20(plan.token).safeTransferFrom(sub.subscriber, feeRecipient, fee);
-            }
-        }
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -580,7 +564,10 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Receive native tokens (for subscription payments)
+     * @notice Reject ETH transfers to prevent permanent locking
+     * @dev Native token payments are not supported; use ERC-20 wrapped tokens (e.g., WETH)
      */
-    receive() external payable { }
+    receive() external payable {
+        revert PaymentFailed();
+    }
 }
