@@ -332,8 +332,9 @@ contract ERC7715PermissionManagerTest is Test {
         vm.prank(granter);
         bytes32 permissionId = manager.grantPermission(grantee, target, defaultPermission, defaultRules);
 
-        // executor is authorized but not the target for this permission
-        vm.prank(executor);
+        // Use an unauthorized address (not target, not executor, not owner)
+        address unauthorized = makeAddr("unauthorized");
+        vm.prank(unauthorized);
         vm.expectRevert(IERC7715PermissionManager.UnauthorizedCaller.selector);
         manager.usePermission(permissionId, 10 ether);
     }

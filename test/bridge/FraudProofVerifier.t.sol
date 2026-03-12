@@ -348,21 +348,21 @@ contract FraudProofVerifierTest is Test {
 
     function test_VerifyFraudProof_ReplayAttack() public {
         bytes32 requestId = keccak256("request1");
-        bytes32 nonceHash = keccak256("nonce");
+        address sender = makeAddr("sender");
+        uint256 nonce = 42;
         bytes32 previousTxHash = keccak256("previousTx");
         bytes32[] memory merkleProof = new bytes32[](1);
         merkleProof[0] = keccak256("proof");
 
-        // First record the nonce as used
-        vm.prank(owner);
-        verifier.recordUsedNonce(nonceHash);
+        // Mark the nonce as used in BridgeValidator via consumeNonce
+        bridgeValidatorContract.consumeNonce(sender, nonce);
 
         FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
             requestId: requestId,
             proofType: FraudProofVerifier.FraudProofType.ReplayAttack,
             merkleProof: merkleProof,
             stateProof: "",
-            evidence: abi.encode(nonceHash, previousTxHash)
+            evidence: abi.encode(sender, nonce, previousTxHash)
         });
 
         verifier.submitFraudProof(proof);

@@ -104,6 +104,8 @@ contract ProofOfReserveTest is Test {
         por.configureOracle(address(oracle), 1 hours);
         por.configureStablecoin(address(stablecoin));
         por.setMinVerificationInterval(1);
+        // Authorize the default test address as a verifier
+        por.addVerifier(address(this));
         vm.stopPrank();
     }
 
@@ -301,9 +303,12 @@ contract ProofOfReserveTest is Test {
     }
 
     function test_VerifyReserve_RevertsOnOracleNotConfigured() public {
-        vm.prank(owner);
+        vm.startPrank(owner);
         ProofOfReserve newPor = new ProofOfReserve(owner, 3);
+        newPor.addVerifier(owner);
+        vm.stopPrank();
 
+        vm.prank(owner);
         vm.expectRevert(ProofOfReserve.OracleNotConfigured.selector);
         newPor.verifyReserve();
     }
@@ -320,8 +325,10 @@ contract ProofOfReserveTest is Test {
         vm.startPrank(owner);
         ProofOfReserve newPor = new ProofOfReserve(owner, 3);
         newPor.configureOracle(address(oracle), 1 hours);
+        newPor.addVerifier(owner);
         vm.stopPrank();
 
+        vm.prank(owner);
         vm.expectRevert(ProofOfReserve.StablecoinNotConfigured.selector);
         newPor.verifyReserve();
     }

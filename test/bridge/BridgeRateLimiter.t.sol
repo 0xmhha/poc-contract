@@ -287,6 +287,10 @@ contract BridgeRateLimiterTest is Test {
         // Advance past daily window
         vm.warp(block.timestamp + 1 days + 1);
 
+        // Refresh token price to avoid StalePrice error
+        vm.prank(owner);
+        limiter.updateTokenPrice(token, TOKEN_PRICE);
+
         // Make new transaction to trigger reset
         vm.prank(bridge);
         limiter.checkAndRecordTransaction(token, 10_000 * 1e18);

@@ -412,13 +412,21 @@ contract OptimisticVerifierTest is Test {
     }
 
     function test_WithdrawFees() public {
+        // First create a challenged request and resolve it as failed challenge
+        // so that the bond is forfeited and tracked in forfeitedBonds
+        bytes32 requestId = _createChallengedRequest();
+
+        vm.prank(fraudProofVerifier);
+        verifier.resolveChallenge(requestId, false); // Challenge failed -> bond forfeited
+
+        // Now forfeitedBonds should have CHALLENGE_BOND (1 ether)
         address recipient = makeAddr("recipient");
         uint256 balanceBefore = recipient.balance;
 
         vm.prank(owner);
-        verifier.withdrawFees(recipient, 1 ether);
+        verifier.withdrawFees(recipient, CHALLENGE_BOND);
 
-        assertEq(recipient.balance, balanceBefore + 1 ether);
+        assertEq(recipient.balance, balanceBefore + CHALLENGE_BOND);
     }
 
     // ============ View Functions Tests ============

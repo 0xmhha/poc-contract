@@ -155,6 +155,9 @@ contract BridgeValidatorTest is Test {
         // First verification should succeed
         validator.verifyMpcSignatures(message, signatures);
 
+        // Consume the nonce (as the bridge contract would do after successful execution)
+        validator.consumeNonce(message.sender, message.nonce);
+
         // Second verification with same nonce should fail
         vm.expectRevert(BridgeValidator.NonceAlreadyUsed.selector);
         validator.verifyMpcSignatures(message, signatures);
@@ -165,10 +168,9 @@ contract BridgeValidatorTest is Test {
 
         // Create signatures with duplicates
         bytes[] memory signatures = new bytes[](THRESHOLD);
-        bytes32 messageHash = validator.hashBridgeMessage(message);
-        bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        bytes32 digest = validator.hashBridgeMessage(message);
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[0], ethSignedHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[0], digest);
         bytes memory sig = abi.encodePacked(r, s, v);
 
         // Use same signature multiple times
@@ -529,12 +531,11 @@ contract BridgeValidatorTest is Test {
         view
         returns (bytes[] memory)
     {
-        bytes32 messageHash = validator.hashBridgeMessage(message);
-        bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+        bytes32 digest = validator.hashBridgeMessage(message);
 
         bytes[] memory signatures = new bytes[](numSigners);
         for (uint256 i = 0; i < numSigners; i++) {
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[i], ethSignedHash);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKeys[i], digest);
             signatures[i] = abi.encodePacked(r, s, v);
         }
 

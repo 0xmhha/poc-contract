@@ -317,9 +317,14 @@ contract BridgeGuardianTest is Test {
     }
 
     function test_ExecuteProposal_RemoveGuardian() public {
-        // First add an extra guardian so we can remove one
+        // First add an extra guardian via timelock so we can remove one
+        uint256 t0 = block.timestamp;
         vm.prank(owner);
         guardian.addGuardianDirect(makeAddr("extraGuardian"));
+        bytes32 addActionId = keccak256(abi.encode("addGuardian", makeAddr("extraGuardian"), t0));
+        vm.warp(t0 + 2 days + 1);
+        vm.prank(owner);
+        guardian.executeDirectAction(addActionId);
 
         vm.prank(guardians[0]);
         uint256 proposalId = guardian.createProposal(BridgeGuardian.ProposalType.RemoveGuardian, guardians[4], "");
@@ -441,12 +446,22 @@ contract BridgeGuardianTest is Test {
     function test_AddGuardianDirect() public {
         address newGuardian = makeAddr("newGuardian");
 
+        // Queue the action
         vm.prank(owner);
-        vm.expectEmit(true, false, false, true);
-        emit GuardianAdded(newGuardian, GUARDIAN_COUNT + 1);
         guardian.addGuardianDirect(newGuardian);
 
+        // Compute the actionId (matches contract logic)
+        bytes32 actionId = keccak256(abi.encode("addGuardian", newGuardian, block.timestamp));
+
+        // Warp past timelock
+        vm.warp(block.timestamp + 2 days + 1);
+
+        // Execute the queued action
+        vm.prank(owner);
+        guardian.executeDirectAction(actionId);
+
         assertTrue(guardian.isGuardian(newGuardian));
+        assertEq(guardian.getGuardianCount(), GUARDIAN_COUNT + 1);
     }
 
     function test_AddGuardianDirect_RevertsOnExisting() public {
@@ -456,26 +471,54 @@ contract BridgeGuardianTest is Test {
     }
 
     function test_RemoveGuardianDirect() public {
-        // Add extra guardian first
-        vm.prank(owner);
-        guardian.addGuardianDirect(makeAddr("extra"));
+        // Use proposal-based approach instead to add guardian and lower threshold
+        // Add new guardian via proposal
+        address extraGuardian = makeAddr("extra");
+        vm.prank(guardians[0]);
+        uint256 addId = guardian.createProposal(BridgeGuardian.ProposalType.AddGuardian, extraGuardian, "");
+        vm.prank(guardians[1]);
+        guardian.approveProposal(addId);
+        vm.prank(guardians[2]);
+        guardian.approveProposal(addId);
+        vm.prank(guardians[0]);
+        guardian.executeProposal(addId);
+        assertTrue(guardian.isGuardian(extraGuardian));
 
-        vm.prank(owner);
-        guardian.updateThresholdDirect(2); // Lower threshold
+        // Lower threshold via proposal
+        vm.prank(guardians[0]);
+        uint256 thresholdId = guardian.createProposal(
+            BridgeGuardian.ProposalType.UpdateThreshold, address(0), abi.encode(uint256(2))
+        );
+        vm.prank(guardians[1]);
+        guardian.approveProposal(thresholdId);
+        vm.prank(guardians[2]);
+        guardian.approveProposal(thresholdId);
+        vm.prank(guardians[0]);
+        guardian.executeProposal(thresholdId);
+        assertEq(guardian.threshold(), 2);
 
+        // Now remove guardian via queued direct action
+        uint256 ts = block.timestamp;
         vm.prank(owner);
-        vm.expectEmit(true, false, false, true);
-        emit GuardianRemoved(guardians[0], GUARDIAN_COUNT);
         guardian.removeGuardianDirect(guardians[0]);
+        bytes32 removeActionId = keccak256(abi.encode("removeGuardian", guardians[0], ts));
+
+        vm.warp(ts + 3 days);
+        vm.prank(owner);
+        guardian.executeDirectAction(removeActionId);
 
         assertFalse(guardian.isGuardian(guardians[0]));
     }
 
     function test_UpdateThresholdDirect() public {
+        uint256 t0 = block.timestamp;
         vm.prank(owner);
-        vm.expectEmit(false, false, false, true);
-        emit ThresholdUpdated(THRESHOLD, 2);
         guardian.updateThresholdDirect(2);
+        bytes32 actionId = keccak256(abi.encode("updateThreshold", uint256(2), t0));
+
+        vm.warp(t0 + 2 days + 1);
+        vm.prank(owner);
+        guardian.executeDirectAction(actionId);
 
         assertEq(guardian.threshold(), 2);
     }
