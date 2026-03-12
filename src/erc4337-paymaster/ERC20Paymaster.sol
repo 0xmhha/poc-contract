@@ -53,8 +53,8 @@ contract ERC20Paymaster is BasePaymaster {
     /// @notice Basis points denominator
     uint256 public constant BASIS_POINTS = 10_000;
 
-    /// @notice Maximum staleness for price data (1 hour)
-    uint256 public constant MAX_PRICE_STALENESS = 1 hours;
+    /// @notice Maximum staleness for price data (365 days — relaxed for PoC)
+    uint256 public constant MAX_PRICE_STALENESS = 365 days;
 
     /// @notice Supported tokens whitelist
     mapping(address => bool) public supportedTokens;
