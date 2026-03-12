@@ -24,7 +24,7 @@ import { StakingVault, IStakingVault } from "../../src/defi/StakingVault.sol";
  *   3. StakingVault (Layer 0 - no dependencies, but needs token addresses)
  *
  * Environment Variables:
- *   - STAKING_TOKEN: Token to stake (defaults to WKRC from deployment or 0x1000)
+ *   - STAKING_TOKEN: Token to stake (defaults to NativeCoinAdapter at 0x1000)
  *   - REWARD_TOKEN: Token for rewards (defaults to same as staking token)
  *   - REWARD_RATE: Rewards per second (default: 1e15 = 0.001 tokens/sec)
  *   - LOCK_PERIOD: Lock period in seconds (default: 7 days)
@@ -83,12 +83,8 @@ contract DeployDeFiScript is DeploymentHelper {
         // Deploy StakingVault
         existing = _getAddress(DeploymentAddresses.KEY_STAKING_VAULT);
         if (existing == address(0)) {
-            // Get staking token (default to WKRC/NativeCoinAdapter)
-            address stakingToken = _getAddressOrEnv(DeploymentAddresses.KEY_WKRC, "STAKING_TOKEN");
-            if (stakingToken == address(0)) {
-                stakingToken = NATIVE_COIN_ADAPTER;
-                console.log("StakingVault: Using NativeCoinAdapter as staking token");
-            }
+            // Get staking token (default to NativeCoinAdapter)
+            address stakingToken = vm.envOr("STAKING_TOKEN", NATIVE_COIN_ADAPTER);
 
             // Get reward token (default to same as staking token)
             address rewardToken = vm.envOr("REWARD_TOKEN", stakingToken);

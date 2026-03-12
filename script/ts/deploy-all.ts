@@ -50,7 +50,7 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
   // Phase 0: Base Infrastructure
   {
     name: "tokens",
-    description: "Deploy wKRC and USDC tokens",
+    description: "Deploy USDC tokens",
     command: "./script/deploy-tokens.sh --broadcast --force",
     phase: "deploy",
   },
@@ -136,7 +136,7 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
   // Phase 4: DeFi & Paymasters
   {
     name: "uniswap",
-    description: "Deploy UniswapV3 and create WKRC/USDC pool",
+    description: "Deploy UniswapV3 and create NativeCoinAdapter/USDC pool",
     command: "./script/deploy-uniswap.sh --broadcast --force --create-pool",
     phase: "deploy",
   },
@@ -228,7 +228,6 @@ interface DeployedAddresses {
 // Contract name to JSON key mapping (contractName from broadcast → standard key)
 const CONTRACT_NAME_TO_KEY: { [name: string]: string } = {
   // Tokens
-  wKRC: "wkrc",
   USDC: "usdc",
 
   // ERC-4337 Core
@@ -395,7 +394,6 @@ function loadDeployedAddresses(chainId: string): DeployedAddresses {
 // Keys must match DeploymentAddresses.sol constants
 const CONTRACT_CATEGORIES: { [category: string]: { [key: string]: string } } = {
   "Tokens": {
-    wkrc: "WKRC (Wrapped KRC)",
     usdc: "USDC",
   },
   "ERC-4337 Core": {
@@ -461,7 +459,7 @@ const CONTRACT_CATEGORIES: { [category: string]: { [key: string]: string } } = {
     uniswapV3NftPositionManager: "NonfungiblePositionManager",
     uniswapV3NftDescriptor: "NonfungibleTokenPositionDescriptor",
     uniswapV3Quoter: "Quoter",
-    uniswapV3WkrcUsdcPool: "WKRC/USDC Pool",
+    uniswapV3NativeUsdcPool: "NativeCoinAdapter/USDC Pool",
   },
   "DeFi": {
     priceOracle: "PriceOracle",

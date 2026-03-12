@@ -359,7 +359,7 @@ remappings = [
 # Profile for DeFi contracts build and test (PriceOracle, DEXIntegration)
 # Deployment Order: 12 (after Permit2)
 # Layer 0: PriceOracle (no dependencies)
-# Layer 1+: DEXIntegration (depends on wKRC and external Uniswap V3 contracts)
+# Layer 1+: DEXIntegration (depends on NativeCoinAdapter and external Uniswap V3 contracts)
 [profile.defi]
 src = "src/defi"
 test = "test/defi"

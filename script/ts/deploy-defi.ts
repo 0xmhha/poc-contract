@@ -16,7 +16,7 @@
  *   --force      Force redeploy even if contracts already exist
  *
  * Environment Variables:
- *   STAKING_TOKEN: Token to stake (defaults to WKRC/NativeCoinAdapter at 0x1000)
+ *   STAKING_TOKEN: Token to stake (defaults to NativeCoinAdapter at 0x1000)
  *   REWARD_TOKEN: Token for rewards (defaults to same as staking token)
  *   REWARD_RATE: Rewards per second (default: 1e15 = 0.001 tokens/sec)
  *   LOCK_PERIOD: Lock period in seconds (default: 7 days)

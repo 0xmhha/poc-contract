@@ -8,7 +8,7 @@ StableNet PoC 컨트랙트 배포에 대한 상세 가이드입니다.
 
 | 도메인 | 컨트랙트 | 설명 |
 |--------|----------|------|
-| Tokens | USDC, wKRC | 스테이블코인 (6 decimals) + Wrapped 네이티브 토큰 (18 decimals) |
+| Tokens | USDC | 스테이블코인 (6 decimals) |
 | ERC-4337 EntryPoint | 10개 | UserOperation 싱글톤, 논스/스테이크 관리 |
 | ERC-7579 Smart Account | 32개 | 모듈형 Kernel 계정 (프록시 패턴) |
 | Validators | 5개 | ECDSA, Weighted, MultiChain, WebAuthn, MultiSig |
@@ -28,7 +28,7 @@ StableNet PoC 컨트랙트 배포에 대한 상세 가이드입니다.
 script/
 ├── DeployAll.s.sol               # 통합 배포 (전체 44개 컨트랙트)
 ├── deploy-contract/
-│   ├── DeployTokens.s.sol        # USDC, wKRC
+│   ├── DeployTokens.s.sol        # USDC
 │   ├── DeployEntryPoint.s.sol    # EntryPoint
 │   ├── DeployKernel.s.sol        # Kernel + KernelFactory + FactoryStaker
 │   ├── DeployPaymasters.s.sol    # 모든 Paymaster
@@ -59,7 +59,6 @@ script/
 Layer 0 ── 의존성 없음
 │
 ├── 토큰
-│   ├── wKRC                          # 생성자 인자 없음
 │   └── USDC                          # constructor(owner_)
 │
 ├── ERC-4337
@@ -135,7 +134,7 @@ Layer 1 ── Layer 0 의존
 │   └── OptimisticVerifier            # constructor(challengePeriod, challengeBond, reward)
 │
 ├── DeFi
-│   └── DEXIntegration                # constructor(wKRC)
+│   └── DEXIntegration                # constructor(nativeCoinAdapter)
 │
 └── Subscription
     └── SubscriptionManager           # constructor(permissionManager, owner_)
@@ -229,7 +228,7 @@ Account Setup ── 계정별 설정
                       v           v           v
                ┌────────────┐ ┌──────────┐ ┌────────────────┐
                │ ERC20      │ │ Permit2  │ │ DEXIntegration │
-               │ Paymaster  │ │ Paymaster│ │ (+ wKRC)       │
+               │ Paymaster  │ │ Paymaster│ │                │
                └────────────┘ └──────────┘ └────────────────┘
 
   ┌──────────────────┐  ┌───────────────┐
@@ -390,7 +389,6 @@ deployments/
 
 ```json
 {
-  "wKRC": "0x...",
   "usdc": "0x...",
   "entryPoint": "0x...",
   "permit2": "0x...",
@@ -523,7 +521,7 @@ usdc.addMinter(address(erc20Paymaster));
 | ERC20Paymaster Markup | 10% (1000 bps) | 5-50% |
 | Price Staleness | 1시간 | 1시간 |
 | USDC Decimals | 6 | 6 |
-| wKRC Decimals | 18 | 18 |
+| NativeCoinAdapter Decimals | 18 | 18 |
 
 ## 트러블슈팅
 

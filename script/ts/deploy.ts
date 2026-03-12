@@ -56,7 +56,7 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
     profile: "tokens",
     id: "tokens",
     label: "Tokens",
-    description: "wKRC and USDC tokens",
+    description: "USDC token",
     target: "script/deploy-contract/DeployTokens.s.sol:DeployTokensScript",
   },
   {

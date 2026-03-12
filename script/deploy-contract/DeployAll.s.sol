@@ -5,7 +5,6 @@ import { console } from "forge-std/Script.sol";
 import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
 
 // ============ Tokens ============
-import { wKRC } from "../../src/tokens/wKRC.sol";
 import { USDC } from "../../src/tokens/USDC.sol";
 
 // ============ ERC-4337 EntryPoint ============
@@ -87,7 +86,7 @@ import { SecureBridge } from "../../src/bridge/SecureBridge.sol";
  *
  * Deployment Order (based on dependencies):
  *   Phase 0 - Base Infrastructure:
- *     1. Tokens (wKRC, USDC) - No dependencies
+ *     1. Tokens (USDC) - No dependencies
  *     2. EntryPoint - No dependencies
  *
  *   Phase 1 - Core Smart Account:
@@ -204,16 +203,7 @@ contract DeployAllScript is DeploymentHelper {
     function _deployPhase0BaseInfrastructure() internal {
         console.log(">>> Phase 0: Base Infrastructure");
 
-        // 1. wKRC (Wrapped Native Token)
-        if (_getAddress(DeploymentAddresses.KEY_WKRC) == address(0)) {
-            wKRC wkrc = new wKRC();
-            _setAddress(DeploymentAddresses.KEY_WKRC, address(wkrc));
-            console.log("  [NEW] wKRC:", address(wkrc));
-        } else {
-            console.log("  [SKIP] wKRC:", _getAddress(DeploymentAddresses.KEY_WKRC));
-        }
-
-        // 2. USDC (Stablecoin)
+        // 1. USDC (Stablecoin)
         if (_getAddress(DeploymentAddresses.KEY_USDC) == address(0)) {
             USDC usdc = new USDC(admin);
             _setAddress(DeploymentAddresses.KEY_USDC, address(usdc));
@@ -224,7 +214,7 @@ contract DeployAllScript is DeploymentHelper {
             console.log("  [SKIP] USDC:", _getAddress(DeploymentAddresses.KEY_USDC));
         }
 
-        // 3. EntryPoint (ERC-4337)
+        // 2. EntryPoint (ERC-4337)
         if (_getAddress(DeploymentAddresses.KEY_ENTRYPOINT) == address(0)) {
             EntryPoint entryPoint = new EntryPoint();
             _setAddress(DeploymentAddresses.KEY_ENTRYPOINT, address(entryPoint));
@@ -801,7 +791,6 @@ contract DeployAllScript is DeploymentHelper {
         console.log("");
 
         console.log("Phase 0 - Base Infrastructure:");
-        console.log("  wKRC:", _getAddress(DeploymentAddresses.KEY_WKRC));
         console.log("  USDC:", _getAddress(DeploymentAddresses.KEY_USDC));
         console.log("  EntryPoint:", _getAddress(DeploymentAddresses.KEY_ENTRYPOINT));
 

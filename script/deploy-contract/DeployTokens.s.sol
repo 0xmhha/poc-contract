@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 // forge-lint: disable-next-line(unused-import)
 import { Script, console } from "forge-std/Script.sol";
 import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
-import { wKRC } from "../../src/tokens/wKRC.sol";
 import { USDC } from "../../src/tokens/USDC.sol";
 
 /**
@@ -13,7 +12,6 @@ import { USDC } from "../../src/tokens/USDC.sol";
  * @dev Deploys wrapped native token and stablecoin infrastructure
  *
  * Deployed Contracts:
- *   - wKRC: Wrapped native token (like WETH)
  *   - USDC: USD-pegged stablecoin (initial mint: 1,000,000 USDC to owner)
  *
  * Note: These tokens are dependencies for other contracts (DEXIntegration, Paymasters, etc.)
@@ -25,7 +23,6 @@ import { USDC } from "../../src/tokens/USDC.sol";
  *   forge script script/deploy-contract/DeployTokens.s.sol:DeployTokensScript --rpc-url <RPC_URL> --broadcast
  */
 contract DeployTokensScript is DeploymentHelper {
-    wKRC public wkrc;
     USDC public usdc;
 
     function setUp() public { }
@@ -40,17 +37,6 @@ contract DeployTokensScript is DeploymentHelper {
         console.log("Deployer/Owner:", deployer);
 
         vm.startBroadcast();
-
-        // Deploy Wrapped Native Token (wKRC) or use existing
-        address existingWkrc = _getAddress(DeploymentAddresses.KEY_WKRC);
-        if (existingWkrc == address(0)) {
-            wkrc = new wKRC();
-            _setAddress(DeploymentAddresses.KEY_WKRC, address(wkrc));
-            console.log("wKRC deployed at:", address(wkrc));
-        } else {
-            wkrc = wKRC(payable(existingWkrc));
-            console.log("wKRC: Using existing at", existingWkrc);
-        }
 
         // Deploy USDC or use existing
         address existingUsdc = _getAddress(DeploymentAddresses.KEY_USDC);
@@ -75,7 +61,6 @@ contract DeployTokensScript is DeploymentHelper {
 
         // Log summary
         console.log("\n=== Tokens Deployment Summary ===");
-        console.log("wKRC (Wrapped Native Token):", address(wkrc));
         console.log("USDC:", address(usdc));
         console.log("USDC Owner:", deployer);
         console.log("\nNext steps:");

@@ -543,7 +543,7 @@ contract Kernel {
 
 ```bash
 # 1. Phase 0: 기반 인프라
-./script/deploy-tokens.sh --broadcast      # wKRC, USDC
+./script/deploy-tokens.sh --broadcast      # USDC
 ./script/deploy-entrypoint.sh --broadcast  # EntryPoint
 
 # 2. Phase 1: Smart Account

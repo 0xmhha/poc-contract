@@ -15,12 +15,11 @@
 #
 # Options:
 #   --broadcast    Actually broadcast transactions (otherwise dry run)
-#   --create-pool  Create WKRC/USDC pool after deployment
+#   --create-pool  Create pool after deployment
 #   --verify       Verify contracts on block explorer
 #   --force        Force redeploy even if contracts already exist
 #
 # Environment Variables:
-#   WKRC_ADDRESS: NativeCoinAdapter address (default: 0x1000)
 #   USDC_ADDRESS: USDC contract address (loaded from deployment file)
 #   POOL_FEE: Pool fee tier in basis points (default: 3000 = 0.3%)
 #   VERIFIER_URL: Block explorer verification URL

@@ -58,7 +58,7 @@ cp .env.example .env
 # Full build
 forge build
 
-# Tokens build (USDC, wKRC)
+# Tokens build (USDC)
 FOUNDRY_PROFILE=tokens forge build
 
 # EntryPoint build
@@ -240,7 +240,7 @@ src/
 ├── erc7579-plugins/        # Plugin modules (AutoSwap, MicroLoan, OnRamp)
 ├── privacy/                # Stealth addresses (ERC-5564/6538) + Enterprise vault
 ├── compliance/             # Regulatory compliance
-├── tokens/                 # Token contracts (wKRC, USDC)
+├── tokens/                 # Token contracts (USDC)
 ├── defi/                   # DeFi components (PriceOracle, LendingPool, StakingVault)
 ├── permit2/                # Permit2 token approvals
 ├── subscription/           # Subscription management (ERC-7715)
@@ -391,7 +391,6 @@ FOUNDRY_PROFILE=tokens forge script script/deploy-contract/DeployTokens.s.sol:De
 | Contract | Description |
 |----------|-------------|
 | USDC | USD stablecoin |
-| wKRC | Wrapped KRC token |
 
 ### Privacy (ERC-5564/6538)
 

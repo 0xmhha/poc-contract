@@ -6,7 +6,7 @@
 #
 # Deployment Order:
 #   Pre:     CREATE2 Deployer (auto-detected and deployed if missing)
-#   Phase 0: Tokens (wKRC, USDC), EntryPoint (via CREATE2/CREATE)
+#   Phase 0: Tokens (USDC), EntryPoint (via CREATE2/CREATE)
 #   Phase 1: Smart Account (Kernel, KernelFactory, FactoryStaker)
 #   Phase 2: Modules (Validators, Hooks, Fallbacks, Executors)
 #   Phase 3: Features (Compliance, Privacy, Permit2, Subscription, Bridge)

@@ -12,7 +12,7 @@ Total: **42 contracts** across **7 phases** (0-6)
 | Script | Shell Wrapper | Description |
 |--------|---------------|-------------|
 | `script/ts/deploy-all.ts` | `script/deploy-all.sh` | Full deployment + configuration (one-click) |
-| `script/ts/deploy-tokens.ts` | `script/deploy-tokens.sh` | wKRC, USDC tokens |
+| `script/ts/deploy-tokens.ts` | `script/deploy-tokens.sh` | USDC token |
 | `script/ts/deploy-entrypoint.ts` | `script/deploy-entrypoint.sh` | ERC-4337 EntryPoint |
 | `script/ts/deploy-smartaccount.ts` | `script/deploy-smartaccount.sh` | Kernel, KernelFactory, FactoryStaker |
 | `script/ts/deploy-validators.ts` | `script/deploy-validators.sh` | ERC-7579 Validators (5 contracts) |
@@ -37,8 +37,7 @@ Total: **42 contracts** across **7 phases** (0-6)
 
 | Step | Contract | Script | Profile | Status |
 |------|----------|--------|---------|--------|
-| 0.1 | wKRC | DeployTokens.s.sol | tokens | ✅ Done |
-| 0.2 | USDC | DeployTokens.s.sol | tokens | ✅ Done |
+| 0.1 | USDC | DeployTokens.s.sol | tokens | ✅ Done |
 | 0.3 | EntryPoint | DeployEntryPoint.s.sol | entrypoint | ✅ Done |
 
 **Dependencies**: None
@@ -216,9 +215,9 @@ Uniswap V3 AMM 인프라 - DEX 기능을 제공하며 DeFi 모듈의 기반이 �
 | SwapRouter | deploy-uniswap.ts | uniswap | ✅ Done |
 | Quoter | deploy-uniswap.ts | uniswap | ✅ Done |
 | NonfungiblePositionManager | deploy-uniswap.ts | uniswap | ✅ Done |
-| WKRC/USDC Pool | deploy-uniswap.ts | uniswap | ✅ Done |
+| NativeCoinAdapter/USDC Pool | deploy-uniswap.ts | uniswap | ✅ Done |
 
-> **Note**: WKRC는 NativeCoinAdapter (0x1000)를 사용합니다.
+> **Note**: NativeCoinAdapter (0x1000)를 사용합니다.
 
 #### 4.2 DeFi
 
@@ -237,7 +236,7 @@ DeFi 핵심 모듈 - 가격 오라클, 대출 풀, 스테이킹 볼트를 제공
 # 4.1 UniswapV3
 ./script/deploy-uniswap.sh                           # Dry run
 ./script/deploy-uniswap.sh --broadcast               # Deploy
-./script/deploy-uniswap.sh --broadcast --create-pool # Deploy + Create WKRC/USDC Pool
+./script/deploy-uniswap.sh --broadcast --create-pool # Deploy + Create NativeCoinAdapter/USDC Pool
 ./script/deploy-uniswap.sh --force                   # Force redeploy
 
 # 4.2 DeFi
@@ -248,7 +247,7 @@ DeFi 핵심 모듈 - 가격 오라클, 대출 풀, 스테이킹 볼트를 제공
 ```
 
 **Environment Variables (DeFi)**:
-- `STAKING_TOKEN`: 스테이킹 토큰 (기본값: WKRC/NativeCoinAdapter 0x1000)
+- `STAKING_TOKEN`: 스테이킹 토큰 (기본값: NativeCoinAdapter 0x1000)
 - `REWARD_TOKEN`: 보상 토큰 (기본값: 스테이킹 토큰과 동일)
 - `REWARD_RATE`: 초당 보상량 (기본값: 1e15 = 0.001 tokens/sec)
 - `LOCK_PERIOD`: 잠금 기간 (기본값: 7일)
@@ -380,7 +379,7 @@ ERC-4337 Paymaster 인프라 - 가스비 후원 및 ERC20 토큰으로 가스비
 ### Individual Deployment Scripts
 
 ```bash
-# Phase 0: Tokens (wKRC, USDC)
+# Phase 0: Tokens (USDC)
 ./script/deploy-tokens.sh --broadcast          # Deploy
 ./script/deploy-tokens.sh --broadcast --verify # Deploy + Verify
 ./script/deploy-tokens.sh --verify             # Verify only
@@ -433,7 +432,7 @@ ERC-4337 Paymaster 인프라 - 가스비 후원 및 ERC20 토큰으로 가스비
 # Phase 4: UniswapV3
 ./script/deploy-uniswap.sh                           # Dry run
 ./script/deploy-uniswap.sh --broadcast               # Deploy
-./script/deploy-uniswap.sh --broadcast --create-pool # Deploy + Create WKRC/USDC Pool
+./script/deploy-uniswap.sh --broadcast --create-pool # Deploy + Create NativeCoinAdapter/USDC Pool
 ./script/deploy-uniswap.sh --force                   # Force redeploy
 
 # Phase 4: DeFi
@@ -536,7 +535,7 @@ Phase 6: Subscription (independent)
 ## Progress Tracking
 
 - [x] Phase 0: Base Infrastructure
-  - [x] wKRC, USDC (Tokens)
+  - [x] USDC (Tokens)
   - [x] EntryPoint
 - [x] Phase 1: Smart Account (Kernel)
   - [x] Kernel
@@ -552,7 +551,7 @@ Phase 6: Subscription (independent)
   - [x] Privacy (ERC5564Announcer, ERC6538Registry, PrivateBank)
   - [x] Permit2
 - [x] Phase 4: DeFi & Paymasters
-  - [x] UniswapV3 (UniswapV3Factory, SwapRouter, Quoter, NonfungiblePositionManager, WKRC/USDC Pool)
+  - [x] UniswapV3 (UniswapV3Factory, SwapRouter, Quoter, NonfungiblePositionManager, NativeCoinAdapter/USDC Pool)
   - [x] DeFi (PriceOracle, LendingPool, StakingVault)
   - [x] Paymasters (VerifyingPaymaster, SponsorPaymaster, ERC20Paymaster, Permit2Paymaster)
 - [ ] Phase 5: Plugins (optional)

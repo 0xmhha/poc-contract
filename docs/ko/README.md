@@ -94,7 +94,7 @@ src/
 ├── erc7579-plugins/        # 플러그인 모듈 (AutoSwap, MicroLoan, OnRamp)
 ├── privacy/                # 스텔스 주소 (ERC-5564/6538)
 ├── compliance/             # 규제 준수
-├── tokens/                 # 토큰 컨트랙트 (wKRC, USDC)
+├── tokens/                 # 토큰 컨트랙트 (USDC)
 ├── defi/                   # DeFi 컴포넌트 (PriceOracle, DEXIntegration)
 ├── permit2/                # Permit2 토큰 승인
 ├── subscription/           # 구독 관리 (ERC-7715)

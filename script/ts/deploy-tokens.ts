@@ -2,7 +2,7 @@
 /**
  * Token Deployment Script
  *
- * Deploys wKRC and USDC tokens using forge script
+ * Deploys USDC token using forge script
  *
  * Usage:
  *   npx ts-node script/ts/deploy-tokens.ts [--broadcast] [--verify] [--force]
@@ -128,7 +128,7 @@ function buildVerifyCommand(options: {
 
 // ============ Deployment Address Loader ============
 
-function loadDeployedAddresses(chainId: string): { wkrc?: string; usdc?: string } {
+function loadDeployedAddresses(chainId: string): { usdc?: string } {
   const addressesPath = path.join(PROJECT_ROOT, "deployments", chainId, "addresses.json");
 
   if (!fs.existsSync(addressesPath)) {
@@ -139,7 +139,6 @@ function loadDeployedAddresses(chainId: string): { wkrc?: string; usdc?: string 
     const content = fs.readFileSync(addressesPath, "utf8");
     const addresses = JSON.parse(content);
     return {
-      wkrc: addresses.wkrc,
       usdc: addresses.usdc,
     };
   } catch {
@@ -152,7 +151,7 @@ function loadDeployedAddresses(chainId: string): { wkrc?: string; usdc?: string 
 function verifyContracts(chainId: string, deployerAddress: string): void {
   const addresses = loadDeployedAddresses(chainId);
 
-  if (!addresses.wkrc && !addresses.usdc) {
+  if (!addresses.usdc) {
     console.log("⚠️  No deployed addresses found to verify");
     return;
   }
@@ -166,7 +165,6 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
   const usdcConstructorArgs = deployerAddress.toLowerCase().padStart(64, "0");
 
   const contracts = [
-    { name: "wKRC", artifact: "src/tokens/wKRC.sol:wKRC", address: addresses.wkrc, constructorArgs: undefined },
     { name: "USDC", artifact: "src/tokens/USDC.sol:USDC", address: addresses.usdc, constructorArgs: usdcConstructorArgs },
   ];
 
@@ -210,7 +208,7 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
 
 function main(): void {
   console.log("=".repeat(60));
-  console.log("  Token Deployment (wKRC, USDC)");
+  console.log("  Token Deployment (USDC)");
   console.log("=".repeat(60));
 
   const { broadcast, verify, force } = parseArgs();

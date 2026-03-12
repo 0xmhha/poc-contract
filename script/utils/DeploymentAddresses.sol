@@ -16,7 +16,6 @@ import { Script, console } from "forge-std/Script.sol";
  *   - Executors (SessionKey, RecurringPayment)
  *   - Hooks (Audit, SpendingLimit)
  *   - Fallbacks (TokenReceiver, FlashLoan)
- *   - wKRC
  *   - PriceOracle
  *   - ERC5564Announcer, ERC6538Registry
  *   - BridgeRateLimiter, FraudProofVerifier
@@ -34,7 +33,7 @@ import { Script, console } from "forge-std/Script.sol";
  *   - KernelFactory -> Kernel
  *   - Permit2Paymaster -> EntryPoint, PriceOracle, Permit2
  *   - SubscriptionManager -> ERC7715PermissionManager
- *   - DEXIntegration -> wKRC, external DEX addresses
+ *   - DEXIntegration -> external DEX addresses
  *   - SecureBridge -> BridgeValidator, OptimisticVerifier, BridgeRateLimiter, BridgeGuardian
  */
 library DeploymentAddresses {
@@ -85,7 +84,6 @@ library DeploymentAddresses {
 
     // Tokens & DeFi
     string constant KEY_PERMIT2 = "permit2";
-    string constant KEY_WKRC = "wkrc";
     string constant KEY_USDC = "usdc";
     string constant KEY_PRICE_ORACLE = "priceOracle";
     string constant KEY_LENDING_POOL = "lendingPool";
@@ -97,7 +95,6 @@ library DeploymentAddresses {
     string constant KEY_UNISWAP_QUOTER = "uniswapV3Quoter";
     string constant KEY_UNISWAP_NFT_POSITION_MANAGER = "uniswapV3NftPositionManager";
     string constant KEY_UNISWAP_NFT_DESCRIPTOR = "uniswapV3NftDescriptor";
-    string constant KEY_UNISWAP_WKRC_USDC_POOL = "uniswapV3WkrcUsdcPool";
 
     // Privacy
     string constant KEY_ANNOUNCER = "erc5564Announcer";
@@ -229,7 +226,6 @@ abstract contract DeploymentHelper is Script {
 
                 // Tokens & DeFi
                 _tryParseAddress(json, DeploymentAddresses.KEY_PERMIT2);
-                _tryParseAddress(json, DeploymentAddresses.KEY_WKRC);
                 _tryParseAddress(json, DeploymentAddresses.KEY_USDC);
                 _tryParseAddress(json, DeploymentAddresses.KEY_PRICE_ORACLE);
                 _tryParseAddress(json, DeploymentAddresses.KEY_LENDING_POOL);
@@ -241,7 +237,6 @@ abstract contract DeploymentHelper is Script {
                 _tryParseAddress(json, DeploymentAddresses.KEY_UNISWAP_QUOTER);
                 _tryParseAddress(json, DeploymentAddresses.KEY_UNISWAP_NFT_POSITION_MANAGER);
                 _tryParseAddress(json, DeploymentAddresses.KEY_UNISWAP_NFT_DESCRIPTOR);
-                _tryParseAddress(json, DeploymentAddresses.KEY_UNISWAP_WKRC_USDC_POOL);
 
                 // Privacy
                 _tryParseAddress(json, DeploymentAddresses.KEY_ANNOUNCER);
@@ -460,9 +455,6 @@ abstract contract DeploymentHelper is Script {
         if (_addresses[DeploymentAddresses.KEY_PERMIT2] != address(0)) {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_PERMIT2, _addresses[DeploymentAddresses.KEY_PERMIT2]);
         }
-        if (_addresses[DeploymentAddresses.KEY_WKRC] != address(0)) {
-            vm.serializeAddress(obj, DeploymentAddresses.KEY_WKRC, _addresses[DeploymentAddresses.KEY_WKRC]);
-        }
         if (_addresses[DeploymentAddresses.KEY_USDC] != address(0)) {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_USDC, _addresses[DeploymentAddresses.KEY_USDC]);
         }
@@ -512,13 +504,6 @@ abstract contract DeploymentHelper is Script {
                 obj,
                 DeploymentAddresses.KEY_UNISWAP_NFT_DESCRIPTOR,
                 _addresses[DeploymentAddresses.KEY_UNISWAP_NFT_DESCRIPTOR]
-            );
-        }
-        if (_addresses[DeploymentAddresses.KEY_UNISWAP_WKRC_USDC_POOL] != address(0)) {
-            vm.serializeAddress(
-                obj,
-                DeploymentAddresses.KEY_UNISWAP_WKRC_USDC_POOL,
-                _addresses[DeploymentAddresses.KEY_UNISWAP_WKRC_USDC_POOL]
             );
         }
 

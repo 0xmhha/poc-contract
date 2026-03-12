@@ -10,7 +10,7 @@ The project consists of **96 Solidity files** across **13 domains**:
 
 | Domain | Contracts | Description |
 |--------|-----------|-------------|
-| Tokens | USDC, wKRC | Stablecoin (6 decimals) + Wrapped native token (18 decimals) |
+| Tokens | USDC | Stablecoin (6 decimals) |
 | ERC-4337 EntryPoint | 10 | UserOperation singleton, nonce/stake management |
 | ERC-7579 Smart Account | 32 | Modular Kernel account with proxy pattern |
 | Validators | 5 | ECDSA, Weighted, MultiChain, WebAuthn, MultiSig |
@@ -30,7 +30,7 @@ The project consists of **96 Solidity files** across **13 domains**:
 script/
 ├── DeployAll.s.sol               # Unified deployment (all 44 contracts)
 ├── deploy-contract/
-│   ├── DeployTokens.s.sol        # USDC, wKRC
+│   ├── DeployTokens.s.sol        # USDC
 │   ├── DeployEntryPoint.s.sol    # EntryPoint
 │   ├── DeployKernel.s.sol        # Kernel + KernelFactory + FactoryStaker
 │   ├── DeployPaymasters.s.sol    # All paymasters
@@ -61,7 +61,6 @@ These contracts have no on-chain dependencies and can be deployed in any order.
 Layer 0 ── No Dependencies
 │
 ├── Tokens
-│   ├── wKRC                          # No constructor args
 │   └── USDC                          # constructor(owner_)
 │
 ├── ERC-4337
@@ -137,7 +136,7 @@ Layer 1 ── Depends on Layer 0
 │   └── OptimisticVerifier            # constructor(challengePeriod, challengeBond, reward)
 │
 ├── DeFi
-│   └── DEXIntegration                # constructor(wKRC)
+│   └── DEXIntegration                # constructor(nativeCoinAdapter)
 │
 └── Subscription
     └── SubscriptionManager           # constructor(permissionManager, owner_)
@@ -231,7 +230,7 @@ Account Setup ── Per-Account
                       v           v           v
                ┌────────────┐ ┌──────────┐ ┌────────────────┐
                │ ERC20      │ │ Permit2  │ │ DEXIntegration │
-               │ Paymaster  │ │ Paymaster│ │ (+ wKRC)       │
+               │ Paymaster  │ │ Paymaster│ │                │
                └────────────┘ └──────────┘ └────────────────┘
 
   ┌──────────────────┐  ┌───────────────┐
@@ -289,7 +288,7 @@ forge script script/DeployAll.s.sol:DeployAllScript \
 ```
 
 This deploys all contracts across 6 phases:
-- **Phase 0**: Base Infrastructure (wKRC, USDC, EntryPoint)
+- **Phase 0**: Base Infrastructure (USDC, EntryPoint)
 - **Phase 1**: Core Smart Account (Kernel, KernelFactory, FactoryStaker)
 - **Phase 2**: ERC-7579 Modules (Validators, Hooks, Fallbacks, Executors)
 - **Phase 3**: Feature Modules (Compliance, Privacy, Permit2)
@@ -302,7 +301,7 @@ This deploys all contracts across 6 phases:
 All domain scripts are located in `script/deploy-contract/`.
 
 ```bash
-# Tokens (wKRC, USDC)
+# Tokens (USDC)
 FOUNDRY_PROFILE=tokens forge script script/deploy-contract/DeployTokens.s.sol:DeployTokensScript \
   --rpc-url http://127.0.0.1:8545 --broadcast
 
@@ -411,7 +410,6 @@ deployments/
 
 ```json
 {
-  "wKRC": "0x...",
   "usdc": "0x...",
   "entryPoint": "0x...",
   "permit2": "0x...",
@@ -545,7 +543,7 @@ usdc.addMinter(address(erc20Paymaster));
 | ERC20Paymaster Markup | 10% (1000 bps) | 5-50% |
 | Price Staleness | 1 hour | 1 hour |
 | USDC Decimals | 6 | 6 |
-| wKRC Decimals | 18 | 18 |
+| NativeCoinAdapter Decimals | 18 | 18 |
 
 ## Troubleshooting
 

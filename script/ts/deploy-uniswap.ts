@@ -2,7 +2,7 @@
 /**
  * UniswapV3 Deployment Script
  *
- * Deploys Uniswap V3 contracts and creates initial WKRC/USDC pool
+ * Deploys Uniswap V3 contracts and creates initial NativeCoinAdapter/USDC pool
  *
  * Deployed Contracts:
  *   - UniswapV3Factory: Creates and manages liquidity pools
@@ -15,12 +15,12 @@
  *
  * Options:
  *   --broadcast    Actually broadcast transactions (otherwise dry run)
- *   --create-pool  Create WKRC/USDC pool after deployment
+ *   --create-pool  Create NativeCoinAdapter/USDC pool after deployment
  *   --verify       Verify contracts on block explorer
  *   --force        Force redeploy even if contracts already exist
  *
  * Environment Variables:
- *   WKRC_ADDRESS: NativeCoinAdapter address (default: 0x1000)
+ *   NATIVE_COIN_ADAPTER_ADDRESS: NativeCoinAdapter address (default: 0x1000)
  *   USDC_ADDRESS: USDC contract address (optional, auto-discovered from broadcast folder)
  *   POOL_FEE: Pool fee tier in basis points (default: 3000 = 0.3%)
  *   INITIAL_PRICE: Initial sqrt price X96 (optional, for pool initialization)
@@ -48,7 +48,7 @@ const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
 // Default addresses
-const DEFAULT_WKRC_ADDRESS = "0x0000000000000000000000000000000000001000";
+const DEFAULT_NATIVE_COIN_ADAPTER_ADDRESS = "0x0000000000000000000000000000000000001000";
 const DEFAULT_POOL_FEE = 3000; // 0.3%
 
 // Contract names and artifacts
@@ -98,12 +98,12 @@ function validateEnv(): {
   rpcUrl: string;
   privateKey: string;
   chainId: string;
-  wkrcAddress: string;
+  nativeCoinAdapterAddress: string;
 } {
   const rpcUrl = process.env.RPC_URL;
   const privateKey = process.env.PRIVATE_KEY_DEPLOYER || process.env.PRIVATE_KEY || "";
   const chainId = process.env.CHAIN_ID || "8283";
-  const wkrcAddress = process.env.WKRC_ADDRESS || DEFAULT_WKRC_ADDRESS;
+  const nativeCoinAdapterAddress = process.env.NATIVE_COIN_ADAPTER_ADDRESS || DEFAULT_NATIVE_COIN_ADAPTER_ADDRESS;
 
   if (!rpcUrl) {
     throw new Error("RPC_URL is not set in .env");
@@ -113,7 +113,7 @@ function validateEnv(): {
     throw new Error("PRIVATE_KEY_DEPLOYER (or PRIVATE_KEY) is not set in .env");
   }
 
-  return { rpcUrl, privateKey, chainId, wkrcAddress };
+  return { rpcUrl, privateKey, chainId, nativeCoinAdapterAddress };
 }
 
 // ============ Address Management ============
@@ -352,7 +352,7 @@ async function createPool(
 
   // Initialize the pool with sqrtPriceX96
   // Default: 2^96 = 79228162514264337593543950336 (raw-unit 1:1 ratio)
-  // NOTE: For tokens with different decimals (e.g., wKRC=18, USDC=6), the
+  // NOTE: For tokens with different decimals (e.g., NativeCoinAdapter=18, USDC=6), the
   // human-readable price will NOT be 1:1. Override via INITIAL_PRICE env var.
   const defaultSqrtPriceX96 = "79228162514264337593543950336";
   const sqrtPriceX96 = process.env.INITIAL_PRICE || defaultSqrtPriceX96;
@@ -418,7 +418,7 @@ function verifyContract(
   }
 }
 
-function verifyContracts(addresses: DeployedAddresses, wkrcAddress: string): void {
+function verifyContracts(addresses: DeployedAddresses, nativeCoinAdapterAddress: string): void {
   console.log("\n" + "-".repeat(60));
   console.log("Contract Verification");
   console.log("-".repeat(60));
@@ -460,7 +460,7 @@ function verifyContracts(addresses: DeployedAddresses, wkrcAddress: string): voi
   if (swapRouterAddr && factoryAddr) {
     console.log(`\nVerifying SwapRouter at ${swapRouterAddr}...`);
     const args = factoryAddr.toLowerCase().replace("0x", "").padStart(64, "0") +
-                 wkrcAddress.toLowerCase().replace("0x", "").padStart(64, "0");
+                 nativeCoinAdapterAddress.toLowerCase().replace("0x", "").padStart(64, "0");
     verifyContract(swapRouterAddr, CONTRACTS.swapRouter.artifact, args);
   }
 
@@ -468,7 +468,7 @@ function verifyContracts(addresses: DeployedAddresses, wkrcAddress: string): voi
   if (quoterAddr && factoryAddr) {
     console.log(`\nVerifying Quoter at ${quoterAddr}...`);
     const args = factoryAddr.toLowerCase().replace("0x", "").padStart(64, "0") +
-                 wkrcAddress.toLowerCase().replace("0x", "").padStart(64, "0");
+                 nativeCoinAdapterAddress.toLowerCase().replace("0x", "").padStart(64, "0");
     verifyContract(quoterAddr, CONTRACTS.quoter.artifact, args);
   }
 
@@ -477,7 +477,7 @@ function verifyContracts(addresses: DeployedAddresses, wkrcAddress: string): voi
     console.log(`\nVerifying NonfungiblePositionManager at ${nftManagerAddr}...`);
     const tokenDescriptor = addresses[CONTRACTS.nftDescriptor.jsonKey] || ethers.ZeroAddress;
     const args = factoryAddr.toLowerCase().replace("0x", "").padStart(64, "0") +
-                 wkrcAddress.toLowerCase().replace("0x", "").padStart(64, "0") +
+                 nativeCoinAdapterAddress.toLowerCase().replace("0x", "").padStart(64, "0") +
                  tokenDescriptor.toLowerCase().replace("0x", "").padStart(64, "0");
     verifyContract(nftManagerAddr, CONTRACTS.nftPositionManager.artifact, args);
   }
@@ -487,7 +487,7 @@ function verifyContracts(addresses: DeployedAddresses, wkrcAddress: string): voi
 
 async function main(): Promise<void> {
   const { broadcast, createPool: shouldCreatePool, verify, force } = parseArgs();
-  const { rpcUrl, privateKey, chainId, wkrcAddress } = validateEnv();
+  const { rpcUrl, privateKey, chainId, nativeCoinAdapterAddress } = validateEnv();
 
   // Verify-only mode
   const verifyOnly = verify && !broadcast && !force;
@@ -502,7 +502,7 @@ async function main(): Promise<void> {
     console.log("=".repeat(60));
 
     const addresses = loadDeployedAddresses(chainId);
-    verifyContracts(addresses, wkrcAddress);
+    verifyContracts(addresses, nativeCoinAdapterAddress);
     console.log("\n" + "=".repeat(60));
     return;
   }
@@ -513,7 +513,7 @@ async function main(): Promise<void> {
   console.log(`Create Pool: ${shouldCreatePool ? "YES" : "NO"}`);
   console.log(`Verify: ${verify ? "YES (after deployment)" : "NO"}`);
   console.log(`Force Redeploy: ${force ? "YES" : "NO"}`);
-  console.log(`WKRC Address: ${wkrcAddress}`);
+  console.log(`NativeCoinAdapter Address: ${nativeCoinAdapterAddress}`);
   console.log("=".repeat(60));
 
   // Setup provider and wallet
@@ -531,7 +531,7 @@ async function main(): Promise<void> {
     for (const contract of Object.values(CONTRACTS)) {
       delete addresses[contract.jsonKey];
     }
-    delete addresses["uniswapV3WkrcUsdcPool"];
+    delete addresses["uniswapV3NativeUsdcPool"];
   }
 
   // Get USDC address from multiple sources
@@ -574,7 +574,7 @@ async function main(): Promise<void> {
       provider,
       wallet,
       CONTRACTS.swapRouter.artifact,
-      [factoryAddress, wkrcAddress], // factory, WETH
+      [factoryAddress, nativeCoinAdapterAddress], // factory, WETH
       broadcast
     );
     addresses[CONTRACTS.swapRouter.jsonKey] = swapRouterAddress;
@@ -592,7 +592,7 @@ async function main(): Promise<void> {
       provider,
       wallet,
       CONTRACTS.quoter.artifact,
-      [factoryAddress, wkrcAddress], // factory, WETH
+      [factoryAddress, nativeCoinAdapterAddress], // factory, WETH
       broadcast
     );
     addresses[CONTRACTS.quoter.jsonKey] = quoterAddress;
@@ -614,7 +614,7 @@ async function main(): Promise<void> {
       provider,
       wallet,
       CONTRACTS.nftPositionManager.artifact,
-      [factoryAddress, wkrcAddress, tokenDescriptor], // factory, WETH, tokenDescriptor
+      [factoryAddress, nativeCoinAdapterAddress, tokenDescriptor], // factory, WETH, tokenDescriptor
       broadcast
     );
     addresses[CONTRACTS.nftPositionManager.jsonKey] = nftPositionManagerAddress;
@@ -626,7 +626,7 @@ async function main(): Promise<void> {
 
   if (shouldCreatePool && factoryAddress && (factoryAddress !== ethers.ZeroAddress || !broadcast) && usdcAddress) {
     console.log("\n" + "-".repeat(60));
-    console.log("Step 5: Create WKRC/USDC Pool");
+    console.log("Step 5: Create NativeCoinAdapter/USDC Pool");
     console.log("-".repeat(60));
 
     const poolFee = parseInt(process.env.POOL_FEE || String(DEFAULT_POOL_FEE));
@@ -634,14 +634,14 @@ async function main(): Promise<void> {
       provider,
       wallet,
       factoryAddress,
-      wkrcAddress,
+      nativeCoinAdapterAddress,
       usdcAddress,
       poolFee,
       broadcast
     );
 
     if (poolAddress !== ethers.ZeroAddress) {
-      addresses["uniswapV3WkrcUsdcPool"] = poolAddress;
+      addresses["uniswapV3NativeUsdcPool"] = poolAddress;
     }
   }
 
@@ -651,7 +651,7 @@ async function main(): Promise<void> {
 
     // Verify contracts if requested
     if (verify) {
-      verifyContracts(addresses, wkrcAddress);
+      verifyContracts(addresses, nativeCoinAdapterAddress);
     }
   }
 
@@ -664,8 +664,8 @@ async function main(): Promise<void> {
   console.log(`SwapRouter: ${addresses[CONTRACTS.swapRouter.jsonKey] || "Not deployed"}`);
   console.log(`Quoter: ${addresses[CONTRACTS.quoter.jsonKey] || "Not deployed"}`);
   console.log(`NonfungiblePositionManager: ${addresses[CONTRACTS.nftPositionManager.jsonKey] || "Not deployed"}`);
-  if (addresses["uniswapV3WkrcUsdcPool"]) {
-    console.log(`WKRC/USDC Pool: ${addresses["uniswapV3WkrcUsdcPool"]}`);
+  if (addresses["uniswapV3NativeUsdcPool"]) {
+    console.log(`NativeCoinAdapter/USDC Pool: ${addresses["uniswapV3NativeUsdcPool"]}`);
   }
 
   if (!broadcast) {
