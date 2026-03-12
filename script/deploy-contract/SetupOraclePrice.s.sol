@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { Script, console } from "forge-std/Script.sol";
+import { console } from "forge-std/Script.sol";
+import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddresses.sol";
 import { FixedPriceAggregator } from "../../src/defi/FixedPriceAggregator.sol";
 
 // Minimal interfaces (avoid importing full contracts)
@@ -27,30 +28,31 @@ interface IERC20PaymasterAdmin {
  * for USDC on the existing PriceOracle contract.
  * Also ensures USDC is registered as a supported token on the ERC20Paymaster.
  *
+ * Reads deployed addresses from deployments/<chainId>/addresses.json automatically.
+ *
  * Usage:
  *   forge script script/deploy-contract/SetupOraclePrice.s.sol:SetupOraclePriceScript \
  *     --rpc-url $RPC_URL --broadcast -vvv
  *
  * Environment:
  *   PRIVATE_KEY_DEPLOYER  - Deployer private key (must be PriceOracle & ERC20Paymaster owner)
- *   USDC_ADDRESS          - USDC token address (defaults to StableNet Local)
- *   PRICE_ORACLE          - PriceOracle address (defaults to StableNet Local)
- *   ERC20_PAYMASTER       - ERC20Paymaster address (defaults to StableNet Local)
  *   USDC_KRWC_PRICE       - Price in KRWC per USDC (defaults to 1500)
  */
-contract SetupOraclePriceScript is Script {
-    // StableNet Local (chain 8283) deployed addresses
-    address constant DEFAULT_USDC = 0x085Ee10CC10BE8FB2cE51fEB13E809a0c3f98699;
-    address constant DEFAULT_PRICE_ORACLE = 0xAbB0Ec3766A8679E4223daF0c0E4f93f2Cf6f6FF;
-    address constant DEFAULT_ERC20_PAYMASTER = 0xc116185143320271f0f50A9528dE372e2DE8A78B;
-
+contract SetupOraclePriceScript is DeploymentHelper {
     // Chainlink standard decimals
     uint8 constant CHAINLINK_DECIMALS = 8;
 
     function run() external {
-        address usdc = vm.envOr("USDC_ADDRESS", DEFAULT_USDC);
-        address oracleAddr = vm.envOr("PRICE_ORACLE", DEFAULT_PRICE_ORACLE);
-        address paymasterAddr = vm.envOr("ERC20_PAYMASTER", DEFAULT_ERC20_PAYMASTER);
+        _initDeployment();
+
+        address usdc = _getAddress(DeploymentAddresses.KEY_USDC);
+        address oracleAddr = _getAddress(DeploymentAddresses.KEY_PRICE_ORACLE);
+        address paymasterAddr = _getAddress(DeploymentAddresses.KEY_ERC20_PAYMASTER);
+
+        require(usdc != address(0), "USDC address not found in addresses.json");
+        require(oracleAddr != address(0), "PriceOracle address not found in addresses.json");
+        require(paymasterAddr != address(0), "ERC20Paymaster address not found in addresses.json");
+
         uint256 usdcKrcPrice = vm.envOr("USDC_KRWC_PRICE", uint256(1500));
 
         IPriceOracleAdmin oracle = IPriceOracleAdmin(oracleAddr);
