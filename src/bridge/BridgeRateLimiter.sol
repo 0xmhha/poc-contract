@@ -31,6 +31,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
     error ZeroAmount();
     error TokenNotSupported();
     error InvalidWindow();
+    error StalePrice();
 
     // ============ Events ============
     event TransactionRecorded(
@@ -89,6 +90,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
     uint256 public constant DAY = 1 days;
     uint256 public constant PRECISION = 1e18;
     uint256 public constant MAX_PERCENTAGE = 100;
+    uint256 public constant MAX_PRICE_AGE = 1 days;
 
     // Default limits for PoC (in USD scaled by 1e18) — generous for testing
     uint256 public constant DEFAULT_MAX_PER_TX = 10_000_000 * PRECISION; // $10M
@@ -120,6 +122,9 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
 
     /// @notice Per-address daily volume tracking
     mapping(address => VolumeWindow) public addressDailyVolume;
+
+    /// @notice Token price last updated timestamp
+    mapping(address => uint256) public tokenPriceLastUpdated;
 
     /// @notice Authorized callers (bridge contracts)
     mapping(address => bool) public authorizedCallers;
@@ -174,6 +179,31 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
         nonReentrant
         returns (bool allowed, uint256 usdValue)
     {
+        return _checkAndRecord(token, amount, address(0));
+    }
+
+    /**
+     * @notice Check if a transaction is within rate limits (and record it) with sender tracking
+     * @param token Token address
+     * @param amount Token amount
+     * @param sender Address of the transaction sender
+     * @return allowed Whether the transaction is allowed
+     * @return usdValue USD value of the transaction
+     */
+    function checkAndRecordTransactionWithSender(address token, uint256 amount, address sender)
+        external
+        onlyAuthorized
+        whenNotPaused
+        nonReentrant
+        returns (bool allowed, uint256 usdValue)
+    {
+        return _checkAndRecord(token, amount, sender);
+    }
+
+    function _checkAndRecord(address token, uint256 amount, address sender)
+        internal
+        returns (bool allowed, uint256 usdValue)
+    {
         if (amount == 0) revert ZeroAmount();
 
         TokenConfig storage config = tokenConfigs[token];
@@ -219,6 +249,18 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
 
         totalTransactions++;
         totalVolumeProcessed += usdValue;
+
+        // Track per-address daily volume
+        if (sender != address(0)) {
+            VolumeWindow storage addrVolume = addressDailyVolume[sender];
+            if (block.timestamp >= addrVolume.windowStart + DAY) {
+                addrVolume.volume = 0;
+                addrVolume.windowStart = block.timestamp;
+                addrVolume.transactionCount = 0;
+            }
+            addrVolume.volume += usdValue;
+            addrVolume.transactionCount++;
+        }
 
         emit TransactionRecorded(token, amount, usdValue, newHourlyVolume, newDailyVolume);
 
@@ -351,6 +393,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
         // Note: address(0) is allowed to represent native ETH
 
         tokenConfigs[token] = TokenConfig({ supported: true, price: price, decimals: decimals, customLimits: false });
+        tokenPriceLastUpdated[token] = block.timestamp;
 
         emit TokenPriceUpdated(token, price);
     }
@@ -383,6 +426,7 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
         if (!tokenConfigs[token].supported) revert TokenNotSupported();
 
         tokenConfigs[token].price = price;
+        tokenPriceLastUpdated[token] = block.timestamp;
 
         emit TokenPriceUpdated(token, price);
     }
@@ -523,6 +567,9 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      */
     function _calculateUsdValue(address token, uint256 amount) internal view returns (uint256) {
         TokenConfig storage config = tokenConfigs[token];
+
+        // Check price freshness
+        if (block.timestamp - tokenPriceLastUpdated[token] > MAX_PRICE_AGE) revert StalePrice();
 
         // Normalize amount to 18 decimals then multiply by price
         uint256 normalizedAmount;

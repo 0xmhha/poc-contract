@@ -154,6 +154,9 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
     /// @notice Total number of successful challenges
     uint256 public totalSuccessfulChallenges;
 
+    /// @notice Total forfeited bonds available for withdrawal
+    uint256 public forfeitedBonds;
+
     // ============ Modifiers ============
 
     modifier onlyAuthorized() {
@@ -284,6 +287,7 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
 
             // Return bond + reward to challenger
             reward = challenge.bondAmount + challengerReward;
+            if (address(this).balance < reward) revert TransferFailed();
             (bool success,) = payable(challenge.challenger).call{ value: reward }("");
             if (!success) revert TransferFailed();
 
@@ -293,7 +297,8 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
             // For simplicity, we approve immediately after failed challenge
             request.status = RequestStatus.Approved;
 
-            // Forfeit bond (stays in contract)
+            // Forfeit bond (track for withdrawFees)
+            forfeitedBonds += challenge.bondAmount;
             emit RequestApproved(requestId, block.timestamp);
         }
 
@@ -450,6 +455,9 @@ contract OptimisticVerifier is Ownable, Pausable, ReentrancyGuard {
      */
     function withdrawFees(address to, uint256 amount) external onlyOwner {
         if (to == address(0)) revert ZeroAddress();
+        if (amount > forfeitedBonds) revert InsufficientChallengeBond();
+
+        forfeitedBonds -= amount;
 
         (bool success,) = payable(to).call{ value: amount }("");
         if (!success) revert TransferFailed();

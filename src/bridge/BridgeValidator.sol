@@ -183,16 +183,15 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
         // Check minimum signatures
         if (signatures.length < currentSet.threshold) revert InsufficientSignatures();
 
-        // Compute message hash
-        bytes32 messageHash = hashBridgeMessage(message);
-        bytes32 ethSignedHash = messageHash.toEthSignedMessageHash();
+        // Compute EIP-712 digest (no additional toEthSignedMessageHash wrapping)
+        bytes32 digest = hashBridgeMessage(message);
 
         // Track signers who have signed
         address[] memory signersCounted = new address[](signatures.length);
         uint256 validSignatures = 0;
 
         for (uint256 i = 0; i < signatures.length; i++) {
-            address recoveredSigner = ethSignedHash.recover(signatures[i]);
+            address recoveredSigner = digest.recover(signatures[i]);
 
             // Check for duplicate signatures BEFORE signer validation
             for (uint256 j = 0; j < validSignatures; j++) {
@@ -209,10 +208,7 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
         // Verify threshold met
         if (validSignatures < currentSet.threshold) revert InsufficientSignatures();
 
-        // Mark nonce as used
-        usedNonces[message.sender][message.nonce] = true;
-
-        emit MessageValidated(messageHash, message.nonce, message.sender);
+        emit MessageValidated(digest, message.nonce, message.sender);
 
         return true;
     }
@@ -238,15 +234,14 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
         // Get current signer set
         SignerSet storage currentSet = signerSets[signerSetVersion];
 
-        // Compute message hash
-        bytes32 messageHash = hashBridgeMessage(message);
-        bytes32 ethSignedHash = messageHash.toEthSignedMessageHash();
+        // Compute EIP-712 digest (no additional toEthSignedMessageHash wrapping)
+        bytes32 digest = hashBridgeMessage(message);
 
         // Track signers who have signed
         address[] memory signersCounted = new address[](signatures.length);
 
         for (uint256 i = 0; i < signatures.length; i++) {
-            address recoveredSigner = ethSignedHash.recover(signatures[i]);
+            address recoveredSigner = digest.recover(signatures[i]);
 
             // Check if signer is valid
             if (!isSigner[recoveredSigner]) continue;
@@ -267,6 +262,17 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
         }
 
         valid = validCount >= currentSet.threshold;
+    }
+
+    /**
+     * @notice Consume a nonce after successful downstream execution
+     * @param sender The sender whose nonce to consume
+     * @param nonce The nonce to mark as used
+     */
+    function consumeNonce(address sender, uint256 nonce) external {
+        if (usedNonces[sender][nonce]) revert NonceAlreadyUsed();
+
+        usedNonces[sender][nonce] = true;
     }
 
     /**

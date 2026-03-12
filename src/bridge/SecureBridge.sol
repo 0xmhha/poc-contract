@@ -47,6 +47,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
     error InsufficientFee();
     error ChainIdMismatch();
     error MaxFeeBpsExceeded();
+    error RequestIdMismatch();
 
     // ============ Events ============
     event BridgeInitiated(
@@ -273,6 +274,12 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         if (deadline < block.timestamp) revert DeadlineExpired();
         if (CHAIN_ID != block.chainid) revert ChainIdMismatch();
 
+        // Verify requestId matches supplied parameters
+        bytes32 expectedRequestId = keccak256(
+            abi.encode(sender, recipient, sourceToken, amount, sourceChain, CHAIN_ID, nonce, deadline)
+        );
+        if (requestId != expectedRequestId) revert RequestIdMismatch();
+
         // Check guardian pause and blacklist
         if (guardian.guardianPaused()) revert GuardianPaused();
         if (guardian.isBlacklisted(sender)) revert Blacklisted();
@@ -314,8 +321,8 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
 
         // Release tokens
         if (targetToken == address(0)) {
-            // Native token (gas stipend to prevent griefing)
-            (bool success,) = payable(recipient).call{ value: amount, gas: 10_000 }("");
+            // Native token (nonReentrant protects against reentrancy)
+            (bool success,) = payable(recipient).call{ value: amount }("");
             if (!success) revert NativeTransferFailed();
         } else {
             // ERC20 token
@@ -327,6 +334,9 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
             totalValueLocked[targetToken] -= amount;
         }
 
+        // Consume nonce after all downstream logic succeeds
+        bridgeValidator.consumeNonce(sender, nonce);
+
         emit BridgeCompleted(requestId, recipient, targetToken, amount);
     }
 
@@ -334,7 +344,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
      * @notice Refund a failed or challenged bridge request
      * @param requestId Request ID to refund
      */
-    function refundBridge(bytes32 requestId) external nonReentrant {
+    function refundBridge(bytes32 requestId) external whenNotPaused nonReentrant {
         DepositInfo storage deposit = deposits[requestId];
 
         if (deposit.sender == address(0)) revert InvalidAmount();
@@ -350,13 +360,16 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
 
         deposit.refunded = true;
 
-        // Update TVL (deduct fee that was already taken, using the fee rate at deposit time)
+        // Refund full deposit amount (including fee)
         uint256 fee = (deposit.amount * deposit.feeBps) / 10_000;
-        uint256 refundAmount = deposit.amount - fee;
+        uint256 refundAmount = deposit.amount;
 
-        if (totalValueLocked[deposit.token] >= refundAmount) {
-            totalValueLocked[deposit.token] -= refundAmount;
+        // Reverse TVL and fee accounting
+        uint256 amountAfterFee = deposit.amount - fee;
+        if (totalValueLocked[deposit.token] >= amountAfterFee) {
+            totalValueLocked[deposit.token] -= amountAfterFee;
         }
+        feesCollected[deposit.token] -= fee;
 
         // Refund tokens to original sender
         if (deposit.token == address(0)) {

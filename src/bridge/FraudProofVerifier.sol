@@ -237,6 +237,14 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
             if (optimisticVerifier != address(0)) {
                 _notifyOptimisticVerifier(proof.requestId, true);
             }
+
+            // Record double-spend evidence after successful notification
+            if (proof.proofType == FraudProofType.DoubleSpending) {
+                (bytes32 txHash1, bytes32 txHash2,) = abi.decode(proof.evidence, (bytes32, bytes32, bytes32));
+                doubleSpendEvidence[proof.requestId] =
+                    DoubleSpendEvidence({ txHash1: txHash1, txHash2: txHash2, sameInputs: true });
+                emit DoubleSpendRecorded(proof.requestId, txHash1, txHash2);
+            }
         }
 
         emit FraudProofVerified(proof.requestId, proof.proofType, isValid, msg.sender);
@@ -444,7 +452,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param proof The fraud proof
      * @return isValid Whether the proof is valid
      */
-    function _verifyDoubleSpendingProof(FraudProof calldata proof) internal returns (bool) {
+    function _verifyDoubleSpendingProof(FraudProof calldata proof) internal view returns (bool) {
         if (proof.evidence.length == 0) return false;
 
         (bytes32 txHash1, bytes32 txHash2, bytes32 inputHash) = abi.decode(proof.evidence, (bytes32, bytes32, bytes32));
@@ -466,12 +474,6 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
         // Verify that inputHash is included in the Merkle tree (proves shared input)
         bytes32 leaf = keccak256(abi.encodePacked(txHash1, txHash2, inputHash));
         if (!MerkleProof.verify(proof.merkleProof, root, leaf)) return false;
-
-        // Record the double-spend evidence
-        doubleSpendEvidence[proof.requestId] =
-            DoubleSpendEvidence({ txHash1: txHash1, txHash2: txHash2, sameInputs: true });
-
-        emit DoubleSpendRecorded(proof.requestId, txHash1, txHash2);
 
         return true;
     }
@@ -524,13 +526,15 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @return isValid Whether the proof is valid
      */
     function _verifyReplayAttackProof(FraudProof calldata proof) internal view returns (bool) {
-        // Decode evidence: (bytes32 nonceHash, bytes32 previousTxHash)
+        // Decode evidence: (address sender, uint256 nonce, bytes32 previousTxHash)
         if (proof.evidence.length == 0) return false;
+        if (bridgeValidator == address(0)) revert ZeroAddress();
 
-        (bytes32 nonceHash, bytes32 previousTxHash) = abi.decode(proof.evidence, (bytes32, bytes32));
+        (address sender, uint256 nonce, bytes32 previousTxHash) =
+            abi.decode(proof.evidence, (address, uint256, bytes32));
 
-        // Check if nonce was already used
-        if (!usedNonces[nonceHash]) return false;
+        // Check if nonce was already used in BridgeValidator
+        if (!BridgeValidator(bridgeValidator).usedNonces(sender, nonce)) return false;
 
         // Verify merkle proof shows previous usage
         if (proof.merkleProof.length == 0) return false;

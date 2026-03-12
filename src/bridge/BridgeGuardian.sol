@@ -35,6 +35,9 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
     error AlreadyPaused();
     error NotPaused();
     error InvalidAction();
+    error TimelockNotExpired();
+    error NoPendingAction();
+    error PendingActionExists();
 
     // ============ Events ============
     event GuardianAdded(address indexed guardian, uint256 totalGuardians);
@@ -53,6 +56,9 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
     event BridgeTargetUpdated(address indexed oldTarget, address indexed newTarget);
     event RecoveryExecuted(uint256 indexed proposalId, address indexed target, bytes data);
     event BridgePauseCallFailed(address indexed bridgeTarget);
+    event DirectActionQueued(bytes32 indexed actionId, string actionType, uint256 executeAfter);
+    event DirectActionExecuted(bytes32 indexed actionId, string actionType);
+    event DirectActionCancelled(bytes32 indexed actionId);
 
     // ============ Enums ============
 
@@ -115,6 +121,7 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
     uint256 public constant MAX_GUARDIANS = 15;
     uint256 public constant PROPOSAL_DURATION = 7 days;
     uint256 public constant EMERGENCY_COOLDOWN = 1 hours;
+    uint256 public constant DIRECT_ACTION_DELAY = 2 days;
 
     // ============ State Variables ============
 
@@ -150,6 +157,12 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
 
     /// @notice Guardian who triggered emergency pause
     address public emergencyPauser;
+
+    /// @notice Pending direct actions (actionId => executeAfter timestamp)
+    mapping(bytes32 => uint256) public pendingDirectActions;
+
+    /// @notice Pending direct action data
+    mapping(bytes32 => bytes) public pendingDirectActionData;
 
     // ============ Modifiers ============
 
@@ -342,7 +355,7 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Direct guardian addition (owner only, bypasses multisig for initial setup)
+     * @notice Queue direct guardian addition (owner only, subject to timelock)
      * @param guardian New guardian address
      */
     function addGuardianDirect(address guardian) external onlyOwner {
@@ -350,14 +363,17 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
         if (isGuardian[guardian]) revert GuardianAlreadyExists();
         if (guardians.length >= MAX_GUARDIANS) revert InvalidGuardianCount();
 
-        guardians.push(guardian);
-        isGuardian[guardian] = true;
+        bytes32 actionId = keccak256(abi.encode("addGuardian", guardian, block.timestamp));
+        if (pendingDirectActions[actionId] != 0) revert PendingActionExists();
 
-        emit GuardianAdded(guardian, guardians.length);
+        pendingDirectActions[actionId] = block.timestamp + DIRECT_ACTION_DELAY;
+        pendingDirectActionData[actionId] = abi.encode("addGuardian", guardian);
+
+        emit DirectActionQueued(actionId, "addGuardian", block.timestamp + DIRECT_ACTION_DELAY);
     }
 
     /**
-     * @notice Direct guardian removal (owner only, bypasses multisig for emergency)
+     * @notice Queue direct guardian removal (owner only, subject to timelock)
      * @param guardian Guardian address to remove
      */
     function removeGuardianDirect(address guardian) external onlyOwner {
@@ -365,20 +381,86 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
         if (guardians.length <= MIN_GUARDIANS) revert InvalidGuardianCount();
         if (guardians.length - 1 < threshold) revert InvalidThreshold();
 
-        _removeGuardian(guardian);
+        bytes32 actionId = keccak256(abi.encode("removeGuardian", guardian, block.timestamp));
+        if (pendingDirectActions[actionId] != 0) revert PendingActionExists();
+
+        pendingDirectActions[actionId] = block.timestamp + DIRECT_ACTION_DELAY;
+        pendingDirectActionData[actionId] = abi.encode("removeGuardian", guardian);
+
+        emit DirectActionQueued(actionId, "removeGuardian", block.timestamp + DIRECT_ACTION_DELAY);
     }
 
     /**
-     * @notice Update threshold (owner only for emergency)
+     * @notice Queue threshold update (owner only, subject to timelock)
      * @param newThreshold New approval threshold
      */
     function updateThresholdDirect(uint256 newThreshold) external onlyOwner {
         if (newThreshold == 0 || newThreshold > guardians.length) revert InvalidThreshold();
 
-        uint256 oldThreshold = threshold;
-        threshold = newThreshold;
+        bytes32 actionId = keccak256(abi.encode("updateThreshold", newThreshold, block.timestamp));
+        if (pendingDirectActions[actionId] != 0) revert PendingActionExists();
 
-        emit ThresholdUpdated(oldThreshold, newThreshold);
+        pendingDirectActions[actionId] = block.timestamp + DIRECT_ACTION_DELAY;
+        pendingDirectActionData[actionId] = abi.encode("updateThreshold", newThreshold);
+
+        emit DirectActionQueued(actionId, "updateThreshold", block.timestamp + DIRECT_ACTION_DELAY);
+    }
+
+    /**
+     * @notice Execute a queued direct action after timelock expires
+     * @param actionId The action ID to execute
+     */
+    function executeDirectAction(bytes32 actionId) external onlyOwner {
+        uint256 executeAfter = pendingDirectActions[actionId];
+        if (executeAfter == 0) revert NoPendingAction();
+        if (block.timestamp < executeAfter) revert TimelockNotExpired();
+
+        bytes memory data = pendingDirectActionData[actionId];
+        delete pendingDirectActions[actionId];
+        delete pendingDirectActionData[actionId];
+
+        // Extract action type - all actions encode string as first element
+        // Use (string, uint256) since it covers both address and uint256 second params
+        (string memory actionType,) = abi.decode(data, (string, uint256));
+        bytes32 actionHash = keccak256(bytes(actionType));
+
+        if (actionHash == keccak256("addGuardian")) {
+            (, address guardian) = abi.decode(data, (string, address));
+            if (guardian == address(0)) revert ZeroAddress();
+            if (isGuardian[guardian]) revert GuardianAlreadyExists();
+            if (guardians.length >= MAX_GUARDIANS) revert InvalidGuardianCount();
+
+            guardians.push(guardian);
+            isGuardian[guardian] = true;
+            emit GuardianAdded(guardian, guardians.length);
+        } else if (actionHash == keccak256("removeGuardian")) {
+            (, address guardian) = abi.decode(data, (string, address));
+            if (!isGuardian[guardian]) revert GuardianNotFound();
+            if (guardians.length <= MIN_GUARDIANS) revert InvalidGuardianCount();
+            if (guardians.length - 1 < threshold) revert InvalidThreshold();
+            _removeGuardian(guardian);
+        } else if (actionHash == keccak256("updateThreshold")) {
+            (, uint256 newThreshold) = abi.decode(data, (string, uint256));
+            if (newThreshold == 0 || newThreshold > guardians.length) revert InvalidThreshold();
+            uint256 oldThreshold = threshold;
+            threshold = newThreshold;
+            emit ThresholdUpdated(oldThreshold, newThreshold);
+        }
+
+        emit DirectActionExecuted(actionId, actionType);
+    }
+
+    /**
+     * @notice Cancel a pending direct action
+     * @param actionId The action ID to cancel
+     */
+    function cancelDirectAction(bytes32 actionId) external onlyOwner {
+        if (pendingDirectActions[actionId] == 0) revert NoPendingAction();
+
+        delete pendingDirectActions[actionId];
+        delete pendingDirectActionData[actionId];
+
+        emit DirectActionCancelled(actionId);
     }
 
     // ============ View Functions ============
@@ -602,6 +684,8 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
                 break;
             }
         }
+
+        require(guardianIndex != type(uint256).max, "Guardian not found");
 
         // Move last element to removed position and pop
         guardians[guardianIndex] = guardians[guardians.length - 1];
