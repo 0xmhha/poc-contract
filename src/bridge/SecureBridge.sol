@@ -275,9 +275,8 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         if (CHAIN_ID != block.chainid) revert ChainIdMismatch();
 
         // Verify requestId matches supplied parameters
-        bytes32 expectedRequestId = keccak256(
-            abi.encode(sender, recipient, sourceToken, amount, sourceChain, CHAIN_ID, nonce, deadline)
-        );
+        bytes32 expectedRequestId =
+            keccak256(abi.encode(sender, recipient, sourceToken, amount, sourceChain, CHAIN_ID, nonce, deadline));
         if (requestId != expectedRequestId) revert RequestIdMismatch();
 
         // Check guardian pause and blacklist

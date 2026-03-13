@@ -486,9 +486,8 @@ contract BridgeGuardianTest is Test {
 
         // Lower threshold via proposal
         vm.prank(guardians[0]);
-        uint256 thresholdId = guardian.createProposal(
-            BridgeGuardian.ProposalType.UpdateThreshold, address(0), abi.encode(uint256(2))
-        );
+        uint256 thresholdId =
+            guardian.createProposal(BridgeGuardian.ProposalType.UpdateThreshold, address(0), abi.encode(uint256(2)));
         vm.prank(guardians[1]);
         guardian.approveProposal(thresholdId);
         vm.prank(guardians[2]);

@@ -116,12 +116,7 @@ contract SpendingLimitHook is IHook {
      *      This catches ALL spending paths (transfer, transferFrom, approve+spend, etc.)
      * @return hookData Encoded pre-execution balances
      */
-    function preCheck(address, uint256, bytes calldata)
-        external
-        payable
-        override
-        returns (bytes memory hookData)
-    {
+    function preCheck(address, uint256, bytes calldata) external payable override returns (bytes memory hookData) {
         AccountStorage storage store = accountStorage[msg.sender];
 
         if (store.isPaused) revert AccountIsPaused();
@@ -327,11 +322,7 @@ contract SpendingLimitHook is IHook {
         }
 
         store.limits[token] = SpendingLimit({
-            allowance: limit,
-            limit: limit,
-            periodLength: periodLength,
-            periodStart: block.timestamp,
-            isEnabled: true
+            allowance: limit, limit: limit, periodLength: periodLength, periodStart: block.timestamp, isEnabled: true
         });
 
         emit SpendingLimitSet(account, token, limit, periodLength);

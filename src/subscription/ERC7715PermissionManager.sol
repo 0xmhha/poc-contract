@@ -391,12 +391,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
      * @param amount Amount to consume
      * @return success Whether the usage was successful
      */
-    function usePermission(bytes32 permissionId, uint256 amount)
-        external
-        override
-        nonReentrant
-        returns (bool success)
-    {
+    function usePermission(bytes32 permissionId, uint256 amount) external override nonReentrant returns (bool success) {
         PermissionRecord storage record = permissions[permissionId];
 
         if (record.createdAt == 0) revert PermissionNotFound();

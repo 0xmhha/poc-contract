@@ -277,7 +277,9 @@ contract SecureBridgeTest is Test {
 
         // Submit request directly to optimistic verifier (simulating cross-chain relay)
         vm.prank(address(bridge));
-        optimisticVerifier.submitRequest(requestId, sender, recipient, address(token), amount, block.chainid, block.chainid);
+        optimisticVerifier.submitRequest(
+            requestId, sender, recipient, address(token), amount, block.chainid, block.chainid
+        );
 
         // Approve in optimistic verifier
         vm.warp(block.timestamp + 7 hours);
@@ -320,7 +322,9 @@ contract SecureBridgeTest is Test {
         );
 
         vm.prank(address(bridge));
-        optimisticVerifier.submitRequest(requestId, sender, recipient, address(token), amount, block.chainid, block.chainid);
+        optimisticVerifier.submitRequest(
+            requestId, sender, recipient, address(token), amount, block.chainid, block.chainid
+        );
 
         vm.warp(block.timestamp + 7 hours);
         optimisticVerifier.approveRequest(requestId);
@@ -350,7 +354,9 @@ contract SecureBridgeTest is Test {
 
         // Submit request but don't approve - it's still pending
         vm.prank(address(bridge));
-        optimisticVerifier.submitRequest(requestId, sender, recipient, address(token), amount, block.chainid, block.chainid);
+        optimisticVerifier.submitRequest(
+            requestId, sender, recipient, address(token), amount, block.chainid, block.chainid
+        );
 
         BridgeValidator.BridgeMessage memory message = BridgeValidator.BridgeMessage({
             requestId: requestId,

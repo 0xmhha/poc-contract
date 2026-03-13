@@ -277,9 +277,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
 
         // Pull funds from StealthVault into this contract
         if (stealthVault == address(0)) revert VaultNotConfigured();
-        IStealthVaultReader(stealthVault).transferToWithdrawalManager(
-            request.depositId, request.token, request.amount
-        );
+        IStealthVaultReader(stealthVault).transferToWithdrawalManager(request.depositId, request.token, request.amount);
 
         // Transfer funds to recipient
         if (request.token == NATIVE_TOKEN) {

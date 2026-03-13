@@ -229,19 +229,18 @@ contract ERC20PaymasterTest is Test {
 
     function test_stalePrice_reverts() public {
         // Warp to a reasonable timestamp to avoid underflow
-        vm.warp(1_000_000);
+        vm.warp(400 days);
 
-        // Set stale price (2 hours ago)
-        oracle.setPriceWithTimestamp(address(token), 5e14, block.timestamp - 2 hours);
+        // Set stale price (older than MAX_PRICE_STALENESS = 365 days)
+        uint256 staleTimestamp = block.timestamp - 366 days;
+        oracle.setPriceWithTimestamp(address(token), 5e14, staleTimestamp);
 
         uint48 validUntil = uint48(block.timestamp + 1 hours);
         uint48 validAfter = uint48(block.timestamp);
         PackedUserOperation memory userOp = _createSampleUserOp(user, address(token), validUntil, validAfter);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                ERC20Paymaster.StalePrice.selector, block.timestamp - 2 hours, paymaster.MAX_PRICE_STALENESS()
-            )
+            abi.encodeWithSelector(ERC20Paymaster.StalePrice.selector, staleTimestamp, paymaster.MAX_PRICE_STALENESS())
         );
         vm.prank(address(entryPoint));
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
