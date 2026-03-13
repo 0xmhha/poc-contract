@@ -87,6 +87,24 @@ function validateEnv(options: { requirePrivateKey?: boolean } = {}): {
   return { rpcUrl, privateKey, chainId };
 }
 
+// ============ Deployer Address ============
+
+// NOTE: This script uses execSync for forge/cast CLI invocations with controlled inputs only.
+// All command arguments are hardcoded or derived from validated environment variables,
+// not from user-supplied input, so shell injection is not a concern here.
+
+function getDeployerAddress(privateKey: string): string {
+  try {
+    const result = execSync(`cast wallet address ${privateKey}`, {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return result.trim();
+  } catch {
+    throw new Error("Failed to get deployer address from private key");
+  }
+}
+
 // ============ Forge Command Builders ============
 
 function buildDeployCommand(options: {
@@ -115,6 +133,7 @@ function buildDeployCommand(options: {
 function buildVerifyCommand(options: {
   contractAddress: string;
   contractArtifact: string;
+  constructorArgs?: string;
 }): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
@@ -135,6 +154,10 @@ function buildVerifyCommand(options: {
     options.contractAddress,
     options.contractArtifact,
   ];
+
+  if (options.constructorArgs) {
+    args.push("--constructor-args", options.constructorArgs);
+  }
 
   return args.join(" ");
 }
@@ -160,9 +183,89 @@ function loadDeployedAddresses(chainId: string): DeployedAddresses {
   }
 }
 
+// ============ Constructor Args ============
+
+function encodeAddress(address: string): string {
+  return address.toLowerCase().replace("0x", "").padStart(64, "0");
+}
+
+function encodeUint256(value: string | number | bigint): string {
+  return BigInt(value).toString(16).padStart(64, "0");
+}
+
+// Default values matching DeployBridge.s.sol
+const DEFAULT_SIGNER_THRESHOLD = "3";
+const DEFAULT_GUARDIAN_THRESHOLD = "2";
+const DEFAULT_CHALLENGE_PERIOD = String(5 * 60); // 5 minutes
+const DEFAULT_CHALLENGE_BOND = String(BigInt("1000000000000000")); // 0.001 ether
+const DEFAULT_CHALLENGER_REWARD = String(BigInt("500000000000000")); // 0.0005 ether
+
+function buildConstructorArgs(
+  contractName: string,
+  addresses: DeployedAddresses,
+  deployerAddress: string
+): string | undefined {
+  switch (contractName) {
+    case "BridgeValidator": {
+      // constructor(address[] memory initialSigners, uint256 initialThreshold)
+      const signersEnv = process.env.BRIDGE_SIGNERS;
+      const signers = signersEnv
+        ? signersEnv.split(",").map((s) => s.trim())
+        : [deployerAddress, deployerAddress, deployerAddress];
+      const threshold = process.env.BRIDGE_SIGNER_THRESHOLD || DEFAULT_SIGNER_THRESHOLD;
+      // ABI encoding: offset(32) + threshold(32) + offset_data: length(32) + addresses...
+      // But forge verify-contract expects the raw ABI encoding of constructor params
+      // constructor(address[] memory, uint256) → offset + uint256 + array_length + elements
+      const offset = encodeUint256(64); // offset to array data (2 * 32 bytes)
+      const thresholdEnc = encodeUint256(threshold);
+      const length = encodeUint256(signers.length);
+      const addrs = signers.map((s) => encodeAddress(s)).join("");
+      return offset + thresholdEnc + length + addrs;
+    }
+    case "BridgeGuardian": {
+      // constructor(address[] memory initialGuardians, uint256 initialThreshold)
+      const guardiansEnv = process.env.BRIDGE_GUARDIANS;
+      const guardians = guardiansEnv
+        ? guardiansEnv.split(",").map((s) => s.trim())
+        : [deployerAddress, deployerAddress, deployerAddress];
+      const threshold = process.env.BRIDGE_GUARDIAN_THRESHOLD || DEFAULT_GUARDIAN_THRESHOLD;
+      const offset = encodeUint256(64);
+      const thresholdEnc = encodeUint256(threshold);
+      const length = encodeUint256(guardians.length);
+      const addrs = guardians.map((s) => encodeAddress(s)).join("");
+      return offset + thresholdEnc + length + addrs;
+    }
+    case "OptimisticVerifier": {
+      // constructor(uint256 _challengePeriod, uint256 _challengeBond, uint256 _challengerReward)
+      const challengePeriod = process.env.CHALLENGE_PERIOD || DEFAULT_CHALLENGE_PERIOD;
+      const challengeBond = process.env.CHALLENGE_BOND || DEFAULT_CHALLENGE_BOND;
+      const challengerReward = process.env.CHALLENGER_REWARD || DEFAULT_CHALLENGER_REWARD;
+      return encodeUint256(challengePeriod) + encodeUint256(challengeBond) + encodeUint256(challengerReward);
+    }
+    case "SecureBridge": {
+      // constructor(address _bridgeValidator, address payable _optimisticVerifier,
+      //             address _rateLimiter, address _guardian, address _feeRecipient)
+      const bridgeValidator = addresses["bridgeValidator"];
+      const optimisticVerifier = addresses["optimisticVerifier"];
+      const rateLimiter = addresses["bridgeRateLimiter"];
+      const guardian = addresses["bridgeGuardian"];
+      const feeRecipient = process.env.FEE_RECIPIENT || deployerAddress;
+      if (!bridgeValidator || !optimisticVerifier || !rateLimiter || !guardian) {
+        console.log("SecureBridge: Cannot build constructor args - dependencies not deployed");
+        return undefined;
+      }
+      return encodeAddress(bridgeValidator) + encodeAddress(optimisticVerifier) +
+        encodeAddress(rateLimiter) + encodeAddress(guardian) + encodeAddress(feeRecipient);
+    }
+    default:
+      // FraudProofVerifier, BridgeRateLimiter have no constructor arguments (Ownable(msg.sender))
+      return undefined;
+  }
+}
+
 // ============ Contract Verification ============
 
-function verifyContracts(chainId: string): void {
+function verifyContracts(chainId: string, deployerAddress: string): void {
   const addresses = loadDeployedAddresses(chainId);
 
   const hasAnyAddress = CONTRACTS.some((c) => addresses[c.jsonKey]);
@@ -175,6 +278,8 @@ function verifyContracts(chainId: string): void {
   console.log("Starting contract verification...");
   console.log("-".repeat(60));
 
+  const contractsWithArgs = new Set(["BridgeValidator", "BridgeGuardian", "OptimisticVerifier", "SecureBridge"]);
+
   for (const contract of CONTRACTS) {
     const address = addresses[contract.jsonKey];
 
@@ -185,9 +290,19 @@ function verifyContracts(chainId: string): void {
 
     console.log(`\nVerifying ${contract.name} at ${address}...`);
 
+    const constructorArgs = contractsWithArgs.has(contract.name)
+      ? buildConstructorArgs(contract.name, addresses, deployerAddress)
+      : undefined;
+
+    if (constructorArgs === undefined && contractsWithArgs.has(contract.name)) {
+      console.log(`${contract.name}: Skipping verification (missing dependencies for constructor args)`);
+      continue;
+    }
+
     const verifyCmd = buildVerifyCommand({
       contractAddress: address,
       contractArtifact: contract.artifact,
+      constructorArgs,
     });
 
     if (!verifyCmd) {
@@ -225,14 +340,15 @@ function main(): void {
   console.log("=".repeat(60));
 
   if (verifyOnly) {
-    const { chainId } = validateEnv({ requirePrivateKey: false });
+    const { privateKey, chainId } = validateEnv();
+    const deployerAddress = getDeployerAddress(privateKey);
 
     console.log(`Chain ID: ${chainId}`);
     console.log(`Mode: VERIFY ONLY`);
     console.log(`Profile: FOUNDRY_PROFILE=${FOUNDRY_PROFILE}`);
     console.log("=".repeat(60));
 
-    verifyContracts(chainId);
+    verifyContracts(chainId, deployerAddress);
 
     console.log("\n" + "=".repeat(60));
     return;
@@ -278,7 +394,8 @@ function main(): void {
 
       // Step 2: Verify contracts (if requested and deployment was broadcast)
       if (verify) {
-        verifyContracts(chainId);
+        const deployerAddress = getDeployerAddress(privateKey);
+        verifyContracts(chainId, deployerAddress);
       }
 
       console.log("\nSecurity Layers:");

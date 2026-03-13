@@ -110,6 +110,7 @@ function buildDeployCommand(options: {
 function buildVerifyCommand(options: {
   contractAddress: string;
   contractArtifact: string;
+  constructorArgs?: string;
 }): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
@@ -130,6 +131,10 @@ function buildVerifyCommand(options: {
     options.contractAddress,
     options.contractArtifact,
   ];
+
+  if (options.constructorArgs) {
+    args.push("--constructor-args", options.constructorArgs);
+  }
 
   return args.join(" ");
 }
@@ -155,6 +160,32 @@ function loadDeployedAddresses(chainId: string): DeployedAddresses {
   }
 }
 
+// ============ Constructor Args ============
+
+function encodeAddress(address: string): string {
+  return address.toLowerCase().replace("0x", "").padStart(64, "0");
+}
+
+function buildConstructorArgs(
+  contractName: string,
+  addresses: DeployedAddresses
+): string | undefined {
+  switch (contractName) {
+    case "SubscriptionManager": {
+      // constructor(address _permissionManager)
+      const permissionManager = addresses["erc7715PermissionManager"];
+      if (!permissionManager) {
+        console.log("SubscriptionManager: Cannot build constructor args - ERC7715PermissionManager not deployed");
+        return undefined;
+      }
+      return encodeAddress(permissionManager);
+    }
+    default:
+      // ERC7715PermissionManager, MerchantRegistry have no constructor arguments (Ownable(msg.sender))
+      return undefined;
+  }
+}
+
 // ============ Contract Verification ============
 
 function verifyContracts(chainId: string): void {
@@ -170,6 +201,8 @@ function verifyContracts(chainId: string): void {
   console.log("Starting contract verification...");
   console.log("-".repeat(60));
 
+  const contractsWithArgs = new Set(["SubscriptionManager"]);
+
   for (const contract of CONTRACTS) {
     const address = addresses[contract.jsonKey];
 
@@ -180,9 +213,19 @@ function verifyContracts(chainId: string): void {
 
     console.log(`\nVerifying ${contract.name} at ${address}...`);
 
+    const constructorArgs = contractsWithArgs.has(contract.name)
+      ? buildConstructorArgs(contract.name, addresses)
+      : undefined;
+
+    if (constructorArgs === undefined && contractsWithArgs.has(contract.name)) {
+      console.log(`${contract.name}: Skipping verification (missing dependencies for constructor args)`);
+      continue;
+    }
+
     const verifyCmd = buildVerifyCommand({
       contractAddress: address,
       contractArtifact: contract.artifact,
+      constructorArgs,
     });
 
     if (!verifyCmd) {

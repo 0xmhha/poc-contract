@@ -30,6 +30,19 @@ if [ -z "$DEPLOYER_KEY" ]; then
     exit 1
 fi
 
+VERIFY_FLAGS=""
+for arg in "$@"; do
+    case "$arg" in
+        --verify)
+            if [ -n "$VERIFIER_URL" ]; then
+                VERIFY_FLAGS="--verify --verifier-url $VERIFIER_URL --verifier custom"
+            else
+                echo "Warning: --verify requested but VERIFIER_URL not set, skipping verification"
+            fi
+            ;;
+    esac
+done
+
 echo "Running SetupOraclePrice script..."
 echo "RPC: $RPC"
 echo "Price: 1 USDC = ${USDC_KRWC_PRICE:-1500} KRWC"
@@ -40,4 +53,5 @@ forge script \
     --rpc-url "$RPC" \
     --private-key "$DEPLOYER_KEY" \
     --broadcast \
+    $VERIFY_FLAGS \
     -vvv

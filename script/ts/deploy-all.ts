@@ -608,7 +608,7 @@ function runCommand(command: string, description: string, dryRun: boolean): bool
 }
 
 function addVerifyFlag(command: string, verify: boolean): string {
-  if (verify && command.includes("--broadcast") && !command.includes("--verify")) {
+  if (verify && !command.includes("--verify")) {
     return command + " --verify";
   }
   return command;
@@ -624,6 +624,14 @@ function main(): void {
   if (args.addresses) {
     displayDeployedAddresses(chainId);
     return;
+  }
+
+  // Validate VERIFIER_URL when --verify is requested
+  if (args.verify && !args.dryRun) {
+    if (!process.env.VERIFIER_URL) {
+      console.error("Error: --verify flag requires VERIFIER_URL to be set in .env");
+      process.exit(1);
+    }
   }
 
   console.log("═".repeat(60));

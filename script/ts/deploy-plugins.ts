@@ -22,7 +22,7 @@
  *   npx ts-node script/ts/deploy-plugins.ts --broadcast --verify  # Deploy + verify
  */
 
-// NOTE: This script uses execSync for forge CLI invocations with controlled inputs only.
+// NOTE: This script uses execSync for forge/cast CLI invocations with controlled inputs only.
 // All command arguments are hardcoded or derived from validated environment variables,
 // not from user-supplied input, so shell injection is not a concern here.
 // The execFileNoThrow utility in src/utils is for the DApp codebase, not deployment scripts.
@@ -82,6 +82,20 @@ function validateEnv(options: { requirePrivateKey?: boolean } = {}): {
   return { rpcUrl, privateKey, chainId };
 }
 
+// ============ Deployer Address ============
+
+function getDeployerAddress(privateKey: string): string {
+  try {
+    const result = execSync(`cast wallet address ${privateKey}`, {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return result.trim();
+  } catch {
+    throw new Error("Failed to get deployer address from private key");
+  }
+}
+
 // ============ Forge Command Builders ============
 
 function buildDeployCommand(options: {
@@ -110,6 +124,7 @@ function buildDeployCommand(options: {
 function buildVerifyCommand(options: {
   contractAddress: string;
   contractArtifact: string;
+  constructorArgs?: string;
 }): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
@@ -130,6 +145,10 @@ function buildVerifyCommand(options: {
     options.contractAddress,
     options.contractArtifact,
   ];
+
+  if (options.constructorArgs) {
+    args.push("--constructor-args", options.constructorArgs);
+  }
 
   return args.join(" ");
 }
@@ -155,9 +174,66 @@ function loadDeployedAddresses(chainId: string): DeployedAddresses {
   }
 }
 
+// ============ Constructor Args ============
+
+function encodeAddress(address: string): string {
+  return address.toLowerCase().replace("0x", "").padStart(64, "0");
+}
+
+function encodeUint256(value: string | number | bigint): string {
+  return BigInt(value).toString(16).padStart(64, "0");
+}
+
+// Default values matching DeployPlugins.s.sol
+const DEFAULT_PROTOCOL_FEE_BPS = "50"; // 0.5%
+const DEFAULT_LIQUIDATION_BONUS_BPS = "500"; // 5%
+const DEFAULT_ONRAMP_FEE_BPS = "100"; // 1%
+const DEFAULT_ORDER_EXPIRY = String(24 * 60 * 60); // 24 hours
+
+function buildConstructorArgs(
+  contractName: string,
+  addresses: DeployedAddresses,
+  deployerAddress: string
+): string | undefined {
+  switch (contractName) {
+    case "AutoSwapPlugin": {
+      // constructor(IPriceOracle _oracle, address _dexRouter)
+      const priceOracle = addresses["priceOracle"];
+      const dexRouter = addresses["uniswapV3SwapRouter"];
+      if (!priceOracle || !dexRouter) {
+        console.log("AutoSwapPlugin: Cannot build constructor args - PriceOracle or SwapRouter not deployed");
+        return undefined;
+      }
+      return encodeAddress(priceOracle) + encodeAddress(dexRouter);
+    }
+    case "MicroLoanPlugin": {
+      // constructor(IPriceOracle _oracle, address _feeRecipient, uint256 _protocolFeeBps, uint256 _liquidationBonusBps)
+      const priceOracle = addresses["priceOracle"];
+      const feeRecipient = process.env.FEE_RECIPIENT || deployerAddress;
+      const protocolFeeBps = process.env.PROTOCOL_FEE_BPS || DEFAULT_PROTOCOL_FEE_BPS;
+      const liquidationBonusBps = process.env.LIQUIDATION_BONUS_BPS || DEFAULT_LIQUIDATION_BONUS_BPS;
+      if (!priceOracle) {
+        console.log("MicroLoanPlugin: Cannot build constructor args - PriceOracle not deployed");
+        return undefined;
+      }
+      return encodeAddress(priceOracle) + encodeAddress(feeRecipient) +
+        encodeUint256(protocolFeeBps) + encodeUint256(liquidationBonusBps);
+    }
+    case "OnRampPlugin": {
+      // constructor(address _treasury, uint256 _feeBps, uint256 _orderExpiry)
+      const treasury = process.env.TREASURY || deployerAddress;
+      const feeBps = process.env.ONRAMP_FEE_BPS || DEFAULT_ONRAMP_FEE_BPS;
+      const orderExpiry = process.env.ORDER_EXPIRY || DEFAULT_ORDER_EXPIRY;
+      return encodeAddress(treasury) + encodeUint256(feeBps) + encodeUint256(orderExpiry);
+    }
+    default:
+      return undefined;
+  }
+}
+
 // ============ Contract Verification ============
 
-function verifyContracts(chainId: string): void {
+function verifyContracts(chainId: string, deployerAddress: string): void {
   const addresses = loadDeployedAddresses(chainId);
 
   const hasAnyAddress = CONTRACTS.some((c) => addresses[c.jsonKey]);
@@ -180,9 +256,17 @@ function verifyContracts(chainId: string): void {
 
     console.log(`\nVerifying ${contract.name} at ${address}...`);
 
+    const constructorArgs = buildConstructorArgs(contract.name, addresses, deployerAddress);
+
+    if (constructorArgs === undefined) {
+      console.log(`${contract.name}: Skipping verification (missing dependencies for constructor args)`);
+      continue;
+    }
+
     const verifyCmd = buildVerifyCommand({
       contractAddress: address,
       contractArtifact: contract.artifact,
+      constructorArgs,
     });
 
     if (!verifyCmd) {
@@ -219,14 +303,15 @@ function main(): void {
   console.log("=".repeat(60));
 
   if (verifyOnly) {
-    const { chainId } = validateEnv({ requirePrivateKey: false });
+    const { privateKey, chainId } = validateEnv();
+    const deployerAddress = getDeployerAddress(privateKey);
 
     console.log(`Chain ID: ${chainId}`);
     console.log(`Mode: VERIFY ONLY`);
     console.log(`Profile: FOUNDRY_PROFILE=${FOUNDRY_PROFILE}`);
     console.log("=".repeat(60));
 
-    verifyContracts(chainId);
+    verifyContracts(chainId, deployerAddress);
 
     console.log("\n" + "=".repeat(60));
     return;
@@ -270,7 +355,8 @@ function main(): void {
       console.log("\nDeployed addresses saved to: deployments/" + chainId + "/addresses.json");
 
       if (verify) {
-        verifyContracts(chainId);
+        const deployerAddress = getDeployerAddress(privateKey);
+        verifyContracts(chainId, deployerAddress);
       }
 
       console.log("\nPlugin Use Cases:");

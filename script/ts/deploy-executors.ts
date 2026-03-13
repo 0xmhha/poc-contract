@@ -106,6 +106,7 @@ function buildDeployCommand(options: {
 function buildVerifyCommand(options: {
   contractAddress: string;
   contractArtifact: string;
+  constructorArgs?: string;
 }): string | null {
   const verifierUrl = process.env.VERIFIER_URL;
 
@@ -126,6 +127,10 @@ function buildVerifyCommand(options: {
     options.contractAddress,
     options.contractArtifact,
   ];
+
+  if (options.constructorArgs) {
+    args.push("--constructor-args", options.constructorArgs);
+  }
 
   return args.join(" ");
 }
@@ -151,6 +156,42 @@ function loadDeployedAddresses(chainId: string): DeployedAddresses {
   }
 }
 
+// ============ Constructor Args ============
+
+function encodeAddress(address: string): string {
+  return address.toLowerCase().replace("0x", "").padStart(64, "0");
+}
+
+function buildConstructorArgs(
+  contractName: string,
+  addresses: DeployedAddresses
+): string | undefined {
+  switch (contractName) {
+    case "SwapExecutor": {
+      // constructor(address _swapRouter, address _quoter)
+      const swapRouter = addresses["uniswapV3SwapRouter"];
+      const quoter = addresses["uniswapV3Quoter"];
+      if (!swapRouter || !quoter) {
+        console.log("SwapExecutor: Cannot build constructor args - SwapRouter or Quoter not deployed");
+        return undefined;
+      }
+      return encodeAddress(swapRouter) + encodeAddress(quoter);
+    }
+    case "LendingExecutor": {
+      // constructor(address _lendingPool)
+      const lendingPool = addresses["lendingPool"];
+      if (!lendingPool) {
+        console.log("LendingExecutor: Cannot build constructor args - LendingPool not deployed");
+        return undefined;
+      }
+      return encodeAddress(lendingPool);
+    }
+    default:
+      // SessionKeyExecutor, RecurringPaymentExecutor, StakingExecutor have no constructor arguments
+      return undefined;
+  }
+}
+
 // ============ Contract Verification ============
 
 function verifyContracts(chainId: string): void {
@@ -166,7 +207,8 @@ function verifyContracts(chainId: string): void {
   console.log("Starting contract verification...");
   console.log("-".repeat(60));
 
-  // All executors have no constructor arguments
+  const contractsWithArgs = new Set(["SwapExecutor", "LendingExecutor"]);
+
   for (const contract of CONTRACTS) {
     const address = addresses[contract.jsonKey];
 
@@ -177,9 +219,19 @@ function verifyContracts(chainId: string): void {
 
     console.log(`\nVerifying ${contract.name} at ${address}...`);
 
+    const constructorArgs = contractsWithArgs.has(contract.name)
+      ? buildConstructorArgs(contract.name, addresses)
+      : undefined;
+
+    if (constructorArgs === undefined && contractsWithArgs.has(contract.name)) {
+      console.log(`${contract.name}: Skipping verification (missing dependencies for constructor args)`);
+      continue;
+    }
+
     const verifyCmd = buildVerifyCommand({
       contractAddress: address,
       contractArtifact: contract.artifact,
+      constructorArgs,
     });
 
     if (!verifyCmd) {

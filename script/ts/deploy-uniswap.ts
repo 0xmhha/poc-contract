@@ -422,16 +422,9 @@ function verifyContracts(addresses: DeployedAddresses, nativeCoinAdapterAddress:
   console.log("\n" + "-".repeat(60));
   console.log("Contract Verification");
   console.log("-".repeat(60));
-  console.log("\nPreparing isolated Uniswap verify environment...");
+  // Build uniswap profile artifacts for verification (no forge clean to avoid destroying other profiles' caches)
+  console.log("\nBuilding Uniswap profile for verification...");
   try {
-    execSync("forge clean", {
-      cwd: PROJECT_ROOT,
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        FOUNDRY_PROFILE: "uniswap",
-      },
-    });
     execSync("forge build", {
       cwd: PROJECT_ROOT,
       stdio: "inherit",
