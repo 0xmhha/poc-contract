@@ -2,8 +2,12 @@
 /**
  * EntryPoint Deployment Script (CREATE2)
  *
- * Deploys ERC-4337 EntryPoint contract via CREATE2 for deterministic cross-chain addresses.
- * Requires Nick's Deterministic Deployer (0x4e59b44847b379578588920cA78FbF26c0B4956C).
+ * Deploys ERC-4337 EntryPoint contract via our own Create2Deployer for deterministic addresses.
+ * No dependency on Nick's Deterministic Deployer or genesis modification.
+ *
+ * Flow:
+ *   1. Deploy Create2Deployer (regular CREATE — deterministic if same EOA + same nonce)
+ *   2. Deploy EntryPoint via Create2Deployer.deploy() (CREATE2 — deterministic)
  *
  * Usage:
  *   npx ts-node script/ts/deploy-entrypoint.ts [--broadcast] [--verify] [--force]
@@ -24,7 +28,6 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
-import { ensureCREATE2Deployer } from "./ensure-create2-deployer";
 
 // ============ Configuration ============
 
@@ -123,7 +126,7 @@ function buildVerifyCommand(options: {
 
 // ============ Deployment Address Loader ============
 
-function loadDeployedAddresses(chainId: string): { entryPoint?: string } {
+function loadDeployedAddresses(chainId: string): { create2Deployer?: string; entryPoint?: string } {
   const addressesPath = path.join(PROJECT_ROOT, "deployments", chainId, "addresses.json");
 
   if (!fs.existsSync(addressesPath)) {
@@ -134,6 +137,7 @@ function loadDeployedAddresses(chainId: string): { entryPoint?: string } {
     const content = fs.readFileSync(addressesPath, "utf8");
     const addresses = JSON.parse(content);
     return {
+      create2Deployer: addresses.create2Deployer,
       entryPoint: addresses.entryPoint,
     };
   } catch {
@@ -146,17 +150,21 @@ function loadDeployedAddresses(chainId: string): { entryPoint?: string } {
 function verifyContracts(chainId: string): void {
   const addresses = loadDeployedAddresses(chainId);
 
-  if (!addresses.entryPoint) {
-    console.log("No deployed EntryPoint address found to verify");
-    return;
-  }
-
   console.log("\n" + "-".repeat(60));
   console.log("Starting contract verification...");
   console.log("-".repeat(60));
 
   const contracts = [
-    { name: "EntryPoint", artifact: "src/erc4337-entrypoint/EntryPoint.sol:EntryPoint", address: addresses.entryPoint },
+    {
+      name: "Create2Deployer",
+      artifact: "src/erc4337-entrypoint/Create2Deployer.sol:Create2Deployer",
+      address: addresses.create2Deployer,
+    },
+    {
+      name: "EntryPoint",
+      artifact: "src/erc4337-entrypoint/EntryPoint.sol:EntryPoint",
+      address: addresses.entryPoint,
+    },
   ];
 
   for (const contract of contracts) {
@@ -188,7 +196,7 @@ function verifyContracts(chainId: string): void {
         },
       });
       console.log(`${contract.name} verified successfully`);
-    } catch (error) {
+    } catch {
       console.error(`${contract.name} verification failed (contract may already be verified)`);
     }
   }
@@ -203,7 +211,7 @@ function main(): void {
   const verifyOnly = verify && !broadcast && !force;
 
   console.log("=".repeat(60));
-  console.log("  EntryPoint Deployment (ERC-4337 via CREATE2)");
+  console.log("  EntryPoint Deployment (ERC-4337 via Create2Deployer)");
   console.log("=".repeat(60));
 
   if (verifyOnly) {
@@ -231,19 +239,7 @@ function main(): void {
   console.log(`Profile: FOUNDRY_PROFILE=${FOUNDRY_PROFILE}`);
   console.log("=".repeat(60));
 
-  // Step 0: Check CREATE2 deployer availability (fallback to regular CREATE)
-  let useCreate2 = false;
-  if (broadcast) {
-    console.log("\n[Step 0] Checking CREATE2 deployer on chain...");
-    useCreate2 = ensureCREATE2Deployer();
-    if (useCreate2) {
-      console.log("  CREATE2 deployer available - using deterministic deployment");
-    } else {
-      console.log("  CREATE2 deployer unavailable - falling back to regular CREATE");
-    }
-  }
-
-  // Step 1: Deploy contracts
+  // Deploy: Create2Deployer + EntryPoint (handled in Forge script)
   const deployCmd = buildDeployCommand({
     rpcUrl,
     privateKey,
@@ -260,7 +256,6 @@ function main(): void {
         ...process.env,
         FOUNDRY_PROFILE: FOUNDRY_PROFILE,
         FORCE_REDEPLOY: force ? "true" : "",
-        USE_CREATE2: useCreate2 ? "true" : "",
       },
     });
 
@@ -269,7 +264,7 @@ function main(): void {
       console.log("EntryPoint deployment completed!");
       console.log("\nDeployed addresses saved to: deployments/" + chainId + "/addresses.json");
 
-      // Step 2: Verify contracts (if requested and deployment was broadcast)
+      // Verify contracts (if requested)
       if (verify) {
         verifyContracts(chainId);
       }
@@ -277,7 +272,7 @@ function main(): void {
       console.log("Dry run completed. Use --broadcast to deploy.");
     }
     console.log("=".repeat(60));
-  } catch (error) {
+  } catch {
     console.error("\nDeployment failed");
     process.exit(1);
   }

@@ -4,7 +4,7 @@
  *
  * Runs ALL paymaster setup tasks after contract deployment:
  *   1. Transfer paymaster ownership from deployer to paymaster account
- *   2. Deposit native token (KRC/ETH) to EntryPoint for all paymasters
+ *   2. Deposit native token (WKRC/ETH) to EntryPoint for all paymasters
  *   3. Add USDC as supported token for ERC20Paymaster
  *   4. Stake bundler in EntryPoint (deposit + addStake)
  *   5. Stake factory in EntryPoint
@@ -43,7 +43,7 @@ import * as dotenv from "dotenv";
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
 
-// Default deposit amount per paymaster (in ETH/KRC) — generous for testing
+// Default deposit amount per paymaster (in ETH/WKRC) — generous for testing
 const DEFAULT_DEPOSIT = "100000";
 
 // Default bundler stake — generous for testing
@@ -290,7 +290,7 @@ function getStakeInfo(entryPoint: string, account: string, rpcUrl: string): Stak
       ["call", entryPoint, "getDepositInfo(address)((uint256,bool,uint112,uint32,uint48))", account],
       { rpcUrl }
     );
-    const cleaned = result.trim().replace(/[\[\]()]/g, "");
+    const cleaned = result.trim().replace(/\s*\[[^\]]*\]/g, "").replace(/[()]/g, "");
     const parts = cleaned.split(",").map((p: string) => p.trim());
     return {
       deposit: cleanCastResult(parts[0] || "0"),
@@ -512,11 +512,11 @@ function stepDeposit(
   dryRun: boolean
 ): boolean {
   console.log(`\n${"─".repeat(60)}`);
-  console.log(`  Step 1: Deposit ${amount} KRC to EntryPoint for all paymasters`);
+  console.log(`  Step 1: Deposit ${amount} WKRC to EntryPoint for all paymasters`);
   console.log(`${"─".repeat(60)}`);
 
   if (dryRun) {
-    console.log(`  [DRY RUN] Would deposit ${amount} KRC to each paymaster`);
+    console.log(`  [DRY RUN] Would deposit ${amount} WKRC to each paymaster`);
     for (const [name, key] of Object.entries(PAYMASTER_KEYS)) {
       const addr = addresses[key];
       if (addr) console.log(`    - ${name}: ${addr}`);
@@ -539,7 +539,7 @@ function stepDeposit(
       const currentDeposit = getDeposit(entryPoint, paymasterAddr, rpcUrl);
       const currentEther = formatEther(currentDeposit);
       console.log(`\n  ${name} (${paymasterAddr})`);
-      console.log(`    Current deposit: ${currentEther} KRC`);
+      console.log(`    Current deposit: ${currentEther} WKRC`);
 
       if (BigInt(currentDeposit) > BigInt(0)) {
         console.log(`    Already has deposit, skipping...`);
@@ -547,7 +547,7 @@ function stepDeposit(
       }
 
       // Deposit
-      console.log(`    Depositing ${amount} KRC...`);
+      console.log(`    Depositing ${amount} WKRC...`);
       const cmd = [
         "cast", "send", entryPoint,
         `"depositTo(address)"`, paymasterAddr,
@@ -563,7 +563,7 @@ function stepDeposit(
       });
 
       const newDeposit = getDeposit(entryPoint, paymasterAddr, rpcUrl);
-      console.log(`    ✅ New deposit: ${formatEther(newDeposit)} KRC`);
+      console.log(`    ✅ New deposit: ${formatEther(newDeposit)} WKRC`);
     } catch (error) {
       console.error(`    ❌ Failed to deposit for ${name}`);
       allSuccess = false;
@@ -662,7 +662,7 @@ function stepBundlerStake(
   console.log(`  Bundler: ${bundlerAddress}`);
 
   if (dryRun) {
-    console.log(`  [DRY RUN] Would deposit ${DEFAULT_BUNDLER_DEPOSIT} KRC and stake ${DEFAULT_BUNDLER_STAKE} KRC`);
+    console.log(`  [DRY RUN] Would deposit ${DEFAULT_BUNDLER_DEPOSIT} WKRC and stake ${DEFAULT_BUNDLER_STAKE} WKRC`);
     return true;
   }
 
@@ -671,10 +671,10 @@ function stepBundlerStake(
   // Check current deposit
   try {
     const currentDeposit = getDeposit(entryPoint, bundlerAddress, rpcUrl);
-    console.log(`  Current deposit: ${formatEther(currentDeposit)} KRC`);
+    console.log(`  Current deposit: ${formatEther(currentDeposit)} WKRC`);
 
     if (BigInt(currentDeposit) === BigInt(0)) {
-      console.log(`  Depositing ${DEFAULT_BUNDLER_DEPOSIT} KRC...`);
+      console.log(`  Depositing ${DEFAULT_BUNDLER_DEPOSIT} WKRC...`);
       const depositWei = toWei(DEFAULT_BUNDLER_DEPOSIT);
       const cmd = [
         "cast", "send", entryPoint,
@@ -691,7 +691,7 @@ function stepBundlerStake(
       });
 
       const newDeposit = getDeposit(entryPoint, bundlerAddress, rpcUrl);
-      console.log(`  ✅ Deposit: ${formatEther(newDeposit)} KRC`);
+      console.log(`  ✅ Deposit: ${formatEther(newDeposit)} WKRC`);
     } else {
       console.log(`  Already has deposit, skipping...`);
     }
@@ -702,7 +702,7 @@ function stepBundlerStake(
 
   // AddStake
   try {
-    console.log(`  Adding stake (${DEFAULT_BUNDLER_STAKE} KRC, delay=${DEFAULT_UNSTAKE_DELAY}s)...`);
+    console.log(`  Adding stake (${DEFAULT_BUNDLER_STAKE} WKRC, delay=${DEFAULT_UNSTAKE_DELAY}s)...`);
     const stakeWei = toWei(DEFAULT_BUNDLER_STAKE);
     const cmd = [
       "cast", "send", entryPoint,
@@ -752,7 +752,7 @@ function stepFactoryStake(
   }
 
   if (dryRun) {
-    console.log(`  [DRY RUN] Would stake ${DEFAULT_FACTORY_STAKE} KRC via FactoryStaker`);
+    console.log(`  [DRY RUN] Would stake ${DEFAULT_FACTORY_STAKE} WKRC via FactoryStaker`);
     return true;
   }
 
@@ -796,7 +796,7 @@ function stepInfo(
       const depositWei = getDeposit(entryPoint, address, rpcUrl);
       const depositEther = formatEther(depositWei);
       const status = BigInt(depositWei) > BigInt(0) ? "✅" : "❌";
-      console.log(`  ${status} ${pm.name}: ${depositEther} KRC (${address})`);
+      console.log(`  ${status} ${pm.name}: ${depositEther} WKRC (${address})`);
     } catch {
       console.log(`  ❌ ${pm.name}: Error reading deposit`);
     }
@@ -866,8 +866,8 @@ function stepInfo(
       const stakeOk = info.staked && BigInt(info.stake) > BigInt(0);
       const status = depositOk && stakeOk ? "✅" : "❌";
       console.log(`  ${status} Address: ${bundlerAddress}`);
-      console.log(`    Deposit: ${formatEther(info.deposit)} KRC ${depositOk ? "✅" : "❌"}`);
-      console.log(`    Staked:  ${info.staked ? "Yes" : "No"} | Stake: ${formatEther(info.stake)} KRC ${stakeOk ? "✅" : "❌"}`);
+      console.log(`    Deposit: ${formatEther(info.deposit)} WKRC ${depositOk ? "✅" : "❌"}`);
+      console.log(`    Staked:  ${info.staked ? "Yes" : "No"} | Stake: ${formatEther(info.stake)} WKRC ${stakeOk ? "✅" : "❌"}`);
       if (info.staked) {
         console.log(`    Unstake Delay: ${info.unstakeDelaySec}s`);
       }
@@ -888,7 +888,7 @@ function stepInfo(
       const stakeOk = info.staked && BigInt(info.stake) > BigInt(0);
       const status = stakeOk ? "✅" : "❌";
       console.log(`  ${status} Address: ${factoryStaker}`);
-      console.log(`    Staked: ${info.staked ? "Yes" : "No"} | Stake: ${formatEther(info.stake)} KRC ${stakeOk ? "✅" : "❌"}`);
+      console.log(`    Staked: ${info.staked ? "Yes" : "No"} | Stake: ${formatEther(info.stake)} WKRC ${stakeOk ? "✅" : "❌"}`);
       if (info.staked) {
         console.log(`    Unstake Delay: ${info.unstakeDelaySec}s`);
       }

@@ -174,7 +174,7 @@ const ENTRYPOINT_ABI = [
 const stablenetTestnet = defineChain({
   id: CHAIN_ID,
   name: "StableNet Testnet",
-  nativeCurrency: { name: "KRC", symbol: "KRC", decimals: 18 },
+  nativeCurrency: { name: "WKRC", symbol: "WKRC", decimals: 18 },
   rpcUrls: {
     default: { http: [RPC_URL] },
   },

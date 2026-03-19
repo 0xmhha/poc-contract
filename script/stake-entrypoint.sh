@@ -15,8 +15,8 @@
 #
 # Examples:
 #   ./script/stake-entrypoint.sh --info                # Check current deposit
-#   ./script/stake-entrypoint.sh --deposit=10          # Deposit 10 ETH/KRC
-#   ./script/stake-entrypoint.sh --stake=1             # Stake 1 ETH/KRC
+#   ./script/stake-entrypoint.sh --deposit=10          # Deposit 10 WKRC
+#   ./script/stake-entrypoint.sh --stake=1             # Stake 1 WKRC
 # =============================================================================
 
 set -e

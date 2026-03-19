@@ -4,7 +4,7 @@
 # =============================================================================
 # Wrapper script that executes the TypeScript staking code
 #
-# Deposits ETH/KRC to EntryPoint for Paymaster gas sponsorship.
+# Deposits WKRC to EntryPoint for Paymaster gas sponsorship.
 # All paymasters need a deposit in EntryPoint to pay for user gas fees.
 #
 # Usage:
@@ -12,7 +12,7 @@
 #
 # Options:
 #   --info                    Show current deposit balances for all paymasters
-#   --deposit=<amount>        Deposit amount in ETH/KRC (e.g., --deposit=1)
+#   --deposit=<amount>        Deposit amount in WKRC (e.g., --deposit=1)
 #   --paymaster=<name|addr>   Target paymaster (verifying|sponsor|erc20|permit2|all|0x...)
 #   --withdraw=<amount>       Withdraw amount from paymaster deposit
 #

@@ -17,7 +17,7 @@
 #
 # Examples:
 #   ./script/stake-factory.sh --info                  # Check current stake
-#   ./script/stake-factory.sh --stake=1              # Stake 1 ETH/KRC
+#   ./script/stake-factory.sh --stake=1              # Stake 1 WKRC
 #   ./script/stake-factory.sh --approve              # Approve KernelFactory
 #   ./script/stake-factory.sh --stake=1 --approve    # Stake + Approve
 # =============================================================================

@@ -42,6 +42,7 @@ library DeploymentAddresses {
     string constant ADDRESSES_FILE = "addresses.json";
 
     // Contract name constants for JSON keys
+    string constant KEY_CREATE2_DEPLOYER = "create2Deployer";
     string constant KEY_ENTRYPOINT = "entryPoint";
     string constant KEY_KERNEL = "kernel";
     string constant KEY_KERNEL_FACTORY = "kernelFactory";
@@ -155,6 +156,10 @@ abstract contract DeploymentHelper is Script {
         // Always load existing addresses first to preserve them in _saveAddresses()
         _loadAddresses();
 
+        // Validate that loaded addresses actually have code on-chain.
+        // If the chain was reset/restarted, stale addresses are removed so contracts get redeployed.
+        _validateOnChainAddresses();
+
         // Store force redeploy flag for individual scripts to check
         forceRedeploy = vm.envOr("FORCE_REDEPLOY", false);
         if (forceRedeploy) {
@@ -184,6 +189,7 @@ abstract contract DeploymentHelper is Script {
         try vm.readFile(path) returns (string memory json) {
             if (bytes(json).length > 0) {
                 // Parse core addresses
+                _tryParseAddress(json, DeploymentAddresses.KEY_CREATE2_DEPLOYER);
                 _tryParseAddress(json, DeploymentAddresses.KEY_ENTRYPOINT);
                 _tryParseAddress(json, DeploymentAddresses.KEY_KERNEL);
                 _tryParseAddress(json, DeploymentAddresses.KEY_KERNEL_FACTORY);
@@ -289,12 +295,132 @@ abstract contract DeploymentHelper is Script {
     }
 
     /**
+     * @notice Validate that loaded addresses have on-chain code.
+     * @dev Removes stale addresses (e.g., after chain reset) so contracts get redeployed.
+     *      Skips precompile range (address < 0x10000) as they have no extcodesize but are valid.
+     */
+    function _validateOnChainAddresses() internal {
+        uint256 staleCount = 0;
+
+        // Core
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_CREATE2_DEPLOYER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_ENTRYPOINT);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_KERNEL);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_KERNEL_FACTORY);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_FACTORY_STAKER);
+
+        // Validators
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_ECDSA_VALIDATOR);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_WEIGHTED_VALIDATOR);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_MULTISIG_VALIDATOR);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR);
+
+        // Paymasters
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_VERIFYING_PAYMASTER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_SPONSOR_PAYMASTER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_ERC20_PAYMASTER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_PERMIT2_PAYMASTER);
+
+        // Executors
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_SWAP_EXECUTOR);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_STAKING_EXECUTOR);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_LENDING_EXECUTOR);
+
+        // Hooks
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_AUDIT_HOOK);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_HEALTH_FACTOR_HOOK);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_POLICY_HOOK);
+
+        // Fallbacks
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK);
+
+        // Plugins
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_ONRAMP_PLUGIN);
+
+        // Tokens & DeFi
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_PERMIT2);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_USDC);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_PRICE_ORACLE);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_LENDING_POOL);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_STAKING_VAULT);
+
+        // UniswapV3
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_UNISWAP_FACTORY);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_UNISWAP_QUOTER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_UNISWAP_NFT_POSITION_MANAGER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_UNISWAP_NFT_DESCRIPTOR);
+
+        // Privacy
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_ANNOUNCER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_REGISTRY);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_PRIVATE_BANK);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_ROLE_MANAGER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_STEALTH_LEDGER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_STEALTH_VAULT);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_WITHDRAWAL_MANAGER);
+
+        // Bridge
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_BRIDGE_VALIDATOR);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_BRIDGE_GUARDIAN);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_SECURE_BRIDGE);
+
+        // Compliance
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_KYC_REGISTRY);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_AUDIT_LOGGER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_PROOF_OF_RESERVE);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_REGULATORY_REGISTRY);
+
+        // Subscription
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_PERMISSION_MANAGER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_MERCHANT_REGISTRY);
+
+        if (staleCount > 0) {
+            console.log("  Pruned", staleCount, "stale address(es) - chain may have been reset. Will redeploy.");
+        }
+    }
+
+    /**
+     * @notice Remove an address from cache if it has no on-chain code
+     * @return 1 if pruned, 0 otherwise
+     */
+    function _pruneIfNoCode(string memory key) internal returns (uint256) {
+        address addr = _addresses[key];
+        if (addr == address(0)) return 0;
+        // Skip precompile/system addresses — they have no extcodesize but are valid
+        if (uint160(addr) < 0x10000) return 0;
+
+        if (addr.code.length == 0) {
+            console.log("  [STALE]", key, "- no code at", addr);
+            delete _addresses[key];
+            return 1;
+        }
+        return 0;
+    }
+
+    /**
      * @notice Save all addresses to JSON file
      */
     function _saveAddresses() internal {
         string memory obj = "deployment";
 
         // Build JSON object with all addresses
+        if (_addresses[DeploymentAddresses.KEY_CREATE2_DEPLOYER] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_CREATE2_DEPLOYER, _addresses[DeploymentAddresses.KEY_CREATE2_DEPLOYER]
+            );
+        }
         if (_addresses[DeploymentAddresses.KEY_ENTRYPOINT] != address(0)) {
             vm.serializeAddress(obj, DeploymentAddresses.KEY_ENTRYPOINT, _addresses[DeploymentAddresses.KEY_ENTRYPOINT]);
         }

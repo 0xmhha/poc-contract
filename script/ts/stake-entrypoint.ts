@@ -8,15 +8,15 @@
  *   npx ts-node script/ts/stake-entrypoint.ts [--deposit=<amount>] [--stake=<amount>] [--unstake-delay=<seconds>]
  *
  * Options:
- *   --deposit         Amount of native token to deposit (in ETH/KRC, default: 1)
- *   --stake           Amount of native token to stake (in ETH/KRC, default: 0)
+ *   --deposit         Amount of native token to deposit (in WKRC, default: 1)
+ *   --stake           Amount of native token to stake (in WKRC, default: 0)
  *   --unstake-delay   Unstake delay in seconds (default: 86400 = 1 day)
  *   --info            Show deposit info only, no transactions
  *
  * Examples:
  *   npx ts-node script/ts/stake-entrypoint.ts --info                    # Check current deposit
- *   npx ts-node script/ts/stake-entrypoint.ts --deposit=10              # Deposit 10 ETH/KRC
- *   npx ts-node script/ts/stake-entrypoint.ts --stake=1                 # Stake 1 ETH/KRC
+ *   npx ts-node script/ts/stake-entrypoint.ts --deposit=10              # Deposit 10 WKRC
+ *   npx ts-node script/ts/stake-entrypoint.ts --stake=1                 # Stake 1 WKRC
  *   npx ts-node script/ts/stake-entrypoint.ts --deposit=5 --stake=1     # Deposit 5 + Stake 1
  */
 
@@ -286,8 +286,8 @@ function main(): void {
   console.log(`  Bundler Address: ${bundlerAddress}`);
 
   if (!infoOnly) {
-    console.log(`  Deposit Amount:  ${deposit} ETH/KRC`);
-    console.log(`  Stake Amount:    ${stake} ETH/KRC`);
+    console.log(`  Deposit Amount:  ${deposit} WKRC`);
+    console.log(`  Stake Amount:    ${stake} WKRC`);
     if (parseFloat(stake) > 0) {
       console.log(`  Unstake Delay:   ${unstakeDelay} seconds`);
     }
@@ -301,10 +301,10 @@ function main(): void {
   const nativeBalance = getNativeBalance(bundlerAddress, rpcUrl);
   const depositInfo = getDepositInfo(entryPointAddress, bundlerAddress, rpcUrl);
 
-  console.log(`  Native Balance:  ${formatEther(nativeBalance)} ETH/KRC`);
-  console.log(`  EP Deposit:      ${formatEther(depositInfo.deposit)} ETH/KRC`);
+  console.log(`  Native Balance:  ${formatEther(nativeBalance)} WKRC`);
+  console.log(`  EP Deposit:      ${formatEther(depositInfo.deposit)} WKRC`);
   console.log(`  EP Staked:       ${depositInfo.staked ? "Yes" : "No"}`);
-  console.log(`  EP Stake Amount: ${formatEther(depositInfo.stake)} ETH/KRC`);
+  console.log(`  EP Stake Amount: ${formatEther(depositInfo.stake)} WKRC`);
   if (depositInfo.staked) {
     console.log(`  Unstake Delay:   ${depositInfo.unstakeDelaySec} seconds`);
   }
@@ -356,10 +356,10 @@ function main(): void {
   const newNativeBalance = getNativeBalance(bundlerAddress, rpcUrl);
   const newDepositInfo = getDepositInfo(entryPointAddress, bundlerAddress, rpcUrl);
 
-  console.log(`  Native Balance:  ${formatEther(newNativeBalance)} ETH/KRC`);
-  console.log(`  EP Deposit:      ${formatEther(newDepositInfo.deposit)} ETH/KRC`);
+  console.log(`  Native Balance:  ${formatEther(newNativeBalance)} WKRC`);
+  console.log(`  EP Deposit:      ${formatEther(newDepositInfo.deposit)} WKRC`);
   console.log(`  EP Staked:       ${newDepositInfo.staked ? "Yes" : "No"}`);
-  console.log(`  EP Stake Amount: ${formatEther(newDepositInfo.stake)} ETH/KRC`);
+  console.log(`  EP Stake Amount: ${formatEther(newDepositInfo.stake)} WKRC`);
 
   console.log("\n" + "=".repeat(60));
   console.log("✅ Staking completed!");

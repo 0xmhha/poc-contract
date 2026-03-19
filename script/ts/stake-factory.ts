@@ -9,14 +9,14 @@
  *   npx ts-node script/ts/stake-factory.ts [--stake=<amount>] [--unstake-delay=<seconds>] [--approve] [--info]
  *
  * Options:
- *   --stake           Amount of native token to stake (in ETH/KRC, default: 1)
+ *   --stake           Amount of native token to stake (in WKRC, default: 1)
  *   --unstake-delay   Unstake delay in seconds (default: 86400 = 1 day)
  *   --approve         Approve KernelFactory in FactoryStaker
  *   --info            Show stake info only, no transactions
  *
  * Examples:
  *   npx ts-node script/ts/stake-factory.ts --info                  # Check current stake
- *   npx ts-node script/ts/stake-factory.ts --stake=1               # Stake 1 ETH/KRC
+ *   npx ts-node script/ts/stake-factory.ts --stake=1               # Stake 1 WKRC
  *   npx ts-node script/ts/stake-factory.ts --approve               # Approve KernelFactory
  *   npx ts-node script/ts/stake-factory.ts --stake=1 --approve     # Stake + Approve
  */
@@ -304,7 +304,7 @@ function main(): void {
   console.log(`  KernelFactory:   ${addresses.kernelFactory}`);
 
   if (!infoOnly) {
-    console.log(`  Stake Amount:    ${stake} ETH/KRC`);
+    console.log(`  Stake Amount:    ${stake} WKRC`);
     if (parseFloat(stake) > 0) {
       console.log(`  Unstake Delay:   ${unstakeDelay} seconds`);
     }
@@ -320,10 +320,10 @@ function main(): void {
   const depositInfo = getDepositInfo(addresses.entryPoint, addresses.factoryStaker, rpcUrl);
   const factoryApproved = isFactoryApproved(addresses.factoryStaker, addresses.kernelFactory, rpcUrl);
 
-  console.log(`  FactoryStaker Balance: ${formatEther(factoryStakerBalance)} ETH/KRC`);
-  console.log(`  EP Deposit:            ${formatEther(depositInfo.deposit)} ETH/KRC`);
+  console.log(`  FactoryStaker Balance: ${formatEther(factoryStakerBalance)} WKRC`);
+  console.log(`  EP Deposit:            ${formatEther(depositInfo.deposit)} WKRC`);
   console.log(`  EP Staked:             ${depositInfo.staked ? "Yes" : "No"}`);
-  console.log(`  EP Stake Amount:       ${formatEther(depositInfo.stake)} ETH/KRC`);
+  console.log(`  EP Stake Amount:       ${formatEther(depositInfo.stake)} WKRC`);
   if (depositInfo.staked) {
     console.log(`  Unstake Delay:         ${depositInfo.unstakeDelaySec} seconds`);
   }
@@ -369,9 +369,9 @@ function main(): void {
   const newDepositInfo = getDepositInfo(addresses.entryPoint, addresses.factoryStaker, rpcUrl);
   const newFactoryApproved = isFactoryApproved(addresses.factoryStaker, addresses.kernelFactory, rpcUrl);
 
-  console.log(`  EP Deposit:            ${formatEther(newDepositInfo.deposit)} ETH/KRC`);
+  console.log(`  EP Deposit:            ${formatEther(newDepositInfo.deposit)} WKRC`);
   console.log(`  EP Staked:             ${newDepositInfo.staked ? "Yes" : "No"}`);
-  console.log(`  EP Stake Amount:       ${formatEther(newDepositInfo.stake)} ETH/KRC`);
+  console.log(`  EP Stake Amount:       ${formatEther(newDepositInfo.stake)} WKRC`);
   if (newDepositInfo.staked) {
     console.log(`  Unstake Delay:         ${newDepositInfo.unstakeDelaySec} seconds`);
   }

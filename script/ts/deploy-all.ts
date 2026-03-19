@@ -51,7 +51,7 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
   {
     name: "tokens",
     description: "Deploy USDC tokens",
-    command: "./script/deploy-tokens.sh --broadcast --force",
+    command: "./script/deploy-tokens.sh --broadcast",
     phase: "deploy",
   },
   {
@@ -63,7 +63,7 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
   {
     name: "entrypoint",
     description: "Deploy ERC-4337 EntryPoint",
-    command: "./script/deploy-entrypoint.sh --broadcast --force",
+    command: "./script/deploy-entrypoint.sh --broadcast",
     phase: "deploy",
   },
 
@@ -71,7 +71,7 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
   {
     name: "smartaccount",
     description: "Deploy Kernel, KernelFactory, FactoryStaker",
-    command: "./script/deploy-smartaccount.sh --broadcast --force",
+    command: "./script/deploy-smartaccount.sh --broadcast",
     phase: "deploy",
   },
 
@@ -79,25 +79,25 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
   {
     name: "validators",
     description: "Deploy ERC-7579 Validators",
-    command: "./script/deploy-validators.sh --broadcast --force",
+    command: "./script/deploy-validators.sh --broadcast",
     phase: "deploy",
   },
   {
     name: "hooks",
     description: "Deploy ERC-7579 Hooks",
-    command: "./script/deploy-hooks.sh --broadcast --force",
+    command: "./script/deploy-hooks.sh --broadcast",
     phase: "deploy",
   },
   {
     name: "fallbacks",
     description: "Deploy ERC-7579 Fallbacks",
-    command: "./script/deploy-fallbacks.sh --broadcast --force",
+    command: "./script/deploy-fallbacks.sh --broadcast",
     phase: "deploy",
   },
   {
     name: "executors",
     description: "Deploy ERC-7579 Executors",
-    command: "./script/deploy-executors.sh --broadcast --force",
+    command: "./script/deploy-executors.sh --broadcast",
     phase: "deploy",
   },
 
@@ -105,31 +105,31 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
   {
     name: "compliance",
     description: "Deploy Compliance contracts",
-    command: "./script/deploy-compliance.sh --broadcast --force",
+    command: "./script/deploy-compliance.sh --broadcast",
     phase: "deploy",
   },
   {
     name: "privacy",
     description: "Deploy Privacy (ERC-5564/6538 + Enterprise) contracts",
-    command: "./script/deploy-privacy.sh --broadcast --force",
+    command: "./script/deploy-privacy.sh --broadcast",
     phase: "deploy",
   },
   {
     name: "permit2",
     description: "Deploy Permit2",
-    command: "./script/deploy-permit2.sh --broadcast --force",
+    command: "./script/deploy-permit2.sh --broadcast",
     phase: "deploy",
   },
   {
     name: "subscription",
     description: "Deploy Subscription (ERC-7715 + MerchantRegistry) contracts",
-    command: "./script/deploy-subscription.sh --broadcast --force",
+    command: "./script/deploy-subscription.sh --broadcast",
     phase: "deploy",
   },
   {
     name: "bridge",
     description: "Deploy Bridge (Defense-in-depth) contracts",
-    command: "./script/deploy-bridge.sh --broadcast --force",
+    command: "./script/deploy-bridge.sh --broadcast",
     phase: "deploy",
   },
 
@@ -137,25 +137,25 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
   {
     name: "uniswap",
     description: "Deploy UniswapV3 and create NativeCoinAdapter/USDC pool",
-    command: "./script/deploy-uniswap.sh --broadcast --force --create-pool",
+    command: "./script/deploy-uniswap.sh --broadcast --create-pool",
     phase: "deploy",
   },
   {
     name: "defi",
     description: "Deploy DeFi contracts (PriceOracle, LendingPool, StakingVault)",
-    command: "./script/deploy-defi.sh --broadcast --force",
+    command: "./script/deploy-defi.sh --broadcast",
     phase: "deploy",
   },
   {
     name: "paymasters",
     description: "Deploy ERC-4337 Paymasters",
-    command: "./script/deploy-paymasters.sh --broadcast --force",
+    command: "./script/deploy-paymasters.sh --broadcast",
     phase: "deploy",
   },
   {
     name: "plugins",
     description: "Deploy ERC-7579 Plugins (AutoSwap, MicroLoan, OnRamp)",
-    command: "./script/deploy-plugins.sh --broadcast --force",
+    command: "./script/deploy-plugins.sh --broadcast",
     phase: "deploy",
   },
 
@@ -231,6 +231,7 @@ const CONTRACT_NAME_TO_KEY: { [name: string]: string } = {
   USDC: "usdc",
 
   // ERC-4337 Core
+  Create2Deployer: "create2Deployer",
   EntryPoint: "entryPoint",
 
   // Smart Account
@@ -614,6 +615,13 @@ function addVerifyFlag(command: string, verify: boolean): string {
   return command;
 }
 
+function addForceFlag(command: string, force: boolean): string {
+  if (force && !command.includes("--force")) {
+    return command + " --force";
+  }
+  return command;
+}
+
 // ============ Main ============
 
 function main(): void {
@@ -687,8 +695,11 @@ function main(): void {
   for (const step of steps) {
     let command = step.command;
 
-    // Add verify flag if requested
-    command = addVerifyFlag(command, args.verify);
+    // Add --force and --verify flags only to deploy steps
+    if (step.phase === "deploy") {
+      command = addForceFlag(command, args.force);
+      command = addVerifyFlag(command, args.verify);
+    }
 
     const success = runCommand(command, step.description, args.dryRun);
     if (!success) {
