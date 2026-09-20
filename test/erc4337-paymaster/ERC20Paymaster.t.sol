@@ -231,7 +231,7 @@ contract ERC20PaymasterTest is Test {
         // Warp to a reasonable timestamp to avoid underflow
         vm.warp(400 days);
 
-        // Set stale price (older than MAX_PRICE_STALENESS = 365 days)
+        // Set stale price (older than MAX_PRICE_STALENESS = 1 day)
         uint256 staleTimestamp = block.timestamp - 366 days;
         oracle.setPriceWithTimestamp(address(token), 5e14, staleTimestamp);
 

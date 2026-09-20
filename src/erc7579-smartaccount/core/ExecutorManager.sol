@@ -30,12 +30,7 @@ abstract contract ExecutorManager {
 
     function _installExecutor(IExecutor executor, bytes calldata executorData, IHook hook) internal {
         _installExecutorWithoutInit(executor, hook);
-        if (executorData.length == 0) {
-            (bool success,) = address(executor).call(abi.encodeWithSelector(IModule.onInstall.selector, executorData));
-            (success); // silence unused variable warning - return value intentionally ignored
-        } else {
-            executor.onInstall(executorData);
-        }
+        executor.onInstall(executorData);
     }
 
     function _installExecutorWithoutInit(IExecutor executor, IHook hook) internal {

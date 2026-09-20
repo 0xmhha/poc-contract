@@ -40,6 +40,23 @@ contract RecurringPaymentExecutorTest is Test {
         smartAccount.installModule(MODULE_TYPE_EXECUTOR, address(executor), "");
     }
 
+    function test_pauseResumePreservesScheduleAndRejectsExecution() public {
+        vm.prank(address(smartAccount));
+        uint256 id = executor.createSchedule(recipient, address(0), 1 ether, INTERVAL, block.timestamp, 3);
+        vm.prank(address(smartAccount));
+        executor.pauseSchedule(id);
+        assertTrue(executor.isSchedulePaused(address(smartAccount), id));
+        assertFalse(executor.isPaymentDue(address(smartAccount), id));
+        vm.expectRevert(RecurringPaymentExecutor.SchedulePaused.selector);
+        executor.executePayment(address(smartAccount), id);
+        vm.prank(address(smartAccount));
+        executor.resumeSchedule(id);
+        assertFalse(executor.isSchedulePaused(address(smartAccount), id));
+        executor.executePayment(address(smartAccount), id);
+        assertEq(recipient.balance, 1 ether);
+        assertEq(executor.getSchedule(address(smartAccount), id).paymentsMade, 1);
+    }
+
     function test_onInstall_withData() public {
         RecurringPaymentExecutor newExecutor = new RecurringPaymentExecutor();
         MockSmartAccount newAccount = new MockSmartAccount(owner);

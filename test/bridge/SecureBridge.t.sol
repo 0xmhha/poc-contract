@@ -170,6 +170,8 @@ contract SecureBridgeTest is Test {
             bridge.initiateBridge(address(token), amount, recipient, TARGET_CHAIN, block.timestamp + 1 hours);
 
         assertNotEq(requestId, bytes32(0));
+        // Target completeBridge recomputes this exact authorization hash.
+        assertEq(requestId, keccak256(abi.encode(sender, recipient, address(token), amount - bridge.calculateFee(amount), block.chainid, uint256(TARGET_CHAIN), uint256(0), block.timestamp + 1 hours)));
         assertEq(token.balanceOf(address(bridge)), amount);
     }
 

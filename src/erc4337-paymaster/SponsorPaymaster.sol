@@ -37,14 +37,25 @@ contract SponsorPaymaster is BasePaymaster {
     /// @notice Nonces used to prevent signature replay
     mapping(address => uint256) public senderNonce;
 
-    /// @notice Lightweight campaign spending tracker (informational, not enforced on-chain)
+    /// @notice Campaign spending tracker (informational, not enforced on-chain)
     mapping(bytes32 => uint256) public campaignSpending;
+
+    /// @notice Per-user spending tracker for perUserLimit enforcement
+    mapping(bytes32 => mapping(address => uint256)) public userCampaignSpending;
+
+    /// @notice Maximum costs reserved by validated operations awaiting settlement.
+    mapping(bytes32 => mapping(address => uint256)) public userCampaignReserved;
+
+    error InvalidExecutionCalldata();
 
     event SignerChanged(address indexed oldSigner, address indexed newSigner);
     event GasSponsored(address indexed sender, bytes32 indexed userOpHash, bytes32 campaignId, uint256 maxCost);
 
     error InvalidSigner();
     error SignerCannotBeZero();
+    error TargetMismatch(address expected, address actual);
+    error SelectorMismatch(bytes4 expected, bytes4 actual);
+    error UserLimitExceeded(address sender, uint256 spent, uint256 limit);
 
     /**
      * @notice Constructor
@@ -113,6 +124,39 @@ contract SponsorPaymaster is BasePaymaster {
         // Decode SponsorPayload
         PaymasterPayload.SponsorPayload memory payload = PaymasterPayload.decodeSponsor(env.payload);
 
+        // Restricted sponsorship accepts canonical ERC-7579 single/default execution only.
+        // Reject unsupported outer calls/modes rather than bypassing policy checks.
+        if (payload.targetContract != address(0) || payload.targetSelector != bytes4(0)) {
+            bytes calldata callData = userOp.callData;
+            if (
+                callData.length < 152 || bytes4(callData[:4]) != bytes4(keccak256("execute(bytes32,bytes)"))
+                    || bytes32(callData[4:36]) != bytes32(0) || uint256(bytes32(callData[36:68])) != 64
+            ) revert InvalidExecutionCalldata();
+            uint256 executionLength = uint256(bytes32(callData[68:100]));
+            if (
+                executionLength < 52 || executionLength > callData.length - 100
+                    || callData.length != 100 + ((executionLength + 31) / 32) * 32
+            ) revert InvalidExecutionCalldata();
+            address target = address(bytes20(callData[100:120]));
+            if (payload.targetContract != address(0) && target != payload.targetContract) {
+                revert TargetMismatch(payload.targetContract, target);
+            }
+            if (payload.targetSelector != bytes4(0)) {
+                if (executionLength < 56) revert InvalidExecutionCalldata();
+                bytes4 selector = bytes4(callData[152:156]);
+                if (selector != payload.targetSelector) revert SelectorMismatch(payload.targetSelector, selector);
+            }
+        }
+
+        // Validate per-user spending limit
+        if (payload.perUserLimit > 0) {
+            uint256 spent = userCampaignSpending[payload.campaignId][userOp.sender]
+                + userCampaignReserved[payload.campaignId][userOp.sender];
+            if (spent + maxCost > payload.perUserLimit) {
+                revert UserLimitExceeded(userOp.sender, spent, payload.perUserLimit);
+            }
+        }
+
         // Compute hash for signature verification
         bytes32 domainSeparator = _computeDomainSeparator();
         bytes32 userOpCoreHash = _computeUserOpCoreHash(userOp);
@@ -120,7 +164,7 @@ contract SponsorPaymaster is BasePaymaster {
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
 
         // Verify signature
-        address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
+        address recoveredSigner = ECDSA.tryRecover(ethSignedHash, signature);
 
         if (recoveredSigner != verifyingSigner) {
             return ("", _packValidationDataFailure(env.validUntil, env.validAfter));
@@ -142,18 +186,18 @@ contract SponsorPaymaster is BasePaymaster {
             return ("", _packValidationDataFailure(env.validUntil, env.validAfter));
         }
         senderNonce[userOp.sender]++;
+        userCampaignReserved[payload.campaignId][userOp.sender] += maxCost;
 
         // Emit event for tracking
         emit GasSponsored(userOp.sender, keccak256(abi.encode(userOp)), payload.campaignId, maxCost);
 
         // Return success with time range and context for postOp
         return
-            (abi.encode(userOp.sender, payload.campaignId), _packValidationDataSuccess(env.validUntil, env.validAfter));
+            (abi.encode(userOp.sender, payload.campaignId, maxCost), _packValidationDataSuccess(env.validUntil, env.validAfter));
     }
 
     /**
-     * @notice Post-operation handler — lightweight campaign spending tracker
-     * @dev Informational only; no enforcement. Updates campaignSpending for analytics.
+     * @notice Settle the validation reservation to actual cost, including campaign zero.
      */
     function _postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
         internal
@@ -165,12 +209,10 @@ contract SponsorPaymaster is BasePaymaster {
             return;
         }
 
-        (, bytes32 campaignId) = abi.decode(context, (address, bytes32));
-
-        // Track spending per campaign (informational)
-        if (campaignId != bytes32(0)) {
-            campaignSpending[campaignId] += actualGasCost;
-        }
+        (address sender, bytes32 campaignId, uint256 reservedCost) = abi.decode(context, (address, bytes32, uint256));
+        userCampaignReserved[campaignId][sender] -= reservedCost;
+        campaignSpending[campaignId] += actualGasCost;
+        userCampaignSpending[campaignId][sender] += actualGasCost;
     }
 
     /**

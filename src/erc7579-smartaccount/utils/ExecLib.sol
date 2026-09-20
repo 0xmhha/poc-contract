@@ -241,7 +241,7 @@ library ExecLib {
             mstore(senderPtr, shl(96, caller()))
 
             // Add 20 bytes for the address appended add the end
-            success := call(gas(), target, 0, calldataPtr, add(calldatasize(), 20), 0, 0)
+            success := call(gas(), target, callvalue(), calldataPtr, add(calldatasize(), 20), 0, 0)
 
             result := mload(0x40)
             mstore(result, returndatasize()) // Store the length.

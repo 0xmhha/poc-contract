@@ -104,6 +104,27 @@ contract WeightedECDSAValidatorTest is Test {
         validator.onInstall(data);
     }
 
+    function test_installRejectsZeroThreshold() public {
+        (address[] memory guardians, uint24[] memory weights) = _getSortedGuardiansAndWeights();
+        vm.prank(smartAccount);
+        vm.expectRevert("Threshold cannot be 0");
+        validator.onInstall(abi.encode(guardians, weights, uint24(0), DELAY));
+    }
+
+    function test_renewRejectsInvalidThresholdAndPreservesGuardians() public {
+        _installValidator();
+        (address[] memory guardians, uint24[] memory weights) = _getSortedGuardiansAndWeights();
+        vm.prank(smartAccount);
+        vm.expectRevert("Threshold cannot be 0");
+        validator.renew(guardians, weights, 0, DELAY);
+        vm.prank(smartAccount);
+        vm.expectRevert("Threshold too high");
+        validator.renew(guardians, weights, 251, DELAY);
+        (uint24 total, uint24 threshold,,) = validator.weightedStorage(smartAccount);
+        assertEq(total, 250);
+        assertEq(threshold, THRESHOLD);
+    }
+
     // ============ onUninstall Tests ============
 
     function test_onUninstall() public {

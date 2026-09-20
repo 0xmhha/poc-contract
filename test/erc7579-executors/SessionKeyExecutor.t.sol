@@ -206,6 +206,31 @@ contract SessionKeyExecutorTest is Test {
         assertEq(executor.getRemainingSpendingLimit(address(smartAccount), sessionKey), 7 ether);
     }
 
+    function test_reactivationClearsPermissionsAndPreservesNonceEpoch() public {
+        vm.startPrank(address(smartAccount));
+        executor.addSessionKey(sessionKey, VALID_AFTER, VALID_UNTIL, SPENDING_LIMIT);
+        executor.grantPermission(sessionKey, recipient, bytes4(0), 0);
+        assertEq(executor.getPermissions(address(smartAccount), sessionKey).length, 1);
+        executor.revokeSessionKey(sessionKey);
+        executor.addSessionKey(sessionKey, VALID_AFTER, VALID_UNTIL, SPENDING_LIMIT);
+        vm.stopPrank();
+        assertFalse(executor.hasPermission(address(smartAccount), sessionKey, recipient, bytes4(0)));
+        assertEq(executor.getPermissions(address(smartAccount), sessionKey).length, 0);
+        assertEq(executor.getSessionKey(address(smartAccount), sessionKey).nonce, 1);
+    }
+
+    function test_reinstallCannotReplayPreviousSessionSignature() public {
+        vm.startPrank(address(smartAccount));
+        executor.addSessionKey(sessionKey, VALID_AFTER, VALID_UNTIL, SPENDING_LIMIT);
+        executor.grantPermission(sessionKey, recipient, bytes4(0), 0);
+        executor.onUninstall("");
+        executor.onInstall("");
+        executor.addSessionKey(sessionKey, VALID_AFTER, VALID_UNTIL, SPENDING_LIMIT);
+        vm.stopPrank();
+        assertFalse(executor.hasPermission(address(smartAccount), sessionKey, recipient, bytes4(0)));
+        assertEq(executor.getSessionKey(address(smartAccount), sessionKey).nonce, 1);
+    }
+
     function test_getActiveSessionKeys() public {
         address sessionKey2 = makeAddr("sessionKey2");
 

@@ -295,6 +295,61 @@ contract KernelModuleGuardsTest is Test {
         );
     }
 
+    function test_KernelRuntimeFitsEip170() public view {
+        assertLe(address(kernelImpl).code.length, 24_576);
+    }
+
+    function test_ForceUninstallIgnoresCallbackRevert() public {
+        Kernel account = Kernel(payable(_createKernelAccount()));
+        vm.startPrank(address(account));
+        account.installModule(MODULE_TYPE_EXECUTOR, address(revertingExecutor), _executorInitData());
+        account.forceUninstallModule(MODULE_TYPE_EXECUTOR, address(revertingExecutor), "");
+        vm.stopPrank();
+        assertFalse(account.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(revertingExecutor), ""));
+    }
+
+    function test_ReplaceExecutorIsAtomic() public {
+        Kernel account = Kernel(payable(_createKernelAccount()));
+        MockGuardExecutor replacement = new MockGuardExecutor();
+        vm.startPrank(address(account));
+        account.installModule(MODULE_TYPE_EXECUTOR, address(mockExecutor), _executorInitData());
+        account.replaceModule(
+            MODULE_TYPE_EXECUTOR, address(mockExecutor), "", address(replacement), _executorInitData()
+        );
+        vm.stopPrank();
+        assertFalse(account.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(mockExecutor), ""));
+        assertTrue(account.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(replacement), ""));
+    }
+
+    function test_ReplaceRejectingOldModuleKeepsOriginal() public {
+        Kernel account = Kernel(payable(_createKernelAccount()));
+        vm.startPrank(address(account));
+        account.installModule(MODULE_TYPE_EXECUTOR, address(revertingExecutor), _executorInitData());
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Kernel.ModuleOnUninstallFailed.selector, MODULE_TYPE_EXECUTOR, address(revertingExecutor)
+            )
+        );
+        account.replaceModule(
+            MODULE_TYPE_EXECUTOR, address(revertingExecutor), "", address(mockExecutor), _executorInitData()
+        );
+        vm.stopPrank();
+        assertTrue(account.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(revertingExecutor), ""));
+        assertFalse(account.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(mockExecutor), ""));
+    }
+
+    function test_ReplaceInvalidNewModuleRestoresOriginal() public {
+        Kernel account = Kernel(payable(_createKernelAccount()));
+        vm.startPrank(address(account));
+        account.installModule(MODULE_TYPE_EXECUTOR, address(mockExecutor), _executorInitData());
+        vm.expectRevert(Kernel.InvalidModuleType.selector);
+        account.replaceModule(
+            MODULE_TYPE_EXECUTOR, address(mockExecutor), "", address(mockFallback), _executorInitData()
+        );
+        vm.stopPrank();
+        assertTrue(account.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(mockExecutor), ""));
+    }
+
     /* //////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/

@@ -60,6 +60,9 @@ contract Permit2Paymaster is BasePaymaster {
     /// @notice Maximum staleness for price data (1 hour)
     uint256 public constant MAX_PRICE_STALENESS = 1 hours;
 
+    /// @notice Minimum token charge to prevent dust/zero-cost attacks
+    uint256 public constant MIN_TOKEN_CHARGE = 1;
+
     /// @notice Supported tokens whitelist
     mapping(address => bool) public supportedTokens;
 
@@ -88,6 +91,7 @@ contract Permit2Paymaster is BasePaymaster {
     error InvalidPrice();
     error PermitFailed();
     error TransferFailed();
+    error InvalidTokenDecimals(address token);
 
     /**
      * @notice Constructor
@@ -137,10 +141,12 @@ contract Permit2Paymaster is BasePaymaster {
      * @param supported Whether the token is supported
      */
     function setSupportedToken(address token, bool supported) external onlyOwner {
-        supportedTokens[token] = supported;
-        if (supported && tokenDecimals[token] == 0) {
-            tokenDecimals[token] = IERC20Metadata(token).decimals();
+        if (supported) {
+            uint8 decimals = IERC20Metadata(token).decimals();
+            if (decimals == 0) revert InvalidTokenDecimals(token);
+            tokenDecimals[token] = decimals;
         }
+        supportedTokens[token] = supported;
         emit TokenSupported(token, supported);
     }
 
@@ -284,16 +290,18 @@ contract Permit2Paymaster is BasePaymaster {
             actualTokenCost = (ctx.maxTokenCost * actualGasCost) / ctx.maxCost;
         }
 
-        if (actualTokenCost == 0) {
-            actualTokenCost = 1;
+        // Minimum charge to prevent zero-cost exploitation
+        if (actualTokenCost < MIN_TOKEN_CHARGE) {
+            actualTokenCost = MIN_TOKEN_CHARGE;
         }
 
         // Transfer tokens via Permit2.
         // In v0.9, the EntryPoint settles from prefund if postOp reverts — it does NOT
         // re-call postOp with postOpReverted mode. This guard is kept for safety.
         if (mode != PostOpMode.postOpReverted) {
-            // Casting to 'uint160' is safe because actualTokenCost is derived from gas costs
-            // which are bounded by block gas limit and will never exceed uint160 max value
+            // Casting to 'uint160' is safe because actualTokenCost = maxTokenCost * actualGasCost / maxCost.
+            // maxTokenCost is bounded by oracle price and token decimals (typically 6-18), and actualGasCost
+            // is bounded by block gas limit × gas price. The resulting value fits within uint160.
             // forge-lint: disable-next-line(unsafe-typecast)
             uint160 transferAmount = uint160(actualTokenCost);
 
@@ -301,6 +309,17 @@ contract Permit2Paymaster is BasePaymaster {
 
             emit GasPaidWithPermit2(ctx.sender, ctx.token, actualTokenCost, actualGasCost);
         }
+    }
+
+    /**
+     * @notice Refresh cached token decimals from the token contract
+     * @param token Token address
+     */
+    function refreshTokenDecimals(address token) external onlyOwner {
+        if (!supportedTokens[token]) revert UnsupportedToken(token);
+        uint8 decimals = IERC20Metadata(token).decimals();
+        if (decimals == 0) revert InvalidTokenDecimals(token);
+        tokenDecimals[token] = decimals;
     }
 
     /**

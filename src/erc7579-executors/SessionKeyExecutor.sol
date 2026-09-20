@@ -56,6 +56,8 @@ contract SessionKeyExecutor is IExecutor {
         mapping(address sessionKey => SessionKeyConfig) sessions;
         mapping(address sessionKey => mapping(bytes32 permissionHash => Permission)) permissions;
         address[] activeSessionKeys;
+        mapping(address sessionKey => bytes32[]) permissionKeys;
+        mapping(address sessionKey => mapping(bytes32 permissionHash => bool)) permissionKnown;
     }
 
     /// @notice Account address => AccountStorage
@@ -116,7 +118,9 @@ contract SessionKeyExecutor is IExecutor {
         // Revoke all session keys
         address[] memory keys = store.activeSessionKeys;
         for (uint256 i = 0; i < keys.length; i++) {
-            delete store.sessions[keys[i]];
+            store.sessions[keys[i]].isActive = false;
+            store.sessions[keys[i]].nonce++;
+            _clearPermissions(store, keys[i]);
         }
         delete store.activeSessionKeys;
     }
@@ -156,6 +160,8 @@ contract SessionKeyExecutor is IExecutor {
         }
 
         store.sessions[sessionKey].isActive = false;
+        store.sessions[sessionKey].nonce++;
+        _clearPermissions(store, sessionKey);
 
         // Remove from active list
         _removeFromActiveList(msg.sender, sessionKey);
@@ -340,6 +346,23 @@ contract SessionKeyExecutor is IExecutor {
         return session.spendingLimit - session.spentAmount;
     }
 
+    /// @notice Enumerate the permissions registered for a session, including revoked entries.
+    function getPermissions(address account, address sessionKey) external view returns (Permission[] memory result) {
+        AccountStorage storage store = accountStorage[account];
+        bytes32[] storage keys = store.permissionKeys[sessionKey];
+        result = new Permission[](keys.length);
+        for (uint256 i; i < keys.length; i++) result[i] = store.permissions[sessionKey][keys[i]];
+    }
+
+    function _clearPermissions(AccountStorage storage store, address sessionKey) internal {
+        bytes32[] storage keys = store.permissionKeys[sessionKey];
+        for (uint256 i; i < keys.length; i++) {
+            delete store.permissions[sessionKey][keys[i]];
+            delete store.permissionKnown[sessionKey][keys[i]];
+        }
+        delete store.permissionKeys[sessionKey];
+    }
+
     // ============ Internal Functions ============
 
     function _addSessionKey(
@@ -363,7 +386,7 @@ contract SessionKeyExecutor is IExecutor {
             validUntil: validUntil,
             spendingLimit: spendingLimit,
             spentAmount: 0,
-            nonce: 0,
+            nonce: store.sessions[sessionKey].nonce,
             isActive: true
         });
 
@@ -376,6 +399,12 @@ contract SessionKeyExecutor is IExecutor {
         AccountStorage storage store = accountStorage[account];
         bytes32 permHash = _getPermissionHash(perm.target, perm.selector);
 
+        if (!store.sessions[sessionKey].isActive) revert SessionKeyNotActive();
+        if (!store.permissionKnown[sessionKey][permHash]) {
+            require(store.permissionKeys[sessionKey].length < 128, "Too many permissions");
+            store.permissionKnown[sessionKey][permHash] = true;
+            store.permissionKeys[sessionKey].push(permHash);
+        }
         store.permissions[sessionKey][permHash] = perm;
 
         emit PermissionGranted(account, sessionKey, perm.target, perm.selector);

@@ -191,6 +191,16 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
         state.validationConfig[vId].hook = IHook(address(0));
     }
 
+    /// @dev Revoke selector access for a removed validation. Called after _clearValidationData.
+    ///      Callers must pass the selectors that were granted — mappings cannot be iterated.
+    function _revokeSelectors(ValidationId vId, bytes4[] memory selectors) internal {
+        ValidationStorage storage state = _validationStorage();
+        for (uint256 i; i < selectors.length; i++) {
+            state.allowedSelectors[vId][selectors[i]] = false;
+            emit SelectorSet(selectors[i], vId, false);
+        }
+    }
+
     function _uninstallPermission(PermissionId pId, bytes calldata data) internal {
         PermissionDisableDataFormat calldata permissionDisableData;
         assembly {

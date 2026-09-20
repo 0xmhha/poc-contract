@@ -94,12 +94,7 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
     command: "./script/deploy-fallbacks.sh --broadcast",
     phase: "deploy",
   },
-  {
-    name: "executors",
-    description: "Deploy ERC-7579 Executors",
-    command: "./script/deploy-executors.sh --broadcast",
-    phase: "deploy",
-  },
+
 
   // Phase 3: Feature Modules
   {
@@ -144,6 +139,12 @@ const DEPLOYMENT_STEPS: DeploymentStep[] = [
     name: "defi",
     description: "Deploy DeFi contracts (PriceOracle, LendingPool, StakingVault)",
     command: "./script/deploy-defi.sh --broadcast",
+    phase: "deploy",
+  },
+  {
+    name: "executors",
+    description: "Deploy ERC-7579 Executors",
+    command: "./script/deploy-executors.sh --broadcast",
     phase: "deploy",
   },
   {

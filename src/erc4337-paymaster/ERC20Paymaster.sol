@@ -53,8 +53,17 @@ contract ERC20Paymaster is BasePaymaster {
     /// @notice Basis points denominator
     uint256 public constant BASIS_POINTS = 10_000;
 
-    /// @notice Maximum staleness for price data (365 days — relaxed for PoC)
-    uint256 public constant MAX_PRICE_STALENESS = 365 days;
+    /// @notice Maximum staleness for price data; refresh fixed-price feeds at least daily.
+    uint256 public constant MAX_PRICE_STALENESS = 1 days;
+
+    /// @notice Maximum allowed price deviation from cached price (20%)
+    uint256 public constant MAX_PRICE_DEVIATION = 2000;
+
+    /// @notice Minimum token charge to prevent dust/zero-cost attacks
+    uint256 public constant MIN_TOKEN_CHARGE = 1;
+
+    /// @notice Cached reference price per token for circuit breaker
+    mapping(address => uint256) public referencePrice;
 
     /// @notice Supported tokens whitelist
     mapping(address => bool) public supportedTokens;
@@ -83,6 +92,7 @@ contract ERC20Paymaster is BasePaymaster {
     error OracleCannotBeZero();
     error StalePrice(uint256 updatedAt, uint256 maxAge);
     error InvalidPrice();
+    error PriceDeviationTooHigh(uint256 currentPrice, uint256 refPrice);
     error InvalidTokenDecimals(address token);
 
     /**
@@ -164,8 +174,22 @@ contract ERC20Paymaster is BasePaymaster {
         // Sanity check: reject zero or invalid price
         if (tokenPrice == 0) revert InvalidPrice();
 
+        // Circuit breaker: reject if price deviates too much from reference
+        uint256 refPrice = referencePrice[token];
+        if (refPrice > 0) {
+            uint256 deviation;
+            if (tokenPrice > refPrice) {
+                deviation = ((tokenPrice - refPrice) * BASIS_POINTS) / refPrice;
+            } else {
+                deviation = ((refPrice - tokenPrice) * BASIS_POINTS) / refPrice;
+            }
+            if (deviation > MAX_PRICE_DEVIATION) {
+                revert PriceDeviationTooHigh(tokenPrice, refPrice);
+            }
+        }
+
         // Check staleness
-        if (block.timestamp - updatedAt > MAX_PRICE_STALENESS) {
+        if (updatedAt > block.timestamp || block.timestamp - updatedAt > MAX_PRICE_STALENESS) {
             revert StalePrice(updatedAt, MAX_PRICE_STALENESS);
         }
 
@@ -270,9 +294,9 @@ contract ERC20Paymaster is BasePaymaster {
             actualTokenCost = (ctx.maxTokenCost * actualGasCost) / ctx.maxCost;
         }
 
-        // Minimum charge to prevent dust attacks
-        if (actualTokenCost == 0) {
-            actualTokenCost = 1;
+        // Minimum charge to prevent zero-cost exploitation
+        if (actualTokenCost < MIN_TOKEN_CHARGE) {
+            actualTokenCost = MIN_TOKEN_CHARGE;
         }
 
         // Transfer tokens from user to paymaster.
@@ -284,6 +308,27 @@ contract ERC20Paymaster is BasePaymaster {
             IERC20(ctx.token).safeTransferFrom(ctx.sender, address(this), actualTokenCost);
             emit GasPaidWithToken(ctx.sender, ctx.token, actualTokenCost, actualGasCost);
         }
+    }
+
+    /**
+     * @notice Update the reference price for circuit breaker
+     * @param token Token address
+     */
+    function updateReferencePrice(address token) external onlyOwner {
+        (uint256 tokenPrice,) = oracle.getPriceWithTimestamp(token);
+        if (tokenPrice == 0) revert InvalidPrice();
+        referencePrice[token] = tokenPrice;
+    }
+
+    /**
+     * @notice Refresh cached token decimals from the token contract
+     * @param token Token address
+     */
+    function refreshTokenDecimals(address token) external onlyOwner {
+        if (!supportedTokens[token]) revert UnsupportedToken(token);
+        uint8 decimals = IERC20Metadata(token).decimals();
+        if (decimals == 0) revert InvalidTokenDecimals(token);
+        tokenDecimals[token] = decimals;
     }
 
     /**

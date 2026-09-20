@@ -33,21 +33,13 @@ abstract contract HookManager {
     ///      gasLimit == 0 means unlimited (default, backward compatible).
     function _doPreHook(IHook hook, uint256 value, bytes calldata callData) internal returns (bytes memory context) {
         uint256 limit = _hookGasLimitStorage().gasLimit[hook];
-        if (limit == 0) {
-            context = hook.preCheck(msg.sender, value, callData);
-        } else {
-            context = hook.preCheck{ gas: limit }(msg.sender, value, callData);
-        }
+        context = hook.preCheck{ gas: limit == 0 ? gasleft() : limit }(msg.sender, value, callData);
     }
 
     /// @dev Calls hook.postCheck with optional gas limit.
     function _doPostHook(IHook hook, bytes memory context) internal {
         uint256 limit = _hookGasLimitStorage().gasLimit[hook];
-        if (limit == 0) {
-            hook.postCheck(context);
-        } else {
-            hook.postCheck{ gas: limit }(context);
-        }
+        hook.postCheck{ gas: limit == 0 ? gasleft() : limit }(context);
     }
 
     // @notice if hook is not initialized before, kernel will call hook.onInstall no matter what flag it shows, with

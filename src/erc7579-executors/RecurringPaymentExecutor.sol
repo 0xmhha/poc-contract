@@ -44,6 +44,7 @@ contract RecurringPaymentExecutor is IExecutor {
         mapping(uint256 scheduleId => PaymentSchedule) schedules;
         uint256 nextScheduleId;
         uint256[] activeScheduleIds;
+        mapping(uint256 scheduleId => bool) paused;
     }
 
     /// @notice Account address => AccountStorage
@@ -64,6 +65,7 @@ contract RecurringPaymentExecutor is IExecutor {
         uint256 amount,
         uint256 interval
     );
+    event PaymentSchedulePaused(address indexed account, uint256 indexed scheduleId, bool paused);
     event PaymentScheduleCancelled(address indexed account, uint256 indexed scheduleId);
     event PaymentExecuted(
         address indexed account,
@@ -80,6 +82,7 @@ contract RecurringPaymentExecutor is IExecutor {
     error ScheduleNotFound();
     error ScheduleNotActive();
     error PaymentNotDue();
+    error SchedulePaused();
     error MaxPaymentsReached();
     error InvalidRecipient();
     error InvalidAmount();
@@ -160,6 +163,25 @@ contract RecurringPaymentExecutor is IExecutor {
         emit PaymentScheduleCancelled(msg.sender, scheduleId);
     }
 
+    function pauseSchedule(uint256 scheduleId) external {
+        AccountStorage storage store = accountStorage[msg.sender];
+        if (!store.schedules[scheduleId].isActive) revert ScheduleNotActive();
+        store.paused[scheduleId] = true;
+        emit PaymentSchedulePaused(msg.sender, scheduleId, true);
+    }
+
+    /// @notice Resume keeps the original schedule; overdue installments remain due.
+    function resumeSchedule(uint256 scheduleId) external {
+        AccountStorage storage store = accountStorage[msg.sender];
+        if (!store.schedules[scheduleId].isActive) revert ScheduleNotActive();
+        store.paused[scheduleId] = false;
+        emit PaymentSchedulePaused(msg.sender, scheduleId, false);
+    }
+
+    function isSchedulePaused(address account, uint256 scheduleId) external view returns (bool) {
+        return accountStorage[account].paused[scheduleId];
+    }
+
     /**
      * @notice Update payment amount for a schedule
      * @param scheduleId The schedule ID
@@ -203,6 +225,7 @@ contract RecurringPaymentExecutor is IExecutor {
         AccountStorage storage store = accountStorage[account];
         PaymentSchedule storage schedule = store.schedules[scheduleId];
 
+        if (store.paused[scheduleId]) revert SchedulePaused();
         // Validate schedule
         if (!schedule.isActive) revert ScheduleNotActive();
         if (schedule.maxPayments > 0 && schedule.paymentsMade >= schedule.maxPayments) {
@@ -294,7 +317,7 @@ contract RecurringPaymentExecutor is IExecutor {
     function isPaymentDue(address account, uint256 scheduleId) external view returns (bool) {
         PaymentSchedule storage schedule = accountStorage[account].schedules[scheduleId];
 
-        if (!schedule.isActive) return false;
+        if (!schedule.isActive || accountStorage[account].paused[scheduleId]) return false;
         if (schedule.maxPayments > 0 && schedule.paymentsMade >= schedule.maxPayments) return false;
 
         uint256 nextPaymentTime =

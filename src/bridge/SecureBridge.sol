@@ -58,7 +58,9 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         uint256 amount,
         uint256 sourceChain,
         uint256 targetChain,
-        uint256 fee
+        uint256 fee,
+        uint256 nonce,
+        uint256 deadline
     );
     event BridgeCompleted(bytes32 indexed requestId, address indexed recipient, address token, uint256 amount);
     event BridgeRefunded(bytes32 indexed requestId, address indexed sender, address token, uint256 amount);
@@ -207,7 +209,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         // Generate request ID
         uint256 nonce = userNonces[msg.sender]++;
         requestId = keccak256(
-            abi.encode(msg.sender, recipient, token, amount, CHAIN_ID, targetChain, nonce, block.timestamp)
+            abi.encode(msg.sender, recipient, token, amountAfterFee, CHAIN_ID, targetChain, nonce, deadline)
         );
 
         // Handle token transfer
@@ -242,7 +244,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         // Submit to optimistic verifier
         optimisticVerifier.submitRequest(requestId, msg.sender, recipient, token, amountAfterFee, CHAIN_ID, targetChain);
 
-        emit BridgeInitiated(requestId, msg.sender, recipient, token, amountAfterFee, CHAIN_ID, targetChain, fee);
+        emit BridgeInitiated(requestId, msg.sender, recipient, token, amountAfterFee, CHAIN_ID, targetChain, fee, nonce, deadline);
     }
 
     /**

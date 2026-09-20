@@ -7,6 +7,7 @@ import { PackedUserOperation } from "../erc4337-entrypoint/interfaces/PackedUser
 import { UserOperationLib } from "../erc4337-entrypoint/UserOperationLib.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
 import { PaymasterDataLib } from "./PaymasterDataLib.sol";
+import { PaymasterPayload } from "./PaymasterPayload.sol";
 
 /**
  * @title VerifyingPaymaster
@@ -41,6 +42,7 @@ contract VerifyingPaymaster is BasePaymaster {
     error InvalidSignatureLength();
     error InvalidSigner();
     error SignerCannotBeZero();
+    error MaxCostExceeded(uint256 actual, uint256 allowed);
 
     /**
      * @notice Constructor
@@ -121,6 +123,12 @@ contract VerifyingPaymaster is BasePaymaster {
             revert PaymasterDataLib.InvalidType(env.paymasterType);
         }
 
+        // Decode and validate type-specific payload
+        PaymasterPayload.VerifyingPayload memory payload = PaymasterPayload.decodeVerifying(env.payload);
+        if (payload.maxCost < maxCost) {
+            revert MaxCostExceeded(maxCost, payload.maxCost);
+        }
+
         // Compute hash for signature verification
         bytes32 domainSeparator = _computeDomainSeparator();
         bytes32 userOpCoreHash = _computeUserOpCoreHash(userOp);
@@ -128,7 +136,7 @@ contract VerifyingPaymaster is BasePaymaster {
         bytes32 ethSignedHash = hash.toEthSignedMessageHash();
 
         // Verify signature
-        address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
+        address recoveredSigner = ECDSA.tryRecover(ethSignedHash, signature);
 
         if (recoveredSigner != verifyingSigner) {
             return ("", _packValidationDataFailure(env.validUntil, env.validAfter));

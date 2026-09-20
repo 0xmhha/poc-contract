@@ -89,8 +89,9 @@ contract WeightedECDSAValidator is EIP712, IValidator {
         weightedStorage[msg.sender].firstGuardian = address(uint160(type(uint160).max));
         _addGuardians(_guardians, _weights, msg.sender);
         weightedStorage[msg.sender].delay = _delay;
-        weightedStorage[msg.sender].threshold = _threshold;
+        require(_threshold > 0, "Threshold cannot be 0");
         require(_threshold <= weightedStorage[msg.sender].totalWeight, "Threshold too high");
+        weightedStorage[msg.sender].threshold = _threshold;
     }
 
     function onUninstall(bytes calldata) external payable override {
@@ -134,6 +135,8 @@ contract WeightedECDSAValidator is EIP712, IValidator {
         weightedStorage[msg.sender].firstGuardian = address(uint160(type(uint160).max));
         _addGuardians(_guardians, _weights, msg.sender);
         weightedStorage[msg.sender].delay = _delay;
+        require(_threshold > 0, "Threshold cannot be 0");
+        require(_threshold <= weightedStorage[msg.sender].totalWeight, "Threshold too high");
         weightedStorage[msg.sender].threshold = _threshold;
     }
 

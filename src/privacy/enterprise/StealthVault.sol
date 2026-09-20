@@ -401,9 +401,10 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
         if (deposit.depositor == address(0)) revert DepositNotFound();
         if (deposit.withdrawn) revert AlreadyWithdrawn();
         if (deposit.token != token) revert InvalidAmount();
-        if (deposit.amount < amount) revert InvalidAmount();
+        if (amount == 0 || deposit.amount < amount) revert InvalidAmount();
 
-        deposit.withdrawn = true;
+        deposit.amount -= amount;
+        deposit.withdrawn = deposit.amount == 0;
         totalDeposits[token] -= amount;
 
         if (token == NATIVE_TOKEN) {

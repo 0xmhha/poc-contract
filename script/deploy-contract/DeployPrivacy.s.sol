@@ -147,6 +147,8 @@ contract DeployPrivacyScript is DeploymentHelper {
             console.log("WithdrawalManager: Using existing at", existing);
         }
 
+        _configureWithdrawals();
+
         vm.stopBroadcast();
 
         _saveAddresses();
@@ -169,4 +171,14 @@ contract DeployPrivacyScript is DeploymentHelper {
         console.log("  3. Recipients scan ERC5564 announcements and withdraw");
         console.log("  4. Enterprise: RoleManager controls access, StealthVault holds assets");
     }
+    function _configureWithdrawals() internal {
+        // Wire both sides before accepting withdrawal requests. Safe on reruns.
+        if (withdrawalManager.stealthVault() != address(stealthVault)) {
+            withdrawalManager.setStealthVault(address(stealthVault));
+        }
+        if (!stealthVault.hasRole(stealthVault.WITHDRAWAL_MANAGER_ROLE(), address(withdrawalManager))) {
+            stealthVault.grantRole(stealthVault.WITHDRAWAL_MANAGER_ROLE(), address(withdrawalManager));
+        }
+    }
+
 }
