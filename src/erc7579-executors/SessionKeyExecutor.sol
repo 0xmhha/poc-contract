@@ -351,7 +351,9 @@ contract SessionKeyExecutor is IExecutor {
         AccountStorage storage store = accountStorage[account];
         bytes32[] storage keys = store.permissionKeys[sessionKey];
         result = new Permission[](keys.length);
-        for (uint256 i; i < keys.length; i++) result[i] = store.permissions[sessionKey][keys[i]];
+        for (uint256 i; i < keys.length; i++) {
+            result[i] = store.permissions[sessionKey][keys[i]];
+        }
     }
 
     function _clearPermissions(AccountStorage storage store, address sessionKey) internal {

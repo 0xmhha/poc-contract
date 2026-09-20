@@ -16,7 +16,7 @@ jobs:
     name: Foundry project
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
           submodules: recursive
@@ -35,3 +35,52 @@ jobs:
 
       - name: Run Forge tests
         run: forge test -vvv
+
+  platform-compatibility:
+    name: Platform compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout contracts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          path: poc-contract
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Checkout platform
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          repository: 0xmhha/poc-platform
+          path: poc-platform
+          persist-credentials: false
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build contract artifacts
+        working-directory: poc-contract
+        run: forge build
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: poc-platform/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: poc-platform/pnpm-lock.yaml
+
+      - name: Install platform dependencies
+        working-directory: poc-platform
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync current contract interface into platform
+        working-directory: poc-platform
+        run: pnpm contracts:sync
+
+      - name: Verify platform consumers compile
+        working-directory: poc-platform
+        run: pnpm typecheck

@@ -133,9 +133,10 @@ contract SponsorPaymaster is BasePaymaster {
                     || bytes32(callData[4:36]) != bytes32(0) || uint256(bytes32(callData[36:68])) != 64
             ) revert InvalidExecutionCalldata();
             uint256 executionLength = uint256(bytes32(callData[68:100]));
+            uint256 paddedExecutionLength = (executionLength + 31) & ~uint256(31);
             if (
                 executionLength < 52 || executionLength > callData.length - 100
-                    || callData.length != 100 + ((executionLength + 31) / 32) * 32
+                    || callData.length != 100 + paddedExecutionLength
             ) revert InvalidExecutionCalldata();
             address target = address(bytes20(callData[100:120]));
             if (payload.targetContract != address(0) && target != payload.targetContract) {
@@ -192,8 +193,10 @@ contract SponsorPaymaster is BasePaymaster {
         emit GasSponsored(userOp.sender, keccak256(abi.encode(userOp)), payload.campaignId, maxCost);
 
         // Return success with time range and context for postOp
-        return
-            (abi.encode(userOp.sender, payload.campaignId, maxCost), _packValidationDataSuccess(env.validUntil, env.validAfter));
+        return (
+            abi.encode(userOp.sender, payload.campaignId, maxCost),
+            _packValidationDataSuccess(env.validUntil, env.validAfter)
+        );
     }
 
     /**

@@ -244,7 +244,9 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         // Submit to optimistic verifier
         optimisticVerifier.submitRequest(requestId, msg.sender, recipient, token, amountAfterFee, CHAIN_ID, targetChain);
 
-        emit BridgeInitiated(requestId, msg.sender, recipient, token, amountAfterFee, CHAIN_ID, targetChain, fee, nonce, deadline);
+        emit BridgeInitiated(
+            requestId, msg.sender, recipient, token, amountAfterFee, CHAIN_ID, targetChain, fee, nonce, deadline
+        );
     }
 
     /**

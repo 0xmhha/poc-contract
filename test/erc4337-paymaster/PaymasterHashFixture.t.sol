@@ -394,8 +394,7 @@ contract PaymasterHashFixtureTest is Test {
         uint64 currentNonce = uint64(pm.getNonce(FX_SENDER));
         PackedUserOperation memory userOp = _createFixtureUserOp();
         userOp.callData = abi.encodeWithSignature(
-            "execute(bytes32,bytes)", bytes32(0),
-            abi.encodePacked(address(0xCAFE), uint256(0), bytes4(0x12345678))
+            "execute(bytes32,bytes)", bytes32(0), abi.encodePacked(address(0xCAFE), uint256(0), bytes4(0x12345678))
         );
         bytes memory envelope = _createFixtureEnvelope_sponsor(currentNonce);
         userOp.paymasterAndData = abi.encodePacked(address(pm), uint128(100_000), uint128(50_000), envelope);
