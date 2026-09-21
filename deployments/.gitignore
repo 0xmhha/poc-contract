@@ -3,3 +3,7 @@
 # But keep this .gitignore and .gitkeep
 !.gitignore
 !.gitkeep
+
+# Keep the public StableNet deployment manifest as the platform compatibility fixture.
+!8283/
+!8283/addresses.json

@@ -28,7 +28,7 @@ jobs:
         run: forge --version
 
       - name: Run Forge fmt
-        run: forge fmt --check
+        run: forge fmt --check src script test
 
       - name: Run Forge build
         run: forge build
