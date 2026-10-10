@@ -126,6 +126,12 @@ library DeploymentAddresses {
     string constant KEY_PERMISSION_MANAGER = "erc7715PermissionManager";
     string constant KEY_SUBSCRIPTION_MANAGER = "subscriptionManager";
     string constant KEY_MERCHANT_REGISTRY = "merchantRegistry";
+
+    // Perpetual (testnet-only trading reference)
+    string constant KEY_PERP_ENGINE = "perpetualEngine";
+    string constant KEY_PERP_ORDER_MANAGER = "perpOrderManager";
+    string constant KEY_PERP_POSITION_MANAGER = "perpPositionManager";
+    string constant KEY_PERP_MARGIN_MANAGER = "perpMarginManager";
 }
 
 /**
@@ -274,6 +280,12 @@ abstract contract DeploymentHelper is Script {
                 _tryParseAddress(json, DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER);
                 _tryParseAddress(json, DeploymentAddresses.KEY_MERCHANT_REGISTRY);
 
+                // Perpetual
+                _tryParseAddress(json, DeploymentAddresses.KEY_PERP_ENGINE);
+                _tryParseAddress(json, DeploymentAddresses.KEY_PERP_ORDER_MANAGER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_PERP_POSITION_MANAGER);
+                _tryParseAddress(json, DeploymentAddresses.KEY_PERP_MARGIN_MANAGER);
+
                 console.log("Loaded existing deployment addresses from:", path);
             }
         } catch {
@@ -385,6 +397,12 @@ abstract contract DeploymentHelper is Script {
         staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_PERMISSION_MANAGER);
         staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER);
         staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_MERCHANT_REGISTRY);
+
+        // Perpetual
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_PERP_ENGINE);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_PERP_ORDER_MANAGER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_PERP_POSITION_MANAGER);
+        staleCount += _pruneIfNoCode(DeploymentAddresses.KEY_PERP_MARGIN_MANAGER);
 
         if (staleCount > 0) {
             console.log("  Pruned", staleCount, "stale address(es) - chain may have been reset. Will redeploy.");
@@ -741,6 +759,32 @@ abstract contract DeploymentHelper is Script {
                 obj,
                 DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER,
                 _addresses[DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER]
+            );
+        }
+
+        // Perpetual
+        if (_addresses[DeploymentAddresses.KEY_PERP_ENGINE] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_PERP_ENGINE, _addresses[DeploymentAddresses.KEY_PERP_ENGINE]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_PERP_ORDER_MANAGER] != address(0)) {
+            vm.serializeAddress(
+                obj, DeploymentAddresses.KEY_PERP_ORDER_MANAGER, _addresses[DeploymentAddresses.KEY_PERP_ORDER_MANAGER]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_PERP_POSITION_MANAGER] != address(0)) {
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_PERP_POSITION_MANAGER,
+                _addresses[DeploymentAddresses.KEY_PERP_POSITION_MANAGER]
+            );
+        }
+        if (_addresses[DeploymentAddresses.KEY_PERP_MARGIN_MANAGER] != address(0)) {
+            vm.serializeAddress(
+                obj,
+                DeploymentAddresses.KEY_PERP_MARGIN_MANAGER,
+                _addresses[DeploymentAddresses.KEY_PERP_MARGIN_MANAGER]
             );
         }
 
