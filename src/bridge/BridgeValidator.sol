@@ -39,6 +39,7 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
     error ExpiredMessage();
     error NonceNotUsed();
     error RotationDeadlineExpired();
+    error UnauthorizedNonceConsumer();
 
     // ============ Events ============
     event SignerAdded(address indexed signer, uint256 signerSetVersion);
@@ -48,6 +49,7 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
     event MessageValidated(bytes32 indexed messageHash, uint256 nonce, address indexed sender);
     event NonceInvalidated(uint256 indexed nonce, address indexed sender);
     event NonceRecovered(uint256 indexed nonce, address indexed sender, address indexed recoveredBy);
+    event AuthorizedBridgeUpdated(address indexed oldBridge, address indexed newBridge);
 
     // ============ Structs ============
 
@@ -113,6 +115,9 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
 
     /// @notice Last rotation timestamp
     uint256 public lastRotationTime;
+
+    /// @notice Bridge contract allowed to consume nonces after a successful release
+    address public authorizedBridge;
 
     /// @notice Domain separator for EIP-712
     bytes32 public immutable DOMAIN_SEPARATOR;
@@ -266,10 +271,13 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
 
     /**
      * @notice Consume a nonce after successful downstream execution
+     * @dev Only the authorized bridge may consume nonces. An open consumeNonce would let
+     *      anyone front-run a pending release and make it revert with NonceAlreadyUsed.
      * @param sender The sender whose nonce to consume
      * @param nonce The nonce to mark as used
      */
     function consumeNonce(address sender, uint256 nonce) external {
+        if (msg.sender != authorizedBridge) revert UnauthorizedNonceConsumer();
         if (usedNonces[sender][nonce]) revert NonceAlreadyUsed();
 
         usedNonces[sender][nonce] = true;
@@ -303,6 +311,21 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
     }
 
     // ============ Admin Functions ============
+
+    /**
+     * @notice Set the bridge contract that may consume nonces
+     * @dev Must be called after SecureBridge is deployed, and again whenever
+     *      SecureBridge switches to this validator via setBridgeValidator.
+     * @param newBridge Address of the SecureBridge contract
+     */
+    function setAuthorizedBridge(address newBridge) external onlyOwner {
+        if (newBridge == address(0)) revert ZeroAddress();
+
+        address oldBridge = authorizedBridge;
+        authorizedBridge = newBridge;
+
+        emit AuthorizedBridgeUpdated(oldBridge, newBridge);
+    }
 
     /**
      * @notice Add a new signer to the current signer set

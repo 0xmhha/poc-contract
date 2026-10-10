@@ -114,6 +114,7 @@ contract SecureBridgeTest is Test {
         );
 
         // Configure components
+        validator.setAuthorizedBridge(address(bridge));
         optimisticVerifier.setAuthorizedCaller(address(bridge), true);
         rateLimiter.setAuthorizedCaller(address(bridge), true);
         guardian.setBridgeTarget(address(bridge));
@@ -324,6 +325,55 @@ contract SecureBridgeTest is Test {
         );
 
         assertGt(token.balanceOf(recipient), 0);
+    }
+
+    /// @notice A third party must not be able to burn a pending release's nonce.
+    ///         Before the fix, consumeNonce was callable by anyone, so a front-run
+    ///         made completeBridge revert with NonceAlreadyUsed.
+    function test_CompleteBridge_NotBlockedByNonceFrontRun() public {
+        address sender = makeAddr("bridgeSender");
+        address recipient = makeAddr("bridgeRecipient");
+        uint256 amount = 999 * 1e18;
+        uint256 nonce = 0;
+        uint256 deadline = block.timestamp + 8 hours;
+
+        bytes32 requestId = keccak256(
+            abi.encode(sender, recipient, address(token), amount, block.chainid, block.chainid, nonce, deadline)
+        );
+
+        vm.prank(address(bridge));
+        optimisticVerifier.submitRequest(
+            requestId, sender, recipient, address(token), amount, block.chainid, block.chainid
+        );
+        vm.warp(block.timestamp + 7 hours);
+        optimisticVerifier.approveRequest(requestId);
+
+        BridgeValidator.BridgeMessage memory message = BridgeValidator.BridgeMessage({
+            requestId: requestId,
+            sender: sender,
+            recipient: recipient,
+            token: address(token),
+            amount: amount,
+            sourceChain: block.chainid,
+            targetChain: block.chainid,
+            nonce: nonce,
+            deadline: deadline
+        });
+        bytes[] memory signatures = _signMessage(message);
+        token.mint(address(bridge), amount);
+
+        // Attacker front-runs the release by consuming the nonce
+        address attacker = makeAddr("attacker");
+        vm.prank(attacker);
+        vm.expectRevert();
+        validator.consumeNonce(sender, nonce);
+
+        bridge.completeBridge(
+            requestId, sender, recipient, address(token), amount, block.chainid, nonce, deadline, signatures
+        );
+
+        assertEq(token.balanceOf(recipient), amount);
+        assertTrue(validator.usedNonces(sender, nonce));
     }
 
     function test_CompleteBridge_RevertsOnInvalidSignatures() public {

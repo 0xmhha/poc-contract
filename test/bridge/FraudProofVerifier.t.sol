@@ -354,7 +354,11 @@ contract FraudProofVerifierTest is Test {
         bytes32[] memory merkleProof = new bytes32[](1);
         merkleProof[0] = keccak256("proof");
 
-        // Mark the nonce as used in BridgeValidator via consumeNonce
+        // Mark the nonce as used in BridgeValidator via consumeNonce (as the bridge would)
+        address bridge = makeAddr("bridge");
+        vm.prank(owner);
+        bridgeValidatorContract.setAuthorizedBridge(bridge);
+        vm.prank(bridge);
         bridgeValidatorContract.consumeNonce(sender, nonce);
 
         FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({

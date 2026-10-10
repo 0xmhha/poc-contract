@@ -756,6 +756,8 @@ contract DeployAllScript is DeploymentHelper {
                 );
                 _setAddress(DeploymentAddresses.KEY_SECURE_BRIDGE, address(sb));
                 console.log("    [NEW] SecureBridge:", address(sb));
+                // Only the bridge may consume validator nonces
+                BridgeValidator(validatorAddr).setAuthorizedBridge(address(sb));
             } else {
                 console.log("    [SKIP] SecureBridge: Missing dependencies");
             }
