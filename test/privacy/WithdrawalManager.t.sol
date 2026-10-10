@@ -98,6 +98,7 @@ contract WithdrawalManagerTest is Test {
         // Grant roles to separate actors
         manager.grantRole(manager.APPROVER_ROLE(), approver);
         manager.grantRole(manager.EXECUTOR_ROLE(), executor);
+        manager.grantRole(manager.REQUESTER_ROLE(), requester);
         vm.stopPrank();
 
         // Fund the manager contract with tokens for executing withdrawals
@@ -165,13 +166,29 @@ contract WithdrawalManagerTest is Test {
                 F-004: VAULT NOT CONFIGURED REVERT TESTS
     ////////////////////////////////////////////////////////////// */
 
+    /// @notice Only requesters may open a withdrawal request.
+    ///         Before the fix anyone could request any deposit to any recipient, and amounts
+    ///         below approvalThreshold could be executed without approval.
+    function test_RequestWithdrawal_RevertsForNonRequester() public {
+        _setupValidDeposit(TEST_DEPOSIT_ID, requester, address(token), 100 ether);
+        address attacker = makeAddr("attacker");
+
+        bytes32 requesterRole = manager.REQUESTER_ROLE();
+
+        vm.prank(attacker);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, attacker, requesterRole)
+        );
+        manager.requestWithdrawal(TEST_DEPOSIT_ID, attacker, address(token), 100 ether);
+    }
+
     function test_RequestWithdrawal_RevertsOnVaultNotConfigured() public {
         // Deploy a fresh manager without vault configuration
         vm.prank(admin);
         WithdrawalManager freshManager = new WithdrawalManager(admin, COOLDOWN_PERIOD, APPROVAL_THRESHOLD);
 
-        // stealthVault is address(0) by default -- must revert
-        vm.prank(requester);
+        // stealthVault is address(0) by default -- must revert (admin holds REQUESTER_ROLE)
+        vm.prank(admin);
         vm.expectRevert(IWithdrawalManager.VaultNotConfigured.selector);
         freshManager.requestWithdrawal(TEST_DEPOSIT_ID, recipient, address(token), 100 ether);
     }
