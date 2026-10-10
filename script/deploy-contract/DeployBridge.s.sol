@@ -7,6 +7,7 @@ import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddres
 import { FraudProofVerifier } from "../../src/bridge/FraudProofVerifier.sol";
 import { BridgeRateLimiter } from "../../src/bridge/BridgeRateLimiter.sol";
 import { BridgeValidator } from "../../src/bridge/BridgeValidator.sol";
+import { BridgeWiring } from "../utils/BridgeWiring.sol";
 import { BridgeGuardian } from "../../src/bridge/BridgeGuardian.sol";
 import { OptimisticVerifier } from "../../src/bridge/OptimisticVerifier.sol";
 import { SecureBridge } from "../../src/bridge/SecureBridge.sol";
@@ -55,7 +56,7 @@ contract DeployBridgeScript is DeploymentHelper {
     // Default values — relaxed for testing
     uint256 constant DEFAULT_SIGNER_THRESHOLD = 3;
     uint256 constant DEFAULT_GUARDIAN_THRESHOLD = 2;
-    uint256 constant DEFAULT_CHALLENGE_PERIOD = 5 minutes; // short for testing
+    uint256 constant DEFAULT_CHALLENGE_PERIOD = 1 hours; // OptimisticVerifier.MIN_CHALLENGE_PERIOD
     uint256 constant DEFAULT_CHALLENGE_BOND = 0.001 ether; // low for testing
     uint256 constant DEFAULT_CHALLENGER_REWARD = 0.0005 ether; // low for testing
 
@@ -164,11 +165,11 @@ contract DeployBridgeScript is DeploymentHelper {
             console.log("SecureBridge: Using existing at", existing);
         }
 
-        // Only the bridge may consume validator nonces
-        if (bridgeValidator.authorizedBridge() != address(secureBridge)) {
-            bridgeValidator.setAuthorizedBridge(address(secureBridge));
-            console.log("BridgeValidator: authorized bridge set to", address(secureBridge));
-        }
+        // Cross-contract authorizations; without them initiateBridge and completeBridge revert
+        console.log("Wiring bridge components:");
+        BridgeWiring.wire(
+            secureBridge, bridgeValidator, rateLimiter, optimisticVerifier, bridgeGuardian, fraudProofVerifier
+        );
 
         vm.stopBroadcast();
 
@@ -317,15 +318,14 @@ contract BridgeDeploymentHelper {
         );
 
         // Post-deployment configuration: Set up cross-contract authorizations
-        artifacts.bridgeValidator.setAuthorizedBridge(address(artifacts.secureBridge));
-        artifacts.bridgeRateLimiter.setAuthorizedCaller(address(artifacts.secureBridge), true);
-        artifacts.optimisticVerifier.setAuthorizedCaller(address(artifacts.secureBridge), true);
-        artifacts.bridgeGuardian.setBridgeTarget(address(artifacts.secureBridge));
-
-        // Link fraud proof verifier with optimistic verifier
-        artifacts.optimisticVerifier.setFraudProofVerifier(address(artifacts.fraudProofVerifier));
-        artifacts.fraudProofVerifier.setOptimisticVerifier(address(artifacts.optimisticVerifier));
-        artifacts.fraudProofVerifier.setBridgeValidator(address(artifacts.bridgeValidator));
+        BridgeWiring.wire(
+            artifacts.secureBridge,
+            artifacts.bridgeValidator,
+            artifacts.bridgeRateLimiter,
+            artifacts.optimisticVerifier,
+            artifacts.bridgeGuardian,
+            artifacts.fraudProofVerifier
+        );
 
         return artifacts;
     }

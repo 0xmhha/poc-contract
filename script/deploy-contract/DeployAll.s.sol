@@ -78,6 +78,7 @@ import { BridgeValidator } from "../../src/bridge/BridgeValidator.sol";
 import { BridgeGuardian } from "../../src/bridge/BridgeGuardian.sol";
 import { OptimisticVerifier } from "../../src/bridge/OptimisticVerifier.sol";
 import { SecureBridge } from "../../src/bridge/SecureBridge.sol";
+import { BridgeWiring } from "../utils/BridgeWiring.sol";
 
 /**
  * @title DeployAllScript
@@ -133,7 +134,7 @@ contract DeployAllScript is DeploymentHelper {
     uint256 constant DEFAULT_RETENTION_PERIOD = 365 days;
     uint256 constant DEFAULT_AUTO_PAUSE_THRESHOLD = 3;
     uint256 constant DEFAULT_MARKUP = 1000; // 10%
-    uint256 constant DEFAULT_CHALLENGE_PERIOD = 5 minutes; // short for testing
+    uint256 constant DEFAULT_CHALLENGE_PERIOD = 1 hours; // OptimisticVerifier.MIN_CHALLENGE_PERIOD
     uint256 constant DEFAULT_CHALLENGE_BOND = 0.001 ether; // low for testing
     uint256 constant DEFAULT_CHALLENGER_REWARD = 0.0005 ether; // low for testing
 
@@ -756,13 +757,25 @@ contract DeployAllScript is DeploymentHelper {
                 );
                 _setAddress(DeploymentAddresses.KEY_SECURE_BRIDGE, address(sb));
                 console.log("    [NEW] SecureBridge:", address(sb));
-                // Only the bridge may consume validator nonces
-                BridgeValidator(validatorAddr).setAuthorizedBridge(address(sb));
             } else {
                 console.log("    [SKIP] SecureBridge: Missing dependencies");
             }
         } else {
             console.log("    [SKIP] SecureBridge:", _getAddress(DeploymentAddresses.KEY_SECURE_BRIDGE));
+        }
+
+        // Cross-contract authorizations; without them initiateBridge and completeBridge revert
+        address sbAddr = _addresses[DeploymentAddresses.KEY_SECURE_BRIDGE];
+        if (sbAddr != address(0)) {
+            console.log("    Wiring bridge components:");
+            BridgeWiring.wire(
+                SecureBridge(payable(sbAddr)),
+                BridgeValidator(_addresses[DeploymentAddresses.KEY_BRIDGE_VALIDATOR]),
+                BridgeRateLimiter(_addresses[DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER]),
+                OptimisticVerifier(payable(_addresses[DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER])),
+                BridgeGuardian(_addresses[DeploymentAddresses.KEY_BRIDGE_GUARDIAN]),
+                FraudProofVerifier(_addresses[DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER])
+            );
         }
     }
 

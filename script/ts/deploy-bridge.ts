@@ -196,7 +196,7 @@ function encodeUint256(value: string | number | bigint): string {
 // Default values matching DeployBridge.s.sol
 const DEFAULT_SIGNER_THRESHOLD = "3";
 const DEFAULT_GUARDIAN_THRESHOLD = "2";
-const DEFAULT_CHALLENGE_PERIOD = String(5 * 60); // 5 minutes
+const DEFAULT_CHALLENGE_PERIOD = String(60 * 60); // 1 hour, OptimisticVerifier.MIN_CHALLENGE_PERIOD
 const DEFAULT_CHALLENGE_BOND = String(BigInt("1000000000000000")); // 0.001 ether
 const DEFAULT_CHALLENGER_REWARD = String(BigInt("500000000000000")); // 0.0005 ether
 
