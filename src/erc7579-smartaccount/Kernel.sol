@@ -450,9 +450,15 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         if (callHook) {
             context = _doPreHook(hook, msg.value, msg.data);
         }
-        assembly ("memory-safe") { tstore(_EXECUTOR_CONTEXT_SLOT, 1) }
+        // Restore the previous value instead of clearing it: a nested executeFromExecutor
+        // must not end the outer executor context early.
+        uint256 prevExecutorContext;
+        assembly ("memory-safe") {
+            prevExecutorContext := tload(_EXECUTOR_CONTEXT_SLOT)
+            tstore(_EXECUTOR_CONTEXT_SLOT, 1)
+        }
         returnData = ExecLib.execute(execMode, executionCalldata);
-        assembly ("memory-safe") { tstore(_EXECUTOR_CONTEXT_SLOT, 0) }
+        assembly ("memory-safe") { tstore(_EXECUTOR_CONTEXT_SLOT, prevExecutorContext) }
         if (callHook) {
             _doPostHook(hook, context);
         }

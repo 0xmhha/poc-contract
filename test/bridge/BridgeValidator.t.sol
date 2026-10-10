@@ -20,6 +20,7 @@ contract BridgeValidatorTest is Test {
     event SignerSetRotated(uint256 oldVersion, uint256 newVersion);
     event MessageValidated(bytes32 indexed messageHash, uint256 nonce, address indexed sender);
     event NonceInvalidated(uint256 indexed nonce, address indexed sender);
+    event AuthorizedBridgeUpdated(address indexed oldBridge, address indexed newBridge);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -156,6 +157,10 @@ contract BridgeValidatorTest is Test {
         validator.verifyMpcSignatures(message, signatures);
 
         // Consume the nonce (as the bridge contract would do after successful execution)
+        address bridge = makeAddr("bridge");
+        vm.prank(owner);
+        validator.setAuthorizedBridge(bridge);
+        vm.prank(bridge);
         validator.consumeNonce(message.sender, message.nonce);
 
         // Second verification with same nonce should fail
@@ -244,6 +249,56 @@ contract BridgeValidatorTest is Test {
         vm.expectRevert(BridgeValidator.NonceAlreadyUsed.selector);
         validator.invalidateNonce(nonce);
         vm.stopPrank();
+    }
+
+    function test_ConsumeNonce_RevertsForUnauthorizedCaller() public {
+        vm.prank(owner);
+        validator.setAuthorizedBridge(makeAddr("bridge"));
+
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert(BridgeValidator.UnauthorizedNonceConsumer.selector);
+        validator.consumeNonce(makeAddr("sender"), 1);
+    }
+
+    function test_ConsumeNonce_RevertsWhenBridgeUnset() public {
+        vm.expectRevert(BridgeValidator.UnauthorizedNonceConsumer.selector);
+        validator.consumeNonce(makeAddr("sender"), 1);
+    }
+
+    function test_ConsumeNonce_ByAuthorizedBridge() public {
+        address bridge = makeAddr("bridge");
+        address sender = makeAddr("sender");
+        vm.prank(owner);
+        validator.setAuthorizedBridge(bridge);
+
+        vm.prank(bridge);
+        validator.consumeNonce(sender, 1);
+        assertTrue(validator.usedNonces(sender, 1));
+
+        vm.prank(bridge);
+        vm.expectRevert(BridgeValidator.NonceAlreadyUsed.selector);
+        validator.consumeNonce(sender, 1);
+    }
+
+    function test_SetAuthorizedBridge_EmitsEvent() public {
+        address bridge = makeAddr("bridge");
+        vm.expectEmit(true, true, false, false);
+        emit AuthorizedBridgeUpdated(address(0), bridge);
+        vm.prank(owner);
+        validator.setAuthorizedBridge(bridge);
+        assertEq(validator.authorizedBridge(), bridge);
+    }
+
+    function test_SetAuthorizedBridge_RevertsOnZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(BridgeValidator.ZeroAddress.selector);
+        validator.setAuthorizedBridge(address(0));
+    }
+
+    function test_SetAuthorizedBridge_RevertsForNonOwner() public {
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert();
+        validator.setAuthorizedBridge(makeAddr("bridge"));
     }
 
     // ============ Signer Management Tests ============

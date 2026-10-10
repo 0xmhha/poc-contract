@@ -16,6 +16,15 @@ import {
     HOOK_MODULE_INSTALLED
 } from "../../src/erc7579-smartaccount/types/Constants.sol";
 import { ValidatorLib } from "../../src/erc7579-smartaccount/utils/ValidationTypeLib.sol";
+import { ExecLib } from "../../src/erc7579-smartaccount/utils/ExecLib.sol";
+import { ExecMode, ExecModePayload, CallType } from "../../src/erc7579-smartaccount/types/Types.sol";
+import {
+    CALLTYPE_SINGLE,
+    CALLTYPE_BATCH,
+    EXECTYPE_DEFAULT,
+    EXEC_MODE_DEFAULT
+} from "../../src/erc7579-smartaccount/types/Constants.sol";
+import { Execution } from "../../src/erc7579-smartaccount/types/Structs.sol";
 
 /// @notice Minimal executor mock for guard testing
 contract MockGuardExecutor {
@@ -47,6 +56,41 @@ contract RevertingUninstallExecutor {
 
     function isModuleType(uint256 moduleTypeId) external pure returns (bool) {
         return moduleTypeId == 2;
+    }
+}
+
+/// @notice Executor that tries to make the account call itself (privilege escalation)
+contract SelfCallingExecutor {
+    function onInstall(bytes calldata) external payable { }
+    function onUninstall(bytes calldata) external payable { }
+
+    function isModuleType(uint256 moduleTypeId) external pure returns (bool) {
+        return moduleTypeId == 2;
+    }
+
+    /// @dev Single execution whose target is the account itself
+    function directSelfCall(address account, bytes calldata selfCallData) external {
+        Kernel(payable(account))
+            .executeFromExecutor(_mode(CALLTYPE_SINGLE), ExecLib.encodeSingle(account, 0, selfCallData));
+    }
+
+    /// @dev Batch: item 0 re-enters executeFromExecutor (clearing a non-nesting flag on return),
+    ///      item 1 makes the account call itself.
+    function nestedSelfCall(address account, bytes calldata selfCallData) external {
+        Execution[] memory executions = new Execution[](2);
+        executions[0] =
+            Execution({ target: address(this), value: 0, callData: abi.encodeCall(this.reenter, (account)) });
+        executions[1] = Execution({ target: account, value: 0, callData: selfCallData });
+        Kernel(payable(account)).executeFromExecutor(_mode(CALLTYPE_BATCH), ExecLib.encodeBatch(executions));
+    }
+
+    function reenter(address account) external {
+        Kernel(payable(account))
+            .executeFromExecutor(_mode(CALLTYPE_SINGLE), ExecLib.encodeSingle(address(0xdead), 0, ""));
+    }
+
+    function _mode(CallType callType) internal pure returns (ExecMode) {
+        return ExecLib.encode(callType, EXECTYPE_DEFAULT, EXEC_MODE_DEFAULT, ExecModePayload.wrap(bytes22(0)));
     }
 }
 
@@ -295,6 +339,32 @@ contract KernelModuleGuardsTest is Test {
         );
     }
 
+    /* //////////////////////////////////////////////////////////////
+                    executor context — no self-call escalation
+    //////////////////////////////////////////////////////////////*/
+
+    function test_ExecutorDirectSelfCall_Reverts() public {
+        address account = _createKernelAccount();
+        SelfCallingExecutor executor = _installSelfCallingExecutor(account);
+        bytes memory escalate = _installExecutorCall(address(new MockGuardExecutor()));
+
+        vm.expectRevert(Kernel.ExecutorCannotCallSelf.selector);
+        executor.directSelfCall(account, escalate);
+    }
+
+    /// @dev Regression: the executor-context flag must survive a nested executeFromExecutor.
+    ///      Before the fix the inner call reset the flag to 0 and the later self-call succeeded.
+    function test_ExecutorNestedSelfCall_Reverts() public {
+        address account = _createKernelAccount();
+        SelfCallingExecutor executor = _installSelfCallingExecutor(account);
+        MockGuardExecutor rogue = new MockGuardExecutor();
+
+        vm.expectRevert(Kernel.ExecutorCannotCallSelf.selector);
+        executor.nestedSelfCall(account, _installExecutorCall(address(rogue)));
+
+        assertFalse(Kernel(payable(account)).isModuleInstalled(MODULE_TYPE_EXECUTOR, address(rogue), ""));
+    }
+
     function test_KernelRuntimeFitsEip170() public view {
         assertLe(address(kernelImpl).code.length, 24_576);
     }
@@ -368,6 +438,16 @@ contract KernelModuleGuardsTest is Test {
         // KernelFactory requires calls from EntryPoint's SenderCreator
         vm.prank(senderCreator);
         return kernelFactory.createAccount(initData, salt);
+    }
+
+    function _installSelfCallingExecutor(address account) internal returns (SelfCallingExecutor executor) {
+        executor = new SelfCallingExecutor();
+        vm.prank(account);
+        Kernel(payable(account)).installModule(MODULE_TYPE_EXECUTOR, address(executor), _executorInitData());
+    }
+
+    function _installExecutorCall(address module) internal pure returns (bytes memory) {
+        return abi.encodeCall(Kernel.installModule, (MODULE_TYPE_EXECUTOR, module, _executorInitData()));
     }
 
     /// @dev Validator initData: hook(20) + abi.encode(validatorData, hookData, selectorData)

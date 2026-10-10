@@ -164,6 +164,12 @@ contract DeployBridgeScript is DeploymentHelper {
             console.log("SecureBridge: Using existing at", existing);
         }
 
+        // Only the bridge may consume validator nonces
+        if (bridgeValidator.authorizedBridge() != address(secureBridge)) {
+            bridgeValidator.setAuthorizedBridge(address(secureBridge));
+            console.log("BridgeValidator: authorized bridge set to", address(secureBridge));
+        }
+
         vm.stopBroadcast();
 
         _saveAddresses();
@@ -311,6 +317,7 @@ contract BridgeDeploymentHelper {
         );
 
         // Post-deployment configuration: Set up cross-contract authorizations
+        artifacts.bridgeValidator.setAuthorizedBridge(address(artifacts.secureBridge));
         artifacts.bridgeRateLimiter.setAuthorizedCaller(address(artifacts.secureBridge), true);
         artifacts.optimisticVerifier.setAuthorizedCaller(address(artifacts.secureBridge), true);
         artifacts.bridgeGuardian.setBridgeTarget(address(artifacts.secureBridge));
