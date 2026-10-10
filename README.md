@@ -192,6 +192,7 @@ src/
 ## Documentation
 
 - [Architecture](./docs/ARCHITECTURE.md) — System design and contract dependencies
+- [Supported Features](./docs/FEATURES.md) — Per-module feature list, known limitations, test coverage
 - [Deployment Details](./docs/DEPLOYMENT.md) — Dependency order, post-deploy config, troubleshooting
 
 ## License

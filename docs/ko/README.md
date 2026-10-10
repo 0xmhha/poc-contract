@@ -229,6 +229,7 @@ FOUNDRY_PROFILE=bridge forge script script/deploy-contract/DeployBridge.s.sol:De
 
 - [배포 가이드](./DEPLOYMENT.md) - 상세 배포 방법
 - [아키텍처](./ARCHITECTURE.md) - 컨트랙트 구조 및 의존성
+- [지원 기능 목록](./FEATURES.md) - 모듈별 기능, 알려진 제약, 테스트 현황
 - [개발 가이드](./DEVELOPMENT.md) - 개발 워크플로우
 
 ## 프로젝트 설정
