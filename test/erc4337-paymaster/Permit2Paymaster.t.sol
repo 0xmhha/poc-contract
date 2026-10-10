@@ -319,6 +319,49 @@ contract Permit2PaymasterTest is Test {
         paymaster.validatePaymasterUserOp(userOp, bytes32(0), 0.001 ether);
     }
 
+    function test_getTokenAmount_revertIfFutureTimestamp() public {
+        vm.warp(1_000_000);
+        oracle.setPriceWithTimestamp(address(token), 5e14, block.timestamp + 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Permit2Paymaster.StalePrice.selector, block.timestamp + 1, paymaster.MAX_PRICE_STALENESS()
+            )
+        );
+        paymaster.getTokenAmount(address(token), 0.001 ether);
+    }
+
+    function test_updateReferencePrice_onlyOwner() public {
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
+        paymaster.updateReferencePrice(address(token));
+
+        vm.prank(owner);
+        paymaster.updateReferencePrice(address(token));
+        assertEq(paymaster.referencePrice(address(token)), 5e14);
+    }
+
+    function test_getTokenAmount_revertIfPriceDeviatesFromReference() public {
+        vm.prank(owner);
+        paymaster.updateReferencePrice(address(token));
+
+        // 30% drop exceeds the 20% circuit breaker
+        oracle.setPrice(address(token), 3.5e14);
+
+        vm.expectRevert(abi.encodeWithSelector(Permit2Paymaster.PriceDeviationTooHigh.selector, 3.5e14, 5e14));
+        paymaster.getTokenAmount(address(token), 0.001 ether);
+    }
+
+    function test_getTokenAmount_allowsPriceWithinDeviation() public {
+        vm.prank(owner);
+        paymaster.updateReferencePrice(address(token));
+
+        // 10% move stays within the 20% circuit breaker
+        oracle.setPrice(address(token), 5.5e14);
+
+        assertGt(paymaster.getTokenAmount(address(token), 0.001 ether), 0);
+    }
+
     // ============ Helper Functions ============
 
     function _createSampleUserOp(address sender, address payToken) internal view returns (PackedUserOperation memory) {

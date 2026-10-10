@@ -53,10 +53,11 @@ library ExecLib {
             //   EIP-4337 bundlers trace the full execution; unexpected storage writes from
             //   delegatecall targets may violate simulation rules.
             //   Resolution: Delegatecall is supported but callers (Kernel.execute,
-            //   executeFromExecutor) must ensure the delegate target is trusted. Currently
-            //   there is no on-chain whitelist for delegatecall targets — access control relies
-            //   on the validator/executor permission model. Consider adding a registry-based
-            //   target restriction for higher security guarantees.
+            //   executeFromExecutor, fallback) must ensure the delegate target is trusted.
+            //   Kernel checks the target against its on-chain delegatecall whitelist before
+            //   calling here (Kernel._checkDelegatecallTarget), but the whitelist is only
+            //   enforced after setEnforceDelegatecallWhitelist(true); by default any target
+            //   is allowed and access control relies on the validator/executor permission model.
             returnData = new bytes[](1);
             (address delegate, bytes calldata callData) = LibERC7579.decodeDelegate(executionCalldata);
             bool success;

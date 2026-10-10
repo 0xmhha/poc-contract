@@ -67,8 +67,14 @@ contract Permit2Paymaster is BasePaymaster {
     /// @notice Maximum staleness for price data (1 hour)
     uint256 public constant MAX_PRICE_STALENESS = 1 hours;
 
+    /// @notice Maximum allowed price deviation from cached price (20%)
+    uint256 public constant MAX_PRICE_DEVIATION = 2000;
+
     /// @notice Minimum token charge to prevent dust/zero-cost attacks
     uint256 public constant MIN_TOKEN_CHARGE = 1;
+
+    /// @notice Cached reference price per token for circuit breaker
+    mapping(address => uint256) public referencePrice;
 
     /// @notice Supported tokens whitelist
     mapping(address => bool) public supportedTokens;
@@ -96,6 +102,7 @@ contract Permit2Paymaster is BasePaymaster {
     error Permit2CannotBeZero();
     error StalePrice(uint256 updatedAt, uint256 maxAge);
     error InvalidPrice();
+    error PriceDeviationTooHigh(uint256 currentPrice, uint256 refPrice);
     error PermitFailed();
     error TransferFailed();
     error InvalidTokenDecimals(address token);
@@ -180,7 +187,22 @@ contract Permit2Paymaster is BasePaymaster {
         // Sanity check: reject zero or invalid price (consistent with ERC20Paymaster)
         if (tokenPrice == 0) revert InvalidPrice();
 
-        if (block.timestamp - updatedAt > MAX_PRICE_STALENESS) {
+        // Circuit breaker: reject if price deviates too much from reference
+        uint256 refPrice = referencePrice[token];
+        if (refPrice > 0) {
+            uint256 deviation;
+            if (tokenPrice > refPrice) {
+                deviation = ((tokenPrice - refPrice) * BASIS_POINTS) / refPrice;
+            } else {
+                deviation = ((refPrice - tokenPrice) * BASIS_POINTS) / refPrice;
+            }
+            if (deviation > MAX_PRICE_DEVIATION) {
+                revert PriceDeviationTooHigh(tokenPrice, refPrice);
+            }
+        }
+
+        // Check staleness (a future timestamp is treated as stale)
+        if (updatedAt > block.timestamp || block.timestamp - updatedAt > MAX_PRICE_STALENESS) {
             revert StalePrice(updatedAt, MAX_PRICE_STALENESS);
         }
 
@@ -324,6 +346,16 @@ contract Permit2Paymaster is BasePaymaster {
 
             emit GasPaidWithPermit2(ctx.sender, ctx.token, actualTokenCost, actualGasCost);
         }
+    }
+
+    /**
+     * @notice Update the reference price for circuit breaker
+     * @param token Token address
+     */
+    function updateReferencePrice(address token) external onlyOwner {
+        (uint256 tokenPrice,) = oracle.getPriceWithTimestamp(token);
+        if (tokenPrice == 0) revert InvalidPrice();
+        referencePrice[token] = tokenPrice;
     }
 
     /**
