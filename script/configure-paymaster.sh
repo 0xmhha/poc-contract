@@ -17,6 +17,7 @@
 #   remove-token <token>        Remove supported token from ERC20Paymaster
 #   set-markup <bps>            Set markup (500-5000 basis points)
 #   token-info <token>          Show token configuration and price quote
+#   set-reference-price <token> Anchor price circuit breaker (ERC20 + Permit2 paymasters)
 #
 #   # SponsorPaymaster
 #   whitelist <address>         Add address to whitelist

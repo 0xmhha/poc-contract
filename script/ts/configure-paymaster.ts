@@ -15,6 +15,8 @@
  *   remove-token <token>        Remove supported token from ERC20Paymaster
  *   set-markup <bps>            Set markup (500-5000 basis points)
  *   token-info <token>          Show token configuration and price quote
+ *   set-reference-price <token> Anchor the price circuit breaker to the current oracle price
+ *                               (ERC20Paymaster and Permit2Paymaster, if deployed)
  *
  *   # SponsorPaymaster
  *   whitelist <address>         Add address to whitelist
@@ -258,6 +260,10 @@ function showTokenInfo(
     const oracle = execCast(["call", paymaster, "oracle()(address)"], { rpcUrl });
     console.log(`Oracle: ${oracle}`);
 
+    // Reference price (0 = price circuit breaker off for this token)
+    const refPrice = execCast(["call", paymaster, "referencePrice(address)(uint256)", token], { rpcUrl });
+    console.log(`Reference Price: ${refPrice}${refPrice === "0" ? " (circuit breaker off)" : ""}`);
+
     // Get quote for 0.01 ETH worth of gas
     if (isSupported === "true") {
       try {
@@ -274,6 +280,23 @@ function showTokenInfo(
     console.error(`Error fetching token info: ${error}`);
   }
   console.log("=".repeat(60));
+}
+
+function setReferencePrice(
+  paymaster: string,
+  name: string,
+  token: string,
+  rpcUrl: string,
+  privateKey: string
+): void {
+  console.log(`\nUpdating reference price on ${name}...`);
+  console.log(`  Paymaster: ${paymaster}`);
+  console.log(`  Token: ${token}`);
+
+  sendTransaction(paymaster, "updateReferencePrice(address)", [token], rpcUrl, privateKey);
+
+  const refPrice = execCast(["call", paymaster, "referencePrice(address)(uint256)", token], { rpcUrl });
+  console.log(`  ✅ Reference price set: ${refPrice}`);
 }
 
 // ============ SponsorPaymaster Functions ============
@@ -654,6 +677,7 @@ async function main(): Promise<void> {
     "add-token",
     "remove-token",
     "set-markup",
+    "set-reference-price",
     "whitelist",
     "unwhitelist",
     "whitelist-batch",
@@ -668,6 +692,7 @@ async function main(): Promise<void> {
   }
 
   const erc20Paymaster = addresses["erc20Paymaster"];
+  const permit2Paymaster = addresses["permit2Paymaster"];
   const sponsorPaymaster = addresses["sponsorPaymaster"];
 
   switch (command) {
@@ -711,6 +736,25 @@ async function main(): Promise<void> {
         process.exit(1);
       }
       setMarkup(erc20Paymaster, markup, rpcUrl, privateKey);
+      break;
+    }
+
+    case "set-reference-price": {
+      const token = args[1];
+      if (!token) {
+        console.error("Usage: set-reference-price <token-address>");
+        process.exit(1);
+      }
+      if (!erc20Paymaster && !permit2Paymaster) {
+        console.error("No token paymaster deployed");
+        process.exit(1);
+      }
+      if (erc20Paymaster) {
+        setReferencePrice(erc20Paymaster, "ERC20Paymaster", token, rpcUrl, privateKey);
+      }
+      if (permit2Paymaster) {
+        setReferencePrice(permit2Paymaster, "Permit2Paymaster", token, rpcUrl, privateKey);
+      }
       break;
     }
 
@@ -845,6 +889,7 @@ async function main(): Promise<void> {
       console.error("    remove-token <token>        - Remove supported token");
       console.error("    set-markup <bps>            - Set markup (500-5000 basis points)");
       console.error("    token-info <token>          - Show token info");
+      console.error("    set-reference-price <token> - Anchor price circuit breaker (ERC20 + Permit2 paymasters)");
       console.error("\n  SponsorPaymaster:");
       console.error("    whitelist <address>         - Add to whitelist");
       console.error("    unwhitelist <address>       - Remove from whitelist");
