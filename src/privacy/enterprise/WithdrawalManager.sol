@@ -115,6 +115,10 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
     bytes32 public constant WITHDRAWAL_ADMIN_ROLE = keccak256("WITHDRAWAL_ADMIN_ROLE");
     bytes32 public constant APPROVER_ROLE = keccak256("APPROVER_ROLE");
     bytes32 public constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE");
+    /// @notice Operators allowed to open withdrawal requests. Ownership of the deposit is
+    ///         verified off-chain by the operator; stealth owners withdraw directly through
+    ///         StealthVault.withdraw.
+    bytes32 public constant REQUESTER_ROLE = keccak256("REQUESTER_ROLE");
 
     /* //////////////////////////////////////////////////////////////
                               CONSTANTS
@@ -163,6 +167,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
         _grantRole(WITHDRAWAL_ADMIN_ROLE, _admin);
         _grantRole(APPROVER_ROLE, _admin);
         _grantRole(EXECUTOR_ROLE, _admin);
+        _grantRole(REQUESTER_ROLE, _admin);
 
         cooldownPeriod = _cooldownPeriod;
         approvalThreshold = _approvalThreshold;
@@ -174,6 +179,8 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
 
     /**
      * @notice Request a withdrawal
+     * @dev Restricted to REQUESTER_ROLE: the contract does not check that the caller owns the
+     *      deposit, and requests below approvalThreshold can be executed without approval.
      * @param depositId The deposit ID to withdraw from
      * @param recipient The recipient address
      * @param token The token address
@@ -182,6 +189,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
      */
     function requestWithdrawal(bytes32 depositId, address recipient, address token, uint256 amount)
         external
+        onlyRole(REQUESTER_ROLE)
         whenNotPaused
         nonReentrant
         returns (bytes32 requestId)
