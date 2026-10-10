@@ -156,6 +156,23 @@ contract SecureBridgeTest is Test {
 
     // ============ Initiate Bridge Tests ============
 
+    /// @notice The rate limiter must attribute bridge volume to the sender.
+    ///         Before the fix SecureBridge called the sender-less check, so per-address
+    ///         daily volume was never recorded.
+    function test_InitiateBridge_RecordsSenderVolume() public {
+        address sender = makeAddr("sender");
+        uint256 amount = 1000 * 1e18;
+        token.mint(sender, amount);
+        vm.startPrank(sender);
+        token.approve(address(bridge), amount);
+        bridge.initiateBridge(address(token), amount, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours);
+        vm.stopPrank();
+
+        (uint256 volume,, uint256 transactionCount) = rateLimiter.addressDailyVolume(sender);
+        assertGt(volume, 0);
+        assertEq(transactionCount, 1);
+    }
+
     function test_InitiateBridge_ERC20() public {
         address sender = makeAddr("sender");
         address recipient = makeAddr("recipient");

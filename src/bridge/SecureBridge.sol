@@ -198,8 +198,8 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         if (guardian.isBlacklisted(msg.sender)) revert Blacklisted();
         if (guardian.isBlacklisted(recipient)) revert Blacklisted();
 
-        // Check rate limits
-        (bool allowed,) = rateLimiter.checkAndRecordTransaction(token, amount);
+        // Check rate limits and attribute the volume to the sender
+        (bool allowed,) = rateLimiter.checkAndRecordTransactionWithSender(token, amount, msg.sender);
         if (!allowed) revert RateLimitExceeded();
 
         // Calculate fee
