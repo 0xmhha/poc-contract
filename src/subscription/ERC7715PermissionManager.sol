@@ -95,6 +95,16 @@ interface IERC7715PermissionManager {
 
     function revokePermission(bytes32 permissionId) external;
 
+    function hashPermissionGrant(
+        address granter,
+        address grantee,
+        address target,
+        Permission calldata permission,
+        Rule[] calldata rules,
+        uint256 nonce,
+        uint256 deadline
+    ) external view returns (bytes32 digest);
+
     function adjustPermission(bytes32 permissionId, bytes calldata newData) external;
 
     function usePermission(bytes32 permissionId, uint256 amount) external returns (bool);
@@ -160,9 +170,14 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
     bytes32 public immutable DOMAIN_SEPARATOR;
 
     /// @notice EIP-712 type hash for permission grants
+    /// @dev rulesHash is keccak256 of the concatenated RULE_TYPEHASH struct hashes, in order,
+    ///      so a relayer cannot add, drop or reorder the rules the granter signed.
     bytes32 public constant PERMISSION_GRANT_TYPEHASH = keccak256(
-        "PermissionGrant(address granter,address grantee,address target,bytes32 permissionTypeHash,bytes32 dataHash,uint256 nonce,uint256 deadline)"
+        "PermissionGrant(address granter,address grantee,address target,bytes32 permissionTypeHash,bytes32 dataHash,bytes32 rulesHash,uint256 nonce,uint256 deadline)"
     );
+
+    /// @notice EIP-712 type hash for one rule inside rulesHash
+    bytes32 public constant RULE_TYPEHASH = keccak256("Rule(string ruleType,bytes data)");
 
     /* //////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -260,6 +275,55 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
         nonces[granter] = currentNonce + 1;
 
         // Build and verify signature
+        bytes32 digest = _hashPermissionGrant(granter, grantee, target, permission, rules, currentNonce, deadline);
+
+        address recovered = digest.recover(signature);
+        if (recovered != granter || recovered == address(0)) {
+            revert InvalidSignature();
+        }
+
+        return _grantPermissionWithNonce(granter, grantee, target, permission, rules, currentNonce);
+    }
+
+    /**
+     * @notice EIP-712 digest a granter signs for grantPermissionWithSignature
+     * @param granter Account granting the permission
+     * @param grantee Account receiving the permission
+     * @param target Target contract
+     * @param permission Permission details
+     * @param rules Rules to apply to the permission
+     * @param nonce Granter nonce (nonces[granter] at signing time)
+     * @param deadline Signature validity deadline
+     * @return digest The digest to sign
+     */
+    function hashPermissionGrant(
+        address granter,
+        address grantee,
+        address target,
+        Permission calldata permission,
+        Rule[] calldata rules,
+        uint256 nonce,
+        uint256 deadline
+    ) external view override returns (bytes32 digest) {
+        return _hashPermissionGrant(granter, grantee, target, permission, rules, nonce, deadline);
+    }
+
+    function _hashPermissionGrant(
+        address granter,
+        address grantee,
+        address target,
+        Permission calldata permission,
+        Rule[] calldata rules,
+        uint256 nonce,
+        uint256 deadline
+    ) internal view returns (bytes32) {
+        bytes32[] memory ruleHashes = new bytes32[](rules.length);
+        for (uint256 i = 0; i < rules.length; i++) {
+            // forge-lint: disable-next-line(asm-keccak256)
+            ruleHashes[i] =
+                keccak256(abi.encode(RULE_TYPEHASH, keccak256(bytes(rules[i].ruleType)), keccak256(rules[i].data)));
+        }
+
         // forge-lint: disable-next-line(asm-keccak256)
         bytes32 structHash = keccak256(
             abi.encode(
@@ -269,20 +333,13 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
                 target,
                 keccak256(bytes(permission.permissionType)),
                 keccak256(permission.data),
-                currentNonce,
+                keccak256(abi.encodePacked(ruleHashes)),
+                nonce,
                 deadline
             )
         );
-
         // forge-lint: disable-next-line(asm-keccak256)
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
-
-        address recovered = digest.recover(signature);
-        if (recovered != granter || recovered == address(0)) {
-            revert InvalidSignature();
-        }
-
-        return _grantPermissionWithNonce(granter, grantee, target, permission, rules, currentNonce);
+        return keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
     }
 
     /**
