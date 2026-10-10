@@ -11,6 +11,7 @@ import { UserOperationLib } from "../erc4337-entrypoint/UserOperationLib.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { PaymasterDataLib } from "./PaymasterDataLib.sol";
 import { PaymasterPayload } from "./PaymasterPayload.sol";
 
@@ -27,13 +28,19 @@ import { PaymasterPayload } from "./PaymasterPayload.sol";
  *
  * [Staking Requirement]
  *   This paymaster returns non-empty context and uses postOp, which requires staking
- *   on the EntryPoint per ERC-7562. It also calls Permit2.permit() during validation
- *   (external storage write), which strictly requires staking. Call addStake() after deployment.
+ *   on the EntryPoint per ERC-7562. It also calls Permit2.permit() and Permit2.transferFrom()
+ *   during validation (external storage writes), which strictly requires staking.
+ *   Call addStake() after deployment.
  *
  * Flow:
  * 1. User signs Permit2 permit off-chain
- * 2. validatePaymasterUserOp decodes envelope, executes permit to approve this paymaster
- * 3. postOp transfers tokens using Permit2's transferFrom
+ * 2. validatePaymasterUserOp decodes envelope, executes permit to approve this paymaster,
+ *    and pre-charges the max token cost through Permit2's transferFrom
+ * 3. postOp refunds the unused part of the pre-charge to the user
+ *
+ * Pre-charging matters: if postOp reverts, the EntryPoint rolls back the user's execution
+ * but still charges this paymaster's deposit. Collecting tokens only in postOp would let a
+ * user with too small a permit or balance get gas for free.
  */
 contract Permit2Paymaster is BasePaymaster {
     using SafeERC20 for IERC20;
@@ -219,8 +226,11 @@ contract Permit2Paymaster is BasePaymaster {
             revert UnsupportedToken(payload.token);
         }
 
-        // Calculate max token cost
+        // Calculate max token cost (never below the minimum charge collected in postOp)
         uint256 maxTokenCost = getTokenAmount(payload.token, maxCost);
+        if (maxTokenCost < MIN_TOKEN_CHARGE) {
+            maxTokenCost = MIN_TOKEN_CHARGE;
+        }
 
         // Execute Permit2 permit to approve this paymaster
         IAllowanceTransfer.PermitSingle memory permitSingle = IAllowanceTransfer.PermitSingle({
@@ -261,6 +271,11 @@ contract Permit2Paymaster is BasePaymaster {
             }
         }
 
+        // Pre-charge so the paymaster is paid even if postOp later reverts. This is a second
+        // external storage write in validation (same bundler constraint as permit above), and
+        // it reverts here if the permitted amount or the user's balance is too small.
+        PERMIT2.transferFrom(userOp.sender, address(this), SafeCast.toUint160(maxTokenCost), payload.token);
+
         // Encode context for postOp
         context = abi.encode(
             PostOpContext({ sender: userOp.sender, token: payload.token, maxTokenCost: maxTokenCost, maxCost: maxCost })
@@ -270,7 +285,7 @@ contract Permit2Paymaster is BasePaymaster {
     }
 
     /**
-     * @notice Post-operation handler - collect token payment via Permit2
+     * @notice Post-operation handler - refund the unused part of the pre-charge
      * @param mode Operation result mode
      * @param context Encoded PostOpContext
      * @param actualGasCost Actual gas cost in native currency
@@ -294,18 +309,18 @@ contract Permit2Paymaster is BasePaymaster {
         if (actualTokenCost < MIN_TOKEN_CHARGE) {
             actualTokenCost = MIN_TOKEN_CHARGE;
         }
+        if (actualTokenCost > ctx.maxTokenCost) {
+            actualTokenCost = ctx.maxTokenCost;
+        }
 
-        // Transfer tokens via Permit2.
+        // Refund the unused pre-charge directly (the paymaster holds the tokens now).
         // In v0.9, the EntryPoint settles from prefund if postOp reverts — it does NOT
         // re-call postOp with postOpReverted mode. This guard is kept for safety.
         if (mode != PostOpMode.postOpReverted) {
-            // Casting to 'uint160' is safe because actualTokenCost = maxTokenCost * actualGasCost / maxCost.
-            // maxTokenCost is bounded by oracle price and token decimals (typically 6-18), and actualGasCost
-            // is bounded by block gas limit × gas price. The resulting value fits within uint160.
-            // forge-lint: disable-next-line(unsafe-typecast)
-            uint160 transferAmount = uint160(actualTokenCost);
-
-            PERMIT2.transferFrom(ctx.sender, address(this), transferAmount, ctx.token);
+            uint256 refund = ctx.maxTokenCost - actualTokenCost;
+            if (refund > 0) {
+                IERC20(ctx.token).safeTransfer(ctx.sender, refund);
+            }
 
             emit GasPaidWithPermit2(ctx.sender, ctx.token, actualTokenCost, actualGasCost);
         }

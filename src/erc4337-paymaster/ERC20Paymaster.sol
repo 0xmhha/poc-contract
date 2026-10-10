@@ -25,14 +25,19 @@ import { PaymasterPayload } from "./PaymasterPayload.sol";
  *
  * Flow:
  * 1. User pre-approves tokens to this paymaster
- * 2. validatePaymasterUserOp decodes envelope, checks balance and calculates max token cost
- * 3. postOp transfers actual token cost from user to paymaster
+ * 2. validatePaymasterUserOp decodes envelope, calculates max token cost and
+ *    pre-charges it from the user
+ * 3. postOp refunds the unused part of the pre-charge to the user
+ *
+ * Pre-charging matters: if postOp reverts, the EntryPoint rolls back the user's execution
+ * but still charges this paymaster's deposit. Collecting tokens only in postOp would let a
+ * user move the tokens away during execution and get gas for free.
  *
  * [Staking Requirement]
  *   This paymaster returns non-empty context and uses postOp, which requires staking
- *   on the EntryPoint per ERC-7562. Additionally, it reads external ERC-20 storage
- *   (balanceOf/allowance) during validation, which also requires staking to relax
- *   associated storage rules. Call addStake() after deployment.
+ *   on the EntryPoint per ERC-7562. Additionally, it reads and writes external ERC-20
+ *   storage (balanceOf/allowance/transferFrom) during validation, which also requires
+ *   staking to relax associated storage rules. Call addStake() after deployment.
  */
 contract ERC20Paymaster is BasePaymaster {
     using SafeERC20 for IERC20;
@@ -216,7 +221,6 @@ contract ERC20Paymaster is BasePaymaster {
      */
     function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
         internal
-        view
         override
         returns (bytes memory context, uint256 validationData)
     {
@@ -240,19 +244,19 @@ contract ERC20Paymaster is BasePaymaster {
             revert UnsupportedToken(payload.token);
         }
 
-        // Calculate max token cost
+        // Calculate max token cost (never below the minimum charge collected in postOp)
         uint256 maxTokenCost = getTokenAmount(payload.token, maxCost);
+        if (maxTokenCost < MIN_TOKEN_CHARGE) {
+            maxTokenCost = MIN_TOKEN_CHARGE;
+        }
 
-        // Check user has enough balance and allowance.
+        // Check user has enough balance and allowance, then pre-charge the max token cost.
         //
-        // [EIP-4337 Bundler Compatibility Warning — External Storage Read in Validation]
-        //   These calls read storage from an external ERC-20 contract during validation.
-        //   EIP-4337's associated storage rule restricts which storage slots can be accessed
-        //   during validation. Arbitrary ERC-20 contract reads may violate this rule, causing
-        //   strict bundlers to reject the UserOp.
-        //   Options to resolve:
-        //   (A) Remove balance/allowance checks here; rely on _postOp's safeTransferFrom failure
-        //   (B) Operate as a staked paymaster to relax the storage access restriction
+        // [EIP-4337 Bundler Compatibility Warning — External Storage Access in Validation]
+        //   These calls read and write storage of an external ERC-20 contract during validation.
+        //   The touched slots (the sender's and this paymaster's balance, the sender's allowance)
+        //   are associated with the sender or this paymaster, which ERC-7562 allows for a
+        //   staked paymaster. Unstaked, strict bundlers will reject the UserOp.
         uint256 balance = IERC20(payload.token).balanceOf(userOp.sender);
         if (balance < maxTokenCost) {
             revert InsufficientTokenBalance(maxTokenCost, balance);
@@ -263,6 +267,9 @@ contract ERC20Paymaster is BasePaymaster {
             revert InsufficientTokenAllowance(maxTokenCost, allowance);
         }
 
+        // Pre-charge so the paymaster is paid even if postOp later reverts
+        IERC20(payload.token).safeTransferFrom(userOp.sender, address(this), maxTokenCost);
+
         // Encode context for postOp
         context = abi.encode(
             PostOpContext({ sender: userOp.sender, token: payload.token, maxTokenCost: maxTokenCost, maxCost: maxCost })
@@ -272,7 +279,7 @@ contract ERC20Paymaster is BasePaymaster {
     }
 
     /**
-     * @notice Post-operation handler - collect token payment
+     * @notice Post-operation handler - refund the unused part of the pre-charge
      * @param mode Operation result mode
      * @param context Encoded PostOpContext
      * @param actualGasCost Actual gas cost in native currency
@@ -298,14 +305,19 @@ contract ERC20Paymaster is BasePaymaster {
         if (actualTokenCost < MIN_TOKEN_CHARGE) {
             actualTokenCost = MIN_TOKEN_CHARGE;
         }
+        if (actualTokenCost > ctx.maxTokenCost) {
+            actualTokenCost = ctx.maxTokenCost;
+        }
 
-        // Transfer tokens from user to paymaster.
-        // Note: If safeTransferFrom fails, postOp reverts and the paymaster absorbs the gas cost
-        // from its EntryPoint deposit (prefund). In v0.9, the EntryPoint handles postOp revert
-        // internally and settles from the prefund — it does NOT re-call postOp with postOpReverted.
-        // The postOpReverted guard below is thus never triggered in v0.9 but is kept for safety.
+        // Refund the unused pre-charge. If this reverts, the EntryPoint rolls back the
+        // execution and charges the deposit, but the paymaster keeps the full pre-charge.
+        // In v0.9 the EntryPoint does NOT re-call postOp with postOpReverted; the guard
+        // below is kept for safety.
         if (mode != PostOpMode.postOpReverted) {
-            IERC20(ctx.token).safeTransferFrom(ctx.sender, address(this), actualTokenCost);
+            uint256 refund = ctx.maxTokenCost - actualTokenCost;
+            if (refund > 0) {
+                IERC20(ctx.token).safeTransfer(ctx.sender, refund);
+            }
             emit GasPaidWithToken(ctx.sender, ctx.token, actualTokenCost, actualGasCost);
         }
     }
