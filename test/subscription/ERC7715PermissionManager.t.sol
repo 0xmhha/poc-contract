@@ -156,6 +156,7 @@ contract ERC7715PermissionManagerTest is Test {
                 target,
                 keccak256(bytes(defaultPermission.permissionType)),
                 keccak256(defaultPermission.data),
+                keccak256(""), // rulesHash of an empty rule list
                 manager.nonces(granter),
                 deadline
             )
@@ -195,6 +196,56 @@ contract ERC7715PermissionManagerTest is Test {
         manager.grantPermissionWithSignature(
             granter, grantee, target, defaultPermission, defaultRules, deadline, signature
         );
+    }
+
+    /// @notice A relayer must not be able to change the rules the granter signed.
+    ///         Before the fix the signed struct did not cover rules, so a relayer could
+    ///         drop the expiry rule and turn a time-limited permission into a permanent one.
+    function test_GrantPermissionWithSignature_RevertsWhenRulesChanged() public {
+        vm.warp(1 days);
+        uint256 deadline = block.timestamp + 1 hours;
+
+        IERC7715PermissionManager.Rule[] memory signedRules = new IERC7715PermissionManager.Rule[](1);
+        signedRules[0] =
+            IERC7715PermissionManager.Rule({ ruleType: "expiry", data: abi.encode(block.timestamp + 1 days) });
+
+        bytes memory signature = _signGrant(signedRules, deadline);
+
+        IERC7715PermissionManager.Rule[] memory noRules = new IERC7715PermissionManager.Rule[](0);
+        vm.prank(makeAddr("relayer"));
+        vm.expectRevert(IERC7715PermissionManager.InvalidSignature.selector);
+        manager.grantPermissionWithSignature(granter, grantee, target, defaultPermission, noRules, deadline, signature);
+    }
+
+    function test_GrantPermissionWithSignature_SignedRulesApplied() public {
+        vm.warp(1 days);
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 expiry = block.timestamp + 1 days;
+
+        IERC7715PermissionManager.Rule[] memory rules = new IERC7715PermissionManager.Rule[](1);
+        rules[0] = IERC7715PermissionManager.Rule({ ruleType: "expiry", data: abi.encode(expiry) });
+
+        bytes memory signature = _signGrant(rules, deadline);
+        vm.prank(makeAddr("relayer"));
+        bytes32 permissionId = manager.grantPermissionWithSignature(
+            granter, grantee, target, defaultPermission, rules, deadline, signature
+        );
+
+        assertTrue(manager.isPermissionValid(permissionId));
+        vm.warp(expiry + 1);
+        assertFalse(manager.isPermissionValid(permissionId));
+    }
+
+    function _signGrant(IERC7715PermissionManager.Rule[] memory rules, uint256 deadline)
+        internal
+        view
+        returns (bytes memory)
+    {
+        bytes32 digest = manager.hashPermissionGrant(
+            granter, grantee, target, defaultPermission, rules, manager.nonces(granter), deadline
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(granterKey, digest);
+        return abi.encodePacked(r, s, v);
     }
 
     // ============ RevokePermission Tests ============
