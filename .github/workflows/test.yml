@@ -38,6 +38,9 @@ jobs:
       - name: Run Forge tests
         run: forge test -vvv
 
+      - name: Check indexer venue ABIs are current
+        run: ./script/export-venue-abi.sh --check
+
   platform-compatibility:
     name: Platform compatibility
     runs-on: ubuntu-latest
