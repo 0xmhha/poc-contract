@@ -5,6 +5,9 @@ import { Test } from "forge-std/Test.sol";
 import { LendingPool } from "../../src/defi/LendingPool.sol";
 import { ILendingPool } from "../../src/defi/interfaces/ILendingPool.sol";
 import { MockERC20 as LMock, MockPriceOracle, MockFlashLoanReceiver } from "./LendingPool.t.sol";
+import { StakingVault } from "../../src/defi/StakingVault.sol";
+import { IStakingVault } from "../../src/defi/interfaces/IStakingVault.sol";
+import { MockERC20 as SMock } from "./StakingVault.t.sol";
 
 /// @notice Regression tests for audited DeFi defects
 contract LendingPoolAuditRegressionTest is Test {
@@ -211,5 +214,98 @@ contract LendingPoolAuditRegressionTest is Test {
         usdc.approve(address(pool), type(uint256).max);
         vm.expectRevert(LendingPool.HealthFactorOk.selector);
         pool.liquidate(address(weth), address(usdc), bob, 1000e18);
+    }
+}
+
+/// @notice Regression tests for audited StakingVault defects
+contract StakingVaultAuditRegressionTest is Test {
+    address internal alice = makeAddr("alice");
+    address internal bob = makeAddr("bob");
+
+    function _vault(address stk, address rwd, uint256 lockPeriod, uint256 penaltyBps, uint256 funded)
+        internal
+        returns (StakingVault v)
+    {
+        IStakingVault.VaultConfig memory cfg = IStakingVault.VaultConfig({
+            rewardRate: 1e18,
+            lockPeriod: lockPeriod,
+            earlyWithdrawPenalty: penaltyBps,
+            maxStake: 0,
+            minStake: 1e18,
+            isActive: true
+        });
+        v = new StakingVault(stk, rwd, cfg);
+        SMock(rwd).mint(address(this), funded);
+        SMock(rwd).approve(address(v), type(uint256).max);
+        if (funded > 0) v.addRewards(funded);
+    }
+
+    function _fundAndApprove(SMock token, StakingVault v, address user, uint256 amount) internal {
+        token.mint(user, amount);
+        vm.prank(user);
+        token.approve(address(v), type(uint256).max);
+    }
+
+    // ---------------------------------------------------------------- DEFI-2
+
+    /// @dev Accrual is capped cumulatively by funded rewards: total promised never exceeds funding,
+    ///      and every staker can claim what was promised.
+    function test_DEFI2_RewardsNeverOverPromised() public {
+        vm.warp(1000);
+        SMock stk = new SMock("STK", "STK");
+        SMock rwd = new SMock("RWD", "RWD");
+        StakingVault v = _vault(address(stk), address(rwd), 0, 0, 100e18); // funds 100 seconds
+        _fundAndApprove(stk, v, alice, 10e18);
+        _fundAndApprove(stk, v, bob, 10e18);
+
+        vm.prank(alice);
+        v.stake(10e18);
+        vm.warp(1200);
+        vm.prank(bob);
+        v.stake(10e18); // accrues the full 100 to alice
+        vm.warp(1400);
+
+        uint256 promised = v.pendingRewards(alice) + v.pendingRewards(bob);
+        assertLe(promised, 100e18, "promised within funding");
+        assertEq(v.pendingRewards(bob), 0, "nothing left for bob");
+
+        vm.prank(alice);
+        v.claim();
+        assertEq(rwd.balanceOf(alice), 100e18);
+        assertEq(v.rewardsAllocated(), 0);
+
+        // New funding resumes accrual for current stakers
+        rwd.mint(address(this), 100e18);
+        v.addRewards(100e18);
+        vm.warp(1450);
+        vm.prank(bob);
+        v.claim();
+        assertEq(rwd.balanceOf(bob), 25e18);
+    }
+
+    /// @dev Rewards forfeited by emergencyWithdraw return to the unallocated pool.
+    function test_DEFI2_EmergencyWithdrawReleasesAllocation() public {
+        vm.warp(1000);
+        SMock stk = new SMock("STK", "STK");
+        SMock rwd = new SMock("RWD", "RWD");
+        StakingVault v = _vault(address(stk), address(rwd), 0, 0, 100e18);
+        _fundAndApprove(stk, v, alice, 10e18);
+        _fundAndApprove(stk, v, bob, 10e18);
+
+        vm.prank(alice);
+        v.stake(10e18);
+        vm.warp(1200);
+        vm.prank(bob);
+        v.stake(10e18); // allocates all 100 to alice
+        assertEq(v.rewardsAllocated(), 100e18);
+
+        vm.prank(alice);
+        v.emergencyWithdraw();
+        assertEq(v.rewardsAllocated(), 0, "forfeited rewards released");
+
+        vm.warp(1300);
+        vm.prank(bob);
+        v.claim();
+        assertEq(rwd.balanceOf(bob), 100e18, "released rewards accrue to remaining staker");
     }
 }
