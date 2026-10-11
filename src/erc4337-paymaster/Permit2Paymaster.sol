@@ -276,9 +276,10 @@ contract Permit2Paymaster is BasePaymaster {
         //   This is a stronger violation than internal senderNonce++ because it touches storage
         //   owned by an external contract (Permit2), not the paymaster itself.
         //   Options to resolve:
-        //   (A) Move Permit2 permit execution to _postOp (execution phase)
-        //   (B) Require users to pre-approve via Permit2 before submitting the UserOp
-        //   (C) Operate exclusively with trusted bundlers and document this constraint
+        //   (A) Require users to pre-approve via Permit2 before submitting the UserOp
+        //   (B) Operate exclusively with trusted bundlers and document this constraint
+        //   Moving the permit to _postOp is not an option: the pre-charge below needs the
+        //   allowance during validation.
         try PERMIT2.permit(userOp.sender, permitSingle, payload.permitSig) {
         // Permit successful
         }

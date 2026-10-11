@@ -109,8 +109,8 @@ StableNet PoC 컨트랙트는 다음 일곱 영역으로 나뉩니다.
 |---|---|
 | VerifyingPaymaster | off-chain signer 서명으로 가스 대납 |
 | SponsorPaymaster | off-chain policy engine 판단에 따른 sponsor(Visa 4-Party 모델) |
-| ERC20Paymaster | ERC-20(예: USDC)으로 가스 지불. oracle 가격과 markup 적용 |
-| Permit2Paymaster | Permit2 서명으로 별도 approve 없이 ERC-20 가스 지불 |
+| ERC20Paymaster | 미리 approve한 ERC-20(예: USDC)으로 가스 지불. oracle 가격과 markup 적용. validation 단계에서 최대 토큰 비용을 미리 받고 `postOp`에서 남은 금액 환불. reference price를 설정하면 20% 가격 편차 circuit breaker 동작(`updateReferencePrice`) |
+| Permit2Paymaster | Permit2 서명으로 별도 approve 없이 ERC-20 가스 지불. ERC20Paymaster와 같은 미리 받기·환불 흐름과 가격 circuit breaker. oracle timestamp가 미래이면 stale로 처리 |
 
 공통 요소:
 
@@ -230,10 +230,12 @@ indexer-go의 `perp_orderbook` venue가 `PerpetualEngine`과 `OrderManager`의 �
 |---|---|
 | VerifyingPaymaster | `senderNonce[sender]++` (내부 storage 쓰기) |
 | SponsorPaymaster | `senderNonce[sender]++` (내부 storage 쓰기) |
-| Permit2Paymaster | `PERMIT2.permit()` (외부 컨트랙트 상태 쓰기, 가장 심각) |
-| ERC20Paymaster | `balanceOf()`·`allowance()` (외부 storage 읽기) |
+| Permit2Paymaster | `PERMIT2.permit()`과 `PERMIT2.transferFrom()` 미리 받기 (외부 컨트랙트 상태 쓰기, 가장 심각) |
+| ERC20Paymaster | `safeTransferFrom()` 미리 받기 (외부 토큰 storage 쓰기) |
 
-공용 mempool을 지원하려면 같은 주석에 적힌 세 가지 변경이 필요합니다. `senderNonce++`를 `_postOp`으로 옮기거나 EntryPoint nonce로 대체하고, `PERMIT2.permit()`을 `_postOp`으로 옮기거나 사전 approve를 요구하고, ERC20Paymaster를 staked paymaster로 운영합니다.
+토큰 paymaster가 validation 단계에서 토큰을 미리 받는 것은 의도된 설계입니다. `postOp`이 revert되어도 EntryPoint는 paymaster의 deposit에서 가스비를 가져갑니다. 그래서 `postOp`에서만 토큰을 받으면 사용자가 가스를 공짜로 쓸 수 있습니다. 토큰 전송은 validation 단계에 그대로 두어야 합니다.
+
+공용 mempool을 지원하려면 같은 주석에 적힌 세 가지 변경이 필요합니다. `senderNonce++`를 `_postOp`으로 옮기거나 EntryPoint nonce로 대체하고, validation에서 `PERMIT2.permit()`을 호출하는 대신 Permit2 사전 approve를 요구하고, ERC20Paymaster와 Permit2Paymaster를 staked paymaster로 운영합니다.
 
 ### Perpetual은 testnet 참조 구현
 

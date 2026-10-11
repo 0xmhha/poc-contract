@@ -109,8 +109,8 @@ The `erc4337-paymaster` module provides four gas payment methods.
 |---|---|
 | VerifyingPaymaster | Sponsors gas based on an off-chain signer's signature |
 | SponsorPaymaster | Sponsors gas based on an off-chain policy engine decision (Visa 4-Party model) |
-| ERC20Paymaster | Pays gas in ERC-20 tokens (e.g. USDC) using an oracle price plus markup |
-| Permit2Paymaster | Pays gas in ERC-20 tokens via a Permit2 signature, without a separate approve |
+| ERC20Paymaster | Pays gas in pre-approved ERC-20 tokens (e.g. USDC) using an oracle price plus markup. Pre-charges the max token cost during validation and refunds the unused part in `postOp`. 20% price deviation circuit breaker once a reference price is set (`updateReferencePrice`) |
+| Permit2Paymaster | Pays gas in ERC-20 tokens via a Permit2 signature, without a separate approve. Same pre-charge and refund flow and price circuit breaker as ERC20Paymaster; a future oracle timestamp is treated as stale |
 
 Shared components:
 
@@ -230,10 +230,12 @@ All four paymasters perform operations during the validation phase (`_validatePa
 |---|---|
 | VerifyingPaymaster | `senderNonce[sender]++` (internal storage write) |
 | SponsorPaymaster | `senderNonce[sender]++` (internal storage write) |
-| Permit2Paymaster | `PERMIT2.permit()` (external contract state write, most severe) |
-| ERC20Paymaster | `balanceOf()` / `allowance()` (external storage reads) |
+| Permit2Paymaster | `PERMIT2.permit()` and `PERMIT2.transferFrom()` pre-charge (external contract state writes, most severe) |
+| ERC20Paymaster | `safeTransferFrom()` pre-charge (external token storage write) |
 
-The same comment lists three changes needed for public mempool support: move `senderNonce++` to `_postOp` or replace it with the EntryPoint nonce; move `PERMIT2.permit()` to `_postOp` or require pre-approval; and operate ERC20Paymaster as a staked paymaster.
+The token paymasters pre-charge in validation on purpose. If `postOp` reverts, the EntryPoint still charges the paymaster's deposit, so collecting tokens only in `postOp` would let users get gas for free. The token transfer must therefore stay in validation.
+
+The same comment lists three changes needed for public mempool support: move `senderNonce++` to `_postOp` or replace it with the EntryPoint nonce; require Permit2 pre-approval instead of calling `PERMIT2.permit()` in validation; and operate ERC20Paymaster and Permit2Paymaster as staked paymasters.
 
 ### Perpetual is a testnet reference implementation
 
