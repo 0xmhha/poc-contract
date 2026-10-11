@@ -207,10 +207,17 @@ contract SubscriptionIntegrationTest is Test {
         vm.prank(subscriber);
         permManager.revokePermission(permissionId);
 
-        // Attempt to process payment should fail with PaymentFailed (within grace period)
+        // Payment is not collected; the failure is recorded and the subscription enters its grace period
+        uint256 subscriberBalanceBefore = token.balanceOf(subscriber);
         vm.prank(processor);
-        vm.expectRevert(ISubscriptionManager.PaymentFailed.selector);
+        vm.expectEmit(true, true, false, true, address(subManager));
+        emit ISubscriptionManager.PaymentFailedLog(subscriptionId, subscriber, "Permission invalid");
         subManager.processPayment(subscriptionId);
+
+        assertEq(token.balanceOf(subscriber), subscriberBalanceBefore, "No payment should be collected");
+        (,,,,,, uint256 paymentCount,,, bool inGracePeriod) = subManager.subscriptions(subscriptionId);
+        assertEq(paymentCount, 1, "Only the first payment should be recorded");
+        assertTrue(inGracePeriod, "Subscription should be in grace period");
     }
 
     /**

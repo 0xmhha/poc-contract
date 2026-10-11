@@ -150,7 +150,13 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
     uint256 public cooldownPeriod;
 
     /// @notice Amount threshold above which approval is required
+    /// @dev Compared against the cumulative amount withdrawn from a deposit without approval,
+    ///      so splitting a withdrawal into small requests does not avoid approval. It is a raw
+    ///      token amount and is not adjusted for token decimals.
     uint256 public approvalThreshold;
+
+    /// @notice Amount executed from each deposit without an approval
+    mapping(bytes32 depositId => uint256) public unapprovedWithdrawn;
 
     /// @notice Total request count
     uint256 public requestCount;
@@ -268,14 +274,13 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
         }
 
         // Verify status
-        if (request.amount >= approvalThreshold) {
-            // Requires approval for large amounts
-            if (request.status != WithdrawalStatus.APPROVED) revert RequestNotPending();
-        } else {
-            // Auto-approved for small amounts
-            if (request.status != WithdrawalStatus.PENDING && request.status != WithdrawalStatus.APPROVED) {
+        if (request.status != WithdrawalStatus.APPROVED) {
+            // Requires approval once this deposit's unapproved withdrawals would reach the threshold
+            if (request.status != WithdrawalStatus.PENDING || _requiresApproval(request)) {
                 revert RequestNotPending();
             }
+            // Auto-approved for small amounts
+            unapprovedWithdrawn[request.depositId] += request.amount;
         }
 
         // Check cooldown
@@ -396,7 +401,7 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
             return (false, "Request cancelled");
         }
 
-        if (request.amount >= approvalThreshold && request.status != WithdrawalStatus.APPROVED) {
+        if (request.status != WithdrawalStatus.APPROVED && _requiresApproval(request)) {
             return (false, "Approval required");
         }
 
@@ -405,6 +410,13 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
         }
 
         return (true, "");
+    }
+
+    /**
+     * @notice Whether an unapproved request would bring its deposit's unapproved total to the threshold
+     */
+    function _requiresApproval(WithdrawalRequest storage request) internal view returns (bool) {
+        return unapprovedWithdrawn[request.depositId] + request.amount >= approvalThreshold;
     }
 
     /* //////////////////////////////////////////////////////////////

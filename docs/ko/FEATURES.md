@@ -201,7 +201,7 @@ indexer-go의 `perp_orderbook` venue가 `PerpetualEngine`과 `OrderManager`의 �
 |---|---|
 | SubscriptionManager | 상점 플랜 생성·수정, 구독·해지, 결제 처리(일괄 포함), 프로토콜 수수료 |
 | MerchantRegistry | 상점 등록·검증·정지, 상점별 수수료, verifier 관리 |
-| ERC7715PermissionManager | ERC-7715 권한 부여(서명 기반 포함)·조정·사용·폐기, 권한 유형 등록. 서명된 권한 부여에는 rule 목록까지 포함되며, 서명할 digest는 `hashPermissionGrant`로 계산 |
+| ERC7715PermissionManager | ERC-7715 권한 부여(서명 기반 포함)·조정·사용·폐기, 권한 유형 등록. 서명된 권한 부여에는 rule 목록과 `isAdjustmentAllowed`까지 포함되고, 일시정지 중에는 `usePermission`이 차단되며, 서명할 digest는 `hashPermissionGrant`로 계산 |
 
 ---
 

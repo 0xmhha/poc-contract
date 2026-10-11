@@ -373,10 +373,11 @@ contract StealthVaultTest is Test {
 
     /**
      * @notice F-007: Proof reuse prevention via usedProofs mapping
-     * @dev After a valid withdrawal, the same proof must not be accepted for
-     *      a second deposit that shares the same stealthHash. Without the
-     *      usedProofs mapping the proof would pass _verifyStealthProof again
-     *      because the second deposit is not yet marked withdrawn.
+     * @dev A used proof cannot release the same deposit twice, and nobody but the
+     *      stealth recipient can use it. A second deposit to the same stealthHash
+     *      belongs to the same recipient, so the recipient must be able to withdraw it
+     *      with the same proof. (Previously usedProofs was keyed without the deposit ID
+     *      and this test asserted that the second deposit stayed locked.)
      */
     function test_F007_ProofReusePrevention_DifferentDeposits() public {
         uint256 amount = 5 ether;
@@ -399,15 +400,25 @@ contract StealthVaultTest is Test {
         IStealthVault.Deposit memory d1 = vault.getDeposit(depositId1);
         assertTrue(d1.withdrawn, "First deposit should be withdrawn");
 
-        // Second withdrawal with the SAME proof must revert (proof replay)
-        // depositId2 is NOT yet withdrawn, so this specifically tests usedProofs
+        // Replaying the proof on the same deposit is rejected
         vm.prank(recipient);
+        vm.expectRevert(IStealthVault.AlreadyWithdrawn.selector);
+        vault.withdraw(depositId1, recipient, proof);
+
+        // A third party cannot use the now-public proof for the second deposit
+        address attacker = makeAddr("attacker");
+        vm.prank(attacker);
         vm.expectRevert(IStealthVault.InvalidProof.selector);
+        vault.withdraw(depositId2, attacker, proof);
+
+        // The recipient can withdraw the second deposit to the same stealth address
+        vm.prank(recipient);
         vault.withdraw(depositId2, recipient, proof);
 
-        // Confirm second deposit remains unaffected
         IStealthVault.Deposit memory d2 = vault.getDeposit(depositId2);
-        assertFalse(d2.withdrawn, "Second deposit must remain unwithdrawn");
+        assertTrue(d2.withdrawn, "Second deposit should be withdrawn");
+        assertEq(recipient.balance, 2 * amount, "Recipient receives both deposits");
+        assertEq(address(vault).balance, 0, "No funds left locked in the vault");
     }
 
     /**
@@ -426,7 +437,7 @@ contract StealthVaultTest is Test {
         bytes memory proof = abi.encodePacked(bytes32("secret"));
 
         // Compute the expected proofHash the same way the contract does
-        bytes32 expectedProofHash = keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid));
+        bytes32 expectedProofHash = keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid, depositId));
 
         // Before withdrawal, proof should not be marked as used
         assertFalse(vault.usedProofs(expectedProofHash), "Proof should not be used before withdrawal");
@@ -507,10 +518,10 @@ contract StealthVaultTest is Test {
         bytes memory proof = abi.encodePacked(bytes32("secret"));
 
         // Compute proofHash WITH chainid (correct, matches contract logic)
-        bytes32 proofHashWithChain = keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid));
+        bytes32 proofHashWithChain = keccak256(abi.encodePacked(recipient, recipient, proof, block.chainid, depositId));
 
         // Compute proofHash WITHOUT chainid (incorrect, vulnerable version)
-        bytes32 proofHashWithoutChain = keccak256(abi.encodePacked(recipient, recipient, proof));
+        bytes32 proofHashWithoutChain = keccak256(abi.encodePacked(recipient, recipient, proof, depositId));
 
         // The two hashes must differ -- domain separation is meaningful
         assertTrue(

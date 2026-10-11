@@ -422,6 +422,59 @@ contract ProofOfReserveTest is Test {
         assertLt(projectedRatio, 10_000);
     }
 
+    /// @notice A zero reserve report must count as unhealthy and trigger auto-pause
+    function test_VerifyReserve_ZeroReserveCountsAsUnhealthy() public {
+        for (uint256 i = 1; i <= 3; i++) {
+            vm.warp(1 hours + i * 60);
+            oracle.setLatestRoundData(uint80(1 + i), 0, 1 hours + i * 60);
+            ProofOfReserve.ReserveStatus memory status = por.verifyReserve();
+            assertFalse(status.isHealthy);
+            assertEq(status.totalReserve, 0);
+        }
+        assertEq(por.unhealthyCount(), 3);
+        assertTrue(por.paused(), "auto-pause after consecutive zero reports");
+        assertFalse(por.getLastStatus().isHealthy);
+    }
+
+    /// @notice Stale oracle data must count as unhealthy and trigger auto-pause
+    function test_VerifyReserve_StaleDataCountsAsUnhealthy() public {
+        // Oracle last updated at 1 hours; heartbeat 1 hour, stale after 2 hours
+        for (uint256 i = 1; i <= 3; i++) {
+            vm.warp(1 hours + 3 hours + i * 60);
+            assertFalse(por.verifyReserve().isHealthy);
+        }
+        assertEq(por.unhealthyCount(), 3);
+        assertTrue(por.paused());
+    }
+
+    function test_VerifyReserve_HealthyAfterUnhealthyResetsCount() public {
+        vm.warp(1 hours + 60);
+        oracle.setLatestRoundData(2, 0, 1 hours + 60);
+        por.verifyReserve();
+        assertEq(por.unhealthyCount(), 1);
+
+        vm.warp(1 hours + 120);
+        oracle.setLatestRoundData(3, int256(1000 ether), 1 hours + 120);
+        assertTrue(por.verifyReserve().isHealthy);
+        assertEq(por.unhealthyCount(), 0);
+    }
+
+    function test_CheckMintAllowed_FalseWhenStale() public {
+        // Reserve covers the mint, but the report is older than twice the heartbeat
+        oracle.setLatestRoundData(1, int256(1100 ether), 1 hours);
+        vm.warp(1 hours + 3 hours);
+        (bool sufficient,) = por.checkMintAllowed(1);
+        assertFalse(sufficient);
+    }
+
+    function test_CheckMintAllowed_FalseWhenPaused() public {
+        oracle.setLatestRoundData(1, int256(1100 ether), block.timestamp);
+        vm.prank(owner);
+        por.pause();
+        (bool sufficient,) = por.checkMintAllowed(1);
+        assertFalse(sufficient);
+    }
+
     // ============ Admin Function Tests ============
 
     function test_SetAutoPauseThreshold() public {

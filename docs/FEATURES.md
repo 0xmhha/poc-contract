@@ -201,7 +201,7 @@ The `bridge` module is a defense-in-depth design that layers MPC signatures and 
 |---|---|
 | SubscriptionManager | Merchant plan creation and updates, subscribe and cancel, payment processing (including batch), protocol fee |
 | MerchantRegistry | Merchant registration, verification and suspension, per-merchant fee, verifier management |
-| ERC7715PermissionManager | ERC-7715 permission grant (including signature-based), adjust, use and revoke; permission type registry. Signed grants cover the rule list, and `hashPermissionGrant` computes the digest to sign |
+| ERC7715PermissionManager | ERC-7715 permission grant (including signature-based), adjust, use and revoke; permission type registry. Signed grants cover the rule list and `isAdjustmentAllowed`, `usePermission` is blocked while paused, and `hashPermissionGrant` computes the digest to sign |
 
 ---
 

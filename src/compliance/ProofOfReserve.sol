@@ -281,32 +281,37 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
         IAggregatorV3 aggregator = IAggregatorV3(reserveOracle.oracle);
         (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = aggregator.latestRoundData();
 
-        // Validate oracle data
-        if (roundId == 0 || answeredInRound < roundId) revert InvalidOracleData();
-        if (answer <= 0) revert InvalidOracleData();
-        if (block.timestamp - updatedAt > reserveOracle.heartbeat * 2) revert StaleOracleData();
-
         // Get total supply and stablecoin decimals
         uint256 totalSupply = stablecoin.totalSupply();
         uint8 stablecoinDecimals = stablecoin.decimals();
 
-        // Normalize reserve to same decimals as totalSupply
-        uint256 totalReserve = answer.toUint256();
-        if (reserveOracle.decimals < stablecoinDecimals) {
-            totalReserve = totalReserve * (10 ** (stablecoinDecimals - reserveOracle.decimals));
-        } else if (reserveOracle.decimals > stablecoinDecimals) {
-            totalReserve = totalReserve / (10 ** (reserveOracle.decimals - stablecoinDecimals));
-        }
-
-        // Calculate reserve ratio in basis points
+        uint256 totalReserve;
         uint256 reserveRatio;
-        if (totalSupply > 0) {
-            reserveRatio = (totalReserve * BASIS_POINTS) / totalSupply;
-        } else {
-            reserveRatio = BASIS_POINTS; // 100% if no supply
-        }
+        bool isHealthy;
 
-        bool isHealthy = reserveRatio >= MIN_RESERVE_RATIO;
+        // Invalid, zero or stale oracle data cannot prove the reserve: record it as unhealthy
+        // (zero reserve) instead of reverting, so it counts toward auto-pause.
+        bool validData = roundId != 0 && answeredInRound >= roundId && answer > 0
+            && block.timestamp - updatedAt <= reserveOracle.heartbeat * 2;
+
+        if (validData) {
+            // Normalize reserve to same decimals as totalSupply
+            totalReserve = answer.toUint256();
+            if (reserveOracle.decimals < stablecoinDecimals) {
+                totalReserve = totalReserve * (10 ** (stablecoinDecimals - reserveOracle.decimals));
+            } else if (reserveOracle.decimals > stablecoinDecimals) {
+                totalReserve = totalReserve / (10 ** (reserveOracle.decimals - stablecoinDecimals));
+            }
+
+            // Calculate reserve ratio in basis points
+            if (totalSupply > 0) {
+                reserveRatio = (totalReserve * BASIS_POINTS) / totalSupply;
+            } else {
+                reserveRatio = BASIS_POINTS; // 100% if no supply
+            }
+
+            isHealthy = reserveRatio >= MIN_RESERVE_RATIO;
+        }
 
         status = ReserveStatus({
             totalSupply: totalSupply,
@@ -426,19 +431,21 @@ contract ProofOfReserve is Ownable, Pausable, ReentrancyGuard {
 
     /**
      * @notice Check if reserves are sufficient for a mint operation
+     * @dev Returns false while paused or when the oracle data is stale
      * @param mintAmount Amount to mint
      * @return sufficient True if reserves would remain sufficient
      * @return projectedRatio Projected reserve ratio after mint
      */
     function checkMintAllowed(uint256 mintAmount) external view returns (bool sufficient, uint256 projectedRatio) {
-        if (reserveOracle.oracle == address(0) || address(stablecoin) == address(0)) {
+        if (paused() || reserveOracle.oracle == address(0) || address(stablecoin) == address(0)) {
             return (false, 0);
         }
 
         IAggregatorV3 aggregator = IAggregatorV3(reserveOracle.oracle);
-        (, int256 answer,,,) = aggregator.latestRoundData();
+        (, int256 answer,, uint256 updatedAt,) = aggregator.latestRoundData();
 
         if (answer <= 0) return (false, 0);
+        if (block.timestamp - updatedAt > reserveOracle.heartbeat * 2) return (false, 0);
 
         uint8 stablecoinDecimals = stablecoin.decimals();
         uint256 totalReserve = answer.toUint256();
