@@ -511,6 +511,32 @@ contract SecureBridgeTest is Test {
         assertEq(token.balanceOf(sender), senderBalanceBefore + amount);
     }
 
+    /// @notice A refund must not revert after the owner has withdrawn the deposit's fee.
+    ///         Before the fix, `feesCollected -= fee` underflowed and froze the refund.
+    function test_RefundBridge_AfterFeesWithdrawn() public {
+        (bytes32 requestId, address sender,, uint256 amount) = _initiateBridge();
+        uint256 fee = bridge.calculateFee(amount);
+
+        // Routine fee sweep before the request is refunded
+        vm.prank(owner);
+        bridge.withdrawFees(address(token), fee);
+
+        address challenger = makeAddr("challenger");
+        vm.deal(challenger, 1 ether);
+        vm.prank(challenger);
+        optimisticVerifier.challengeRequest{ value: 1 ether }(requestId, "Fraud detected");
+        vm.prank(owner);
+        optimisticVerifier.resolveChallenge(requestId, true);
+
+        uint256 senderBalanceBefore = token.balanceOf(sender);
+        bridge.refundBridge(requestId);
+
+        // The withdrawn fee is no longer held by the bridge, so only the principal is returned
+        assertEq(token.balanceOf(sender), senderBalanceBefore + amount - fee);
+        assertEq(bridge.feesCollected(address(token)), 0);
+        assertEq(token.balanceOf(address(bridge)), 0);
+    }
+
     function test_RefundBridge_RevertsOnNotRefundedStatus() public {
         (bytes32 requestId,,,) = _initiateBridge();
 
