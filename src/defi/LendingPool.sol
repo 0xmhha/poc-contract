@@ -82,6 +82,9 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
     /// @notice List of supported assets
     address[] public supportedAssets;
 
+    /// @notice Whether an asset has been added to supportedAssets (kept across delist/relist)
+    mapping(address => bool) internal _isListed;
+
     /// @notice Maximum price staleness (5 minutes)
     uint256 public constant MAX_PRICE_AGE = 5 minutes;
 
@@ -118,7 +121,8 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
      * @param config The asset configuration
      */
     function configureAsset(address asset, AssetConfig memory config) external onlyOwner {
-        if (assetConfigs[asset].ltv == 0) {
+        if (!_isListed[asset]) {
+            _isListed[asset] = true;
             supportedAssets.push(asset);
         }
 

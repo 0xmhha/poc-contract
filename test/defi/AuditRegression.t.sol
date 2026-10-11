@@ -130,4 +130,33 @@ contract LendingPoolAuditRegressionTest is Test {
         assertGt(pool.getDepositBalance(address(usdc), alice), 1000e18, "early lender earned interest");
         assertApproxEqAbs(pool.getDepositBalance(address(usdc), carol), 1000e18, 1, "late lender gets principal");
     }
+
+    // ---------------------------------------------------------------- DEFI-8
+
+    /// @dev Delisting (ltv = 0) and relisting an asset must not add it to supportedAssets twice,
+    ///      otherwise its collateral is counted twice in health-factor calculations.
+    function test_DEFI8_RelistDoesNotDuplicateAsset() public {
+        ILendingPool.AssetConfig memory off = cfg;
+        off.ltv = 0;
+        pool.configureAsset(address(weth), off); // delist
+        pool.configureAsset(address(weth), cfg); // relist
+
+        assertEq(pool.supportedAssets(0), address(usdc));
+        assertEq(pool.supportedAssets(1), address(weth));
+        vm.expectRevert();
+        pool.supportedAssets(2);
+
+        vm.prank(alice);
+        pool.deposit(address(usdc), 50_000e18);
+        vm.startPrank(bob);
+        pool.deposit(address(weth), 10e18); // $20,000 collateral
+        vm.expectRevert(LendingPool.InsufficientCollateral.selector);
+        pool.borrow(address(usdc), 30_000e18); // 150% of collateral value
+        vm.stopPrank();
+
+        // Collateral is counted once: $20,000 * 80% threshold / $10,000 debt = 1.6
+        vm.prank(bob);
+        pool.borrow(address(usdc), 10_000e18);
+        assertEq(pool.calculateHealthFactor(bob), 1.6e18);
+    }
 }
