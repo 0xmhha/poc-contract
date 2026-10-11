@@ -121,31 +121,17 @@ contract AuditHook is IHook {
     // ============ IHook Implementation ============
 
     /**
-     * @notice Pre-execution check - logs transaction and checks restrictions
-     * @dev Every execution in msgData is checked against the blocklist. Executions targeting this
-     *      hook (except queueFlaggedTransaction) or the account itself are rejected.
-     * @param msgSender The original sender
-     * @param msgValue ETH value being sent
-     * @param msgData The calldata Kernel passed to the hook (see HookExecutionDataLib)
-     * @return hookData Encoded audit entry index
+     * @dev Checks every execution against the target rules and the blocklist, and sums their value.
+     *      For a single execution it also returns its target and selector (zero for a batch).
+     *      Split out of preCheck to keep its stack shallow.
      */
-    function preCheck(address msgSender, uint256 msgValue, bytes calldata msgData)
-        external
-        payable
-        override
-        returns (bytes memory hookData)
-    {
-        AccountStorage storage store = accountStorage[msg.sender];
-
-        if (!store.config.isEnabled) revert ModuleNotEnabled();
-
-        // Extract execution data from the Kernel calldata (single, batch or delegatecall).
-        // A batch is logged as one entry with target/selector 0 and the summed value.
-        (bool isExecute, CallType callType, uint256 count) = HookExecutionDataLib.getExecutionCount(msgData);
-        address target = address(0);
-        uint256 execValue = 0;
-        bytes4 selector = bytes4(0);
-
+    function _checkExecutions(
+        AccountStorage storage store,
+        uint256 msgValue,
+        bytes calldata msgData,
+        bool isExecute,
+        uint256 count
+    ) internal returns (address target, uint256 execValue, bytes4 selector) {
         for (uint256 i = 0; i < count; i++) {
             (address execTarget, uint256 value, bytes calldata execCalldata) =
                 HookExecutionDataLib.getExecution(msgData, msgValue, i);
@@ -168,6 +154,32 @@ contract AuditHook is IHook {
                 selector = execSelector;
             }
         }
+    }
+
+    /**
+     * @notice Pre-execution check - logs transaction and checks restrictions
+     * @dev Every execution in msgData is checked against the blocklist. Executions targeting this
+     *      hook (except queueFlaggedTransaction) or the account itself are rejected.
+     * @param msgSender The original sender
+     * @param msgValue ETH value being sent
+     * @param msgData The calldata Kernel passed to the hook (see HookExecutionDataLib)
+     * @return hookData Encoded audit entry index
+     */
+    function preCheck(address msgSender, uint256 msgValue, bytes calldata msgData)
+        external
+        payable
+        override
+        returns (bytes memory hookData)
+    {
+        AccountStorage storage store = accountStorage[msg.sender];
+
+        if (!store.config.isEnabled) revert ModuleNotEnabled();
+
+        // Extract execution data from the Kernel calldata (single, batch or delegatecall).
+        // A batch is logged as one entry with target/selector 0 and the summed value.
+        (bool isExecute, CallType callType, uint256 count) = HookExecutionDataLib.getExecutionCount(msgData);
+        (address target, uint256 execValue, bytes4 selector) =
+            _checkExecutions(store, msgValue, msgData, isExecute, count);
 
         // Check if flagged transaction. A delegate can move any value as the account, so
         // delegatecall is always treated as high value (fail closed).

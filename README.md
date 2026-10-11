@@ -50,6 +50,7 @@ forge build
 ```bash
 forge test           # Run all tests
 forge test -vvv      # Verbose output
+./script/coverage.sh # Coverage (needs --ir-minimum; see the script for excluded tests)
 ```
 
 ## Deployment

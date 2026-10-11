@@ -324,21 +324,31 @@ contract SubscriptionIntegrationTest is Test {
         vm.stopPrank();
 
         // First payment was already processed during subscribe (since no trial period)
+        // Warp with vm.getBlockTimestamp(): under via-IR the optimizer may reuse an earlier
+        // block.timestamp read across vm.warp, so the second warp would not advance time
         // Warp to second payment time
-        vm.warp(block.timestamp + 1 hours + 1);
+        vm.warp(vm.getBlockTimestamp() + 1 hours + 1);
 
         // Process second payment
         vm.prank(processor);
         subManager.processPayment(subscriptionId);
 
         // Warp to third payment
-        vm.warp(block.timestamp + 1 hours + 1);
+        vm.warp(vm.getBlockTimestamp() + 1 hours + 1);
 
-        // Process third payment (this should use up most of the limit: 100 + 100 + 100 = 300 > 250)
-        // Third payment should fail due to spending limit
+        // Third payment would bring the day's usage to 300 > 250: the permission manager rejects it,
+        // and processPayment records a failure instead of reverting (no grace period: the
+        // subscription ends) and pays nothing
+        uint256 merchantBefore = token.balanceOf(merchant);
         vm.prank(processor);
-        vm.expectRevert(ISubscriptionManager.NotDueForPayment.selector);
         subManager.processPayment(subscriptionId);
+
+        ISubscriptionManager.Subscription memory sub = subManager.getSubscription(subscriptionId);
+        assertEq(sub.paymentCount, 2, "only the two payments within the limit went through");
+        assertEq(sub.totalPaid, 200 ether);
+        assertFalse(sub.active);
+        assertEq(token.balanceOf(merchant), merchantBefore, "merchant is not paid over the limit");
+        assertEq(permManager.getRemainingAllowance(permissionId), 50 ether);
     }
 
     /**
