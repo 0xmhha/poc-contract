@@ -84,6 +84,10 @@ contract FraudProofVerifierTest is Test {
 
         vm.prank(owner);
         ov.setFraudProofVerifier(address(verifier));
+
+        // Configure a token list for the source chain that excludes requestToken
+        vm.prank(owner);
+        verifier.setAuthorizedToken(SOURCE_CHAIN, makeAddr("listedToken"), true);
     }
 
     /// @dev Receives challenger payouts when this contract is the challenger
@@ -469,6 +473,41 @@ contract FraudProofVerifierTest is Test {
         FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
         verifier.submitFraudProof(proof);
         assertFalse(verifier.verifyFraudProof(proof));
+    }
+
+    /// @notice Without a configured token list for the chain, an InvalidToken proof never succeeds.
+    function test_VerifyFraudProof_InvalidToken_FailsClosedWithoutTokenList() public {
+        vm.prank(owner);
+        verifier.setAuthorizedToken(SOURCE_CHAIN, makeAddr("listedToken"), false);
+        assertEq(verifier.authorizedTokenCount(SOURCE_CHAIN), 0);
+
+        bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
+
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
+        verifier.submitFraudProof(proof);
+        assertFalse(verifier.verifyFraudProof(proof));
+        assertEq(uint256(ov.getRequestStatus(requestId)), uint256(OptimisticVerifier.RequestStatus.Challenged));
+    }
+
+    function test_AuthorizedTokenCount_NoDoubleCounting() public {
+        address tokenA = makeAddr("tokenA");
+        address[] memory tokens = new address[](2);
+        tokens[0] = tokenA;
+        tokens[1] = makeAddr("listedToken");
+
+        vm.startPrank(owner);
+        verifier.setAuthorizedToken(2, tokenA, true);
+        verifier.setAuthorizedToken(2, tokenA, true);
+        assertEq(verifier.authorizedTokenCount(2), 1);
+
+        verifier.batchSetAuthorizedTokens(2, tokens, true);
+        assertEq(verifier.authorizedTokenCount(2), 2);
+
+        verifier.batchSetAuthorizedTokens(2, tokens, false);
+        verifier.setAuthorizedToken(2, tokenA, false);
+        assertEq(verifier.authorizedTokenCount(2), 0);
+        vm.stopPrank();
     }
 
     function test_VerifyFraudProof_RevertsOnNotSubmitted() public {

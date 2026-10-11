@@ -143,6 +143,9 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
     /// @notice Mapping of authorized tokens per chain
     mapping(uint256 => mapping(address => bool)) public authorizedTokens;
 
+    /// @notice Number of authorized tokens per chain; 0 means no token list is configured
+    mapping(uint256 => uint256) public authorizedTokenCount;
+
     /// @notice Total proofs submitted
     uint256 public totalProofsSubmitted;
 
@@ -326,7 +329,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      * @param authorized Whether the token is authorized
      */
     function setAuthorizedToken(uint256 chainId, address token, bool authorized) external onlyOwner {
-        authorizedTokens[chainId][token] = authorized;
+        _setAuthorizedToken(chainId, token, authorized);
     }
 
     /**
@@ -337,7 +340,21 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      */
     function batchSetAuthorizedTokens(uint256 chainId, address[] calldata tokens, bool authorized) external onlyOwner {
         for (uint256 i = 0; i < tokens.length; i++) {
-            authorizedTokens[chainId][tokens[i]] = authorized;
+            _setAuthorizedToken(chainId, tokens[i], authorized);
+        }
+    }
+
+    /**
+     * @notice Update a token's authorization and keep authorizedTokenCount in sync
+     * @dev Only state changes adjust the count, so repeated calls never double count
+     */
+    function _setAuthorizedToken(uint256 chainId, address token, bool authorized) internal {
+        if (authorizedTokens[chainId][token] == authorized) return;
+        authorizedTokens[chainId][token] = authorized;
+        if (authorized) {
+            authorizedTokenCount[chainId]++;
+        } else {
+            authorizedTokenCount[chainId]--;
         }
     }
 
@@ -491,6 +508,9 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
 
         // Evidence must name the token and source chain of the challenged request
         if (token != request.token || chainId != request.sourceChain) return false;
+
+        // Fail closed: without a configured token list for the chain, no token can be proven invalid
+        if (authorizedTokenCount[chainId] == 0) return false;
 
         // Check if token is NOT authorized for the chain
         return !authorizedTokens[chainId][token];
