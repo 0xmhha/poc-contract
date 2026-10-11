@@ -479,8 +479,14 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
     ) internal view returns (bytes4) {
         (ISigner signer, ValidationData valdiationData, bytes calldata validatorSig) =
             _checkSignaturePolicy(pId, msg.sender, hash, sig);
-        (ValidAfter validAfter, ValidUntil validUntil,) = parseValidationData(ValidationData.unwrap(valdiationData));
-        if (block.timestamp < ValidAfter.unwrap(validAfter) || block.timestamp > ValidUntil.unwrap(validUntil)) {
+        (ValidAfter validAfter, ValidUntil validUntil, address result) =
+            parseValidationData(ValidationData.unwrap(valdiationData));
+        // A failing policy is reported as SIG_VALIDATION_FAILED (result 1) instead of a revert, so the
+        // result must be checked here: the time window alone would let the signer approve it.
+        if (
+            result != address(0) || block.timestamp < ValidAfter.unwrap(validAfter)
+                || block.timestamp > ValidUntil.unwrap(validUntil)
+        ) {
             return ERC1271_INVALID;
         }
         return signer.checkSignature(
