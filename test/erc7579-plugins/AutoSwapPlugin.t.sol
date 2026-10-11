@@ -91,8 +91,8 @@ contract AutoSwapPluginTest is Test {
         vm.startPrank(smartAccount);
 
         // Create some orders
-        plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0);
-        plugin.createDcaOrder(tokenIn, tokenOut, 2 ether, 2 hours, 5, 0);
+        plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, 0);
+        plugin.createDcaOrder(tokenIn, tokenOut, 2 ether, 2 hours, 5, 0, 0);
 
         uint256[] memory activeOrders = plugin.getActiveOrders(smartAccount);
         assertEq(activeOrders.length, 2);
@@ -116,7 +116,8 @@ contract AutoSwapPluginTest is Test {
             1 ether, // amountPerExecution
             1 hours, // interval
             10, // executionCount
-            0 // no expiry
+            0, // no expiry
+            0 // default slippage bound
         );
 
         assertEq(orderId, 0);
@@ -129,25 +130,40 @@ contract AutoSwapPluginTest is Test {
         assertEq(order.amountIn, 1 ether);
         assertEq(order.interval, 1 hours);
         assertEq(order.executionsRemaining, 10);
+        assertEq(order.maxSlippageBps, plugin.DEFAULT_DCA_SLIPPAGE_BPS());
+    }
+
+    function test_CreateDcaOrder_StoresSlippage() public {
+        vm.prank(smartAccount);
+        uint256 orderId = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, 250);
+
+        assertEq(plugin.getOrder(smartAccount, orderId).maxSlippageBps, 250);
+    }
+
+    function test_CreateDcaOrder_RevertsOnSlippageAboveCap() public {
+        uint256 tooHigh = plugin.MAX_DCA_SLIPPAGE_BPS() + 1;
+        vm.prank(smartAccount);
+        vm.expectRevert(AutoSwapPlugin.InvalidSlippage.selector);
+        plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, tooHigh);
     }
 
     function test_CreateDcaOrder_EmitsEvent() public {
         vm.prank(smartAccount);
         vm.expectEmit(true, true, false, true);
         emit OrderCreated(smartAccount, 0, AutoSwapPlugin.OrderType.DCA, tokenIn, tokenOut, 1 ether);
-        plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0);
+        plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, 0);
     }
 
     function test_CreateDcaOrder_RevertsOnZeroAmount() public {
         vm.prank(smartAccount);
         vm.expectRevert(AutoSwapPlugin.InvalidAmount.selector);
-        plugin.createDcaOrder(tokenIn, tokenOut, 0, 1 hours, 10, 0);
+        plugin.createDcaOrder(tokenIn, tokenOut, 0, 1 hours, 10, 0, 0);
     }
 
     function test_CreateDcaOrder_RevertsOnZeroInterval() public {
         vm.prank(smartAccount);
         vm.expectRevert(AutoSwapPlugin.InvalidInterval.selector);
-        plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 0, 10, 0);
+        plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 0, 10, 0, 0);
     }
 
     // ============ Limit Buy Order Tests ============
@@ -312,7 +328,7 @@ contract AutoSwapPluginTest is Test {
 
     function test_CancelOrder_Success() public {
         vm.startPrank(smartAccount);
-        uint256 orderId = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0);
+        uint256 orderId = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, 0);
 
         vm.expectEmit(true, true, false, false);
         emit OrderCancelled(smartAccount, orderId);
@@ -325,7 +341,7 @@ contract AutoSwapPluginTest is Test {
 
     function test_CancelOrder_RevertsOnNotActive() public {
         vm.startPrank(smartAccount);
-        uint256 orderId = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0);
+        uint256 orderId = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, 0);
         plugin.cancelOrder(orderId);
 
         vm.expectRevert(AutoSwapPlugin.OrderNotActive.selector);
@@ -376,7 +392,7 @@ contract AutoSwapPluginTest is Test {
 
     function test_UpdateTrailingStop_RevertsOnWrongOrderType() public {
         vm.prank(smartAccount);
-        uint256 orderId = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0);
+        uint256 orderId = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, 0);
 
         vm.expectRevert(AutoSwapPlugin.InvalidOrderType.selector);
         plugin.updateTrailingStop(smartAccount, orderId);
@@ -386,7 +402,7 @@ contract AutoSwapPluginTest is Test {
 
     function test_GetActiveOrders() public {
         vm.startPrank(smartAccount);
-        plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0);
+        plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, 0);
         plugin.createLimitBuyOrder(tokenIn, tokenOut, 100 ether, 1.5e18, 0, 0);
         plugin.createStopLossOrder(tokenIn, tokenOut, 50 ether, 1e18, 0, 0);
         vm.stopPrank();
@@ -397,7 +413,7 @@ contract AutoSwapPluginTest is Test {
 
     function test_IsTriggered_DCA_FirstExecution() public {
         vm.prank(smartAccount);
-        uint256 orderId = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0);
+        uint256 orderId = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, 0);
 
         // First execution should be triggered immediately
         assertTrue(plugin.isTriggered(smartAccount, orderId));
@@ -465,7 +481,7 @@ contract AutoSwapPluginTest is Test {
 
     function test_IsTriggered_ReturnsFalseForCancelled() public {
         vm.startPrank(smartAccount);
-        uint256 orderId = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0);
+        uint256 orderId = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, 0);
         plugin.cancelOrder(orderId);
         vm.stopPrank();
 
@@ -484,7 +500,7 @@ contract AutoSwapPluginTest is Test {
     function test_MultipleOrdersTracking() public {
         vm.startPrank(smartAccount);
 
-        uint256 orderId1 = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0);
+        uint256 orderId1 = plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, 0);
         uint256 orderId2 = plugin.createLimitBuyOrder(tokenIn, tokenOut, 100 ether, 1.5e18, 0, 0);
         uint256 orderId3 = plugin.createStopLossOrder(tokenIn, tokenOut, 50 ether, 1e18, 0, 0);
 
@@ -508,7 +524,7 @@ contract AutoSwapPluginTest is Test {
         assertFalse(plugin.isInitialized(smartAccount));
 
         vm.prank(smartAccount);
-        plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0);
+        plugin.createDcaOrder(tokenIn, tokenOut, 1 ether, 1 hours, 10, 0, 0);
 
         assertTrue(plugin.isInitialized(smartAccount));
     }

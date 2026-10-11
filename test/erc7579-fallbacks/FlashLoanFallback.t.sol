@@ -149,6 +149,7 @@ contract FlashLoanFallbackTest is Test {
         token.approve(address(flashLoanProvider), type(uint256).max);
 
         // Execute flash loan
+        vm.prank(address(account));
         flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
 
         // Verify log
@@ -174,6 +175,7 @@ contract FlashLoanFallbackTest is Test {
         modes[0] = 0;
 
         // Should revert because provider not whitelisted
+        vm.prank(address(account));
         vm.expectRevert("Transaction reverted silently");
         flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
     }
@@ -201,6 +203,7 @@ contract FlashLoanFallbackTest is Test {
         token.approve(address(flashLoanProvider), type(uint256).max);
 
         // Should work without whitelist
+        vm.prank(address(account));
         flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
 
         assertEq(fallbackModule.getFlashLoanLogLength(address(account)), 1);
@@ -218,6 +221,7 @@ contract FlashLoanFallbackTest is Test {
         token.approve(address(flashLoanProvider), type(uint256).max);
 
         // Execute ERC-3156 flash loan
+        vm.prank(address(account));
         flashLoanProvider.flashLoanERC3156(address(account), address(token), 500 ether, "");
 
         // Verify log
@@ -313,6 +317,7 @@ contract FlashLoanFallbackTest is Test {
             uint256[] memory modes = new uint256[](1);
             modes[0] = 0;
 
+            vm.prank(address(account));
             flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
         }
 

@@ -6,6 +6,8 @@ import { IERC7579Account } from "../erc7579-smartaccount/interfaces/IERC7579Acco
 import { MODULE_TYPE_EXECUTOR } from "../erc7579-smartaccount/types/Constants.sol";
 import { ExecMode } from "../erc7579-smartaccount/types/Types.sol";
 import { IPriceOracle } from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title AutoSwapPlugin
@@ -63,6 +65,7 @@ contract AutoSwapPlugin is IExecutor {
         uint256 expiry; // Order expiration timestamp (0 = no expiry)
         uint256 trailingPercent; // For trailing stop: percentage below peak (basis points)
         uint256 peakPrice; // For trailing stop: highest observed price
+        uint256 maxSlippageBps; // For DCA: max shortfall from the oracle-implied output (basis points)
     }
 
     /// @notice Account storage
@@ -86,6 +89,12 @@ contract AutoSwapPlugin is IExecutor {
 
     /// @notice Price precision
     uint256 public constant PRICE_PRECISION = 1e18;
+
+    /// @notice DCA slippage bound applied when the order does not set one (1%)
+    uint256 public constant DEFAULT_DCA_SLIPPAGE_BPS = 100;
+
+    /// @notice Highest DCA slippage bound an order may set (10%)
+    uint256 public constant MAX_DCA_SLIPPAGE_BPS = 1000;
 
     // Events
     event OrderCreated(
@@ -113,6 +122,7 @@ contract AutoSwapPlugin is IExecutor {
     error InvalidInterval();
     error ExecutionFailed();
     error SlippageExceeded();
+    error InvalidSlippage();
 
     /**
      * @notice Constructor
@@ -153,12 +163,17 @@ contract AutoSwapPlugin is IExecutor {
 
     /**
      * @notice Create a DCA (Dollar Cost Averaging) order
+     * @dev Anyone can execute a due DCA order, so each swap's minimum output is derived from the
+     *      oracle price at execution time and `maxSlippageBps`. A pool pushed away from the oracle
+     *      price (e.g. by a sandwich) makes the swap revert instead of filling at a loss.
      * @param tokenIn Token to sell
      * @param tokenOut Token to buy
      * @param amountPerExecution Amount to swap each time
      * @param interval Time between executions
      * @param executionCount Total number of executions (0 = unlimited)
      * @param expiry Order expiration (0 = no expiry)
+     * @param maxSlippageBps Max shortfall from the oracle-implied output, in basis points
+     *        (0 = DEFAULT_DCA_SLIPPAGE_BPS, at most MAX_DCA_SLIPPAGE_BPS)
      */
     function createDcaOrder(
         address tokenIn,
@@ -166,24 +181,29 @@ contract AutoSwapPlugin is IExecutor {
         uint256 amountPerExecution,
         uint256 interval,
         uint256 executionCount,
-        uint256 expiry
+        uint256 expiry,
+        uint256 maxSlippageBps
     ) external returns (uint256 orderId) {
         if (amountPerExecution == 0) revert InvalidAmount();
         if (interval == 0) revert InvalidInterval();
+        if (maxSlippageBps > MAX_DCA_SLIPPAGE_BPS) revert InvalidSlippage();
 
-        return _createOrder(
+        orderId = _createOrder(
             msg.sender,
             OrderType.DCA,
             tokenIn,
             tokenOut,
             amountPerExecution,
-            0, // No minimum output for DCA
+            0, // Minimum output is computed from the oracle price at execution
             0, // No target price
             interval,
             executionCount,
             expiry,
             0 // No trailing percent
         );
+
+        accountStorage[msg.sender].orders[orderId].maxSlippageBps =
+            maxSlippageBps == 0 ? DEFAULT_DCA_SLIPPAGE_BPS : maxSlippageBps;
     }
 
     /**
@@ -537,7 +557,8 @@ contract AutoSwapPlugin is IExecutor {
             executionsRemaining: executionCount,
             expiry: expiry,
             trailingPercent: trailingPercent,
-            peakPrice: 0
+            peakPrice: 0,
+            maxSlippageBps: 0
         });
 
         store.activeOrderIds.push(orderId);
@@ -587,7 +608,24 @@ contract AutoSwapPlugin is IExecutor {
         return (priceIn * PRICE_PRECISION) / priceOut;
     }
 
+    /// @dev Oracle-implied output for `order.amountIn`, reduced by the order's slippage bound.
+    ///      Oracle prices are per whole token, so amounts are scaled by each token's decimals.
+    function _dcaMinAmountOut(Order storage order) internal view returns (uint256) {
+        (uint256 priceIn,) = ORACLE.getPriceWithTimestamp(order.tokenIn);
+        (uint256 priceOut,) = ORACLE.getPriceWithTimestamp(order.tokenOut);
+        if (priceIn == 0 || priceOut == 0) revert InvalidPrice();
+
+        uint256 expectedOut = Math.mulDiv(
+            order.amountIn,
+            priceIn * 10 ** IERC20Metadata(order.tokenOut).decimals(),
+            priceOut * 10 ** IERC20Metadata(order.tokenIn).decimals()
+        );
+        return (expectedOut * (BASIS_POINTS - order.maxSlippageBps)) / BASIS_POINTS;
+    }
+
     function _executeSwap(address account, Order storage order) internal returns (uint256 amountOut) {
+        uint256 amountOutMin = order.orderType == OrderType.DCA ? _dcaMinAmountOut(order) : order.amountOutMin;
+
         // Build swap call data for DEX router
         // This is a simplified example - actual implementation would use the DEXIntegration contract
         bytes memory swapCall = abi.encodeWithSignature(
@@ -595,7 +633,7 @@ contract AutoSwapPlugin is IExecutor {
             order.tokenIn,
             order.tokenOut,
             order.amountIn,
-            order.amountOutMin,
+            amountOutMin,
             account
         );
 
@@ -611,7 +649,7 @@ contract AutoSwapPlugin is IExecutor {
         }
 
         // Verify slippage
-        if (order.amountOutMin > 0 && amountOut < order.amountOutMin) {
+        if (amountOutMin > 0 && amountOut < amountOutMin) {
             revert SlippageExceeded();
         }
     }

@@ -548,8 +548,10 @@ contract MockSmartAccount {
         require(msg.sender == executor, "Not executor");
         (mode); // Silence unused
 
-        // Decode single call: (target, value, data)
-        (address target, uint256 value, bytes memory data) = abi.decode(executionCalldata, (address, uint256, bytes));
+        // Decode single call as Kernel does: target (20 bytes) || value (32 bytes) || callData
+        address target = address(bytes20(executionCalldata[0:20]));
+        uint256 value = uint256(bytes32(executionCalldata[20:52]));
+        bytes memory data = executionCalldata[52:];
 
         returnData = new bytes[](1);
         (bool success, bytes memory result) = target.call{ value: value }(data);
