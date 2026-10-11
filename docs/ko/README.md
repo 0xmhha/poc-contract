@@ -9,7 +9,7 @@ ERC-4337 Account Abstraction, ERC-7579 Modular Smart Account, 스텔스 주소 (
 | 도구 | 버전 | 설명 |
 |-----|------|------|
 | Foundry | v1.8.3 (CI와 동일) | Solidity 개발 툴킷. 다른 버전은 CI와 결과가 다를 수 있음(테스트 최상위 호출 간 transient storage 초기화, `forge fmt` 출력 차이) |
-| Solidity | 0.8.28 | 스마트 컨트랙트 언어 |
+| Solidity | 0.8.35 | 스마트 컨트랙트 언어 |
 | Anvil | ≥1.0.0 | 로컬 이더리움 노드 |
 
 ### Foundry 설치
@@ -238,7 +238,7 @@ FOUNDRY_PROFILE=bridge forge script script/deploy-contract/DeployBridge.s.sol:De
 
 ```toml
 [profile.default]
-solc = "0.8.28"
+solc = "0.8.35"
 evm_version = "prague"
 optimizer = true
 optimizer_runs = 200

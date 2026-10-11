@@ -31,7 +31,7 @@
 | 4 | CI에 체인 위 E2E가 없음 | 높음 | 단위 테스트는 모두 통과했지만 실제 `handleOps` broadcast는 gas 설정 때문에 두 번 실패했습니다(`0xdeaddead`, `AA95 out of gas`). | 완료. 새 CI job `Anvil E2E`가 DeployAll과 `script/e2e/AnvilSmoke.s.sol`을 실행합니다. |
 | 5 | 배포 대상이 모호함 | 중간 | 문서는 anvil(31337)을 안내하는데 `.env` 기본값은 chain 8283(`127.0.0.1:8501`)입니다. 문서의 DeployAll 경로도 틀려 있었습니다. | 완료. 경로를 고치고, anvil용 환경변수 덮어쓰기 방법과 8283 manifest가 CI fixture라는 점을 문서화했습니다. |
 | 6 | 하드코딩된 slot 상수를 지키는 장치가 없음 | 중간 | 공식이 세 가지로 섞여 있습니다(`keccak`, `keccak - 1`, ERC-7201은 없음). literal 10개는 모두 맞았지만 이를 강제하는 장치가 없었습니다. | 완료. CI에서 `script/check-storage-slots.py`를 실행합니다. |
-| 7 | solc 0.8.28 고정 | 낮음 | `layout at`(0.8.29)과 `erc7201()`(0.8.35)을 쓸 수 없습니다. | 미해결. 컴파일러를 올리려면 먼저 Kernel 크기를 다시 확인해야 합니다. |
+| 7 | solc 0.8.28 고정 | 낮음 | `layout at`(0.8.29)과 `erc7201()`(0.8.35)을 쓸 수 없었습니다. | 완료. 0.8.28을 쓰던 profile을 0.8.35로 올렸습니다. Kernel 크기는 그대로(24,229 bytes)이고 테스트는 모두 통과합니다. Universal Router(0.8.26)와 0.7.6 profile은 그대로입니다. |
 | 8 | FlashLoanFallback의 연동 방식 변경 | 낮음 | 이제 executor로도 설치해야 하고 `beginFlashLoan`을 먼저 호출해야 합니다(PR #22). | 미해결. SDK와 프론트엔드 연동을 함께 고쳐야 합니다. |
 | 9 | Kernel 테스트가 적음 | 낮음 | `FEATURES.md`에 이미 Kernel 테스트 37개로 적혀 있습니다. | 미해결. 실제 Kernel 위에서 도는 통합 테스트 형식을 늘려 갑니다. |
 
@@ -92,7 +92,7 @@ ERC-7579 모듈은 대부분 singleton이고, storage를 `msg.sender` 계정별�
 | 도구 | 하는 일 | 한계 |
 |---|---|---|
 | Solidity 0.8.29 `layout at <slot>` | 컨트랙트 state 변수의 시작 slot을 지정합니다. | 변수 묶음 단위가 아니라 컨트랙트 단위로만 지정합니다. 상속 관련 제약은 이번 검토에서 확인하지 않았습니다. |
-| Solidity 0.8.35 `erc7201("id")` | ERC-7201 공식 `keccak256(keccak256(id) - 1) & ~0xff`를 컴파일 시점에 계산하는 builtin입니다. `layout at erc7201("...")`처럼 쓸 수 있고, 언어 최초의 comptime builtin입니다. | 0.8.35 이상이 필요합니다. 이 저장소는 0.8.28을 씁니다. |
+| Solidity 0.8.35 `erc7201("id")` | ERC-7201 공식 `keccak256(keccak256(id) - 1) & ~0xff`를 컴파일 시점에 계산하는 builtin입니다. `layout at erc7201("...")`처럼 쓸 수 있고, 언어 최초의 comptime builtin입니다. | 0.8.35 이상이 필요하며, 이 저장소는 이제 0.8.35를 씁니다. |
 | OpenZeppelin `SlotDerivation` / `StorageSlot` | ERC-7201 slot 계산, mapping과 배열의 slot 유도, 타입이 붙은 slot 접근을 제공합니다. | 런타임에 계산하므로, 미리 계산해 둔 상수보다 gas가 조금 더 들 수 있습니다. |
 | OpenZeppelin contracts-upgradeable v5 | 모든 컨트랙트가 ERC-7201 struct 패턴과 `@custom:storage-location`을 씁니다. 그래서 storage gap이 필요 없습니다. | — |
 | OpenZeppelin Upgrades (`validate`, Foundry `validateUpgrade`) | build info로 구현 컨트랙트 사이의 layout 호환성을 검사하고, namespaced storage도 다룹니다. | namespace를 `@custom:storage-location` 주석으로만 인식합니다. 이 저장소처럼 hex 상수와 assembly로 접근하는 slot은 검사하지 못합니다. |
@@ -104,7 +104,7 @@ ERC-7579 모듈은 대부분 singleton이고, storage를 `msg.sender` 계정별�
 이 저장소는 slot 상수를 hex literal로 적고 assembly로 읽습니다. 그래서 대부분의 layout 도구가 이 slot들을 보지 못합니다. 빠진 것은 프로젝트 전체의 일관성 검사 하나이고, 이를 위해 새 라이브러리를 만들 필요는 없습니다.
 
 1. **지금 (PR #25에서 완료).** `script/check-storage-slots.py`가 `*_SLOT`, `*_SEED`, `*_LOCATION` 상수를 모두 모아 바로 위의 공식 주석을 읽습니다. 값을 다시 계산해, 값이 다르거나 선언이 없거나 slot이나 namespace가 겹치면 실패합니다. 약점은 주석 형식에 의존한다는 점이라, 형식 자체를 지켜야 합니다.
-2. **컴파일러를 올릴 때.** 새 모듈은 `erc7201()`과 `@custom:storage-location`을 써서 OpenZeppelin `validate`의 검사를 받게 합니다. Kernel은 예외입니다. 크기 여유가 없어서 컴파일러만 바꿔도 따로 검증해야 합니다.
+2. **새 코드 (컴파일러는 이제 0.8.35).** 새 모듈은 `erc7201()`과 `@custom:storage-location`을 써서 OpenZeppelin `validate`의 검사를 받게 합니다. Kernel은 기존 `keccak`, `keccak - 1` slot을 그대로 둡니다. slot을 옮기면 이미 배포된 계정의 상태 위치가 바뀌기 때문입니다.
 
 ---
 

@@ -31,7 +31,7 @@ Each item comes from something observed in this repository. "Done" means the ite
 | 4 | No on-chain E2E in CI | High | Unit tests passed, yet real `handleOps` broadcasts failed twice on gas settings (`0xdeaddead`, `AA95 out of gas`). | Done. New `Anvil E2E` CI job runs DeployAll and `script/e2e/AnvilSmoke.s.sol`. |
 | 5 | Deployment target is ambiguous | Medium | Docs describe anvil (31337) while `.env` defaults to chain 8283 at `127.0.0.1:8501`. Docs referenced a wrong DeployAll path. | Done. Paths fixed, anvil overrides documented, and the 8283 manifest described as the CI fixture. |
 | 6 | Hard-coded slot constants are unguarded | Medium | Three formulas are mixed (`keccak`, `keccak - 1`, none ERC-7201). All 10 literals were correct, but nothing enforced it. | Done. `script/check-storage-slots.py` runs in CI. |
-| 7 | solc pinned to 0.8.28 | Low | `layout at` (0.8.29) and `erc7201()` (0.8.35) are unavailable. | Open. Upgrading the compiler first requires re-checking the Kernel size. |
+| 7 | solc pinned to 0.8.28 | Low | `layout at` (0.8.29) and `erc7201()` (0.8.35) were unavailable. | Done. Profiles on 0.8.28 moved to 0.8.35; Kernel size is unchanged (24,229 bytes) and all tests pass. Universal Router (0.8.26) and the 0.7.6 profile are unchanged. |
 | 8 | Breaking change in FlashLoanFallback | Low | The module must now be installed as an executor too, and `beginFlashLoan` must be called first (PR #22). | Open. SDK and frontend integrations must follow. |
 | 9 | Thin Kernel test coverage | Low | `FEATURES.md` already notes 37 Kernel tests. | Open. Extend the real-Kernel integration test style. |
 
@@ -92,7 +92,7 @@ Drawbacks:
 | Tool | What it does | Limits |
 |---|---|---|
 | Solidity 0.8.29 `layout at <slot>` | Sets the base slot for a contract's state variables. | Works per contract, not per variable group. Inheritance constraints were not verified for this review. |
-| Solidity 0.8.35 `erc7201("id")` | A compile-time builtin for the ERC-7201 formula `keccak256(keccak256(id) - 1) & ~0xff`. Usable as `layout at erc7201("...")`. It is the first comptime builtin in the language. | Requires 0.8.35 or newer. This repository uses 0.8.28. |
+| Solidity 0.8.35 `erc7201("id")` | A compile-time builtin for the ERC-7201 formula `keccak256(keccak256(id) - 1) & ~0xff`. Usable as `layout at erc7201("...")`. It is the first comptime builtin in the language. | Requires 0.8.35 or newer, which this repository now uses. |
 | OpenZeppelin `SlotDerivation` / `StorageSlot` | ERC-7201 slot derivation, mapping and array slot derivation, and typed slot access. | Runtime computation may cost slightly more gas than a precomputed constant. |
 | OpenZeppelin contracts-upgradeable v5 | Every contract uses the ERC-7201 struct pattern with `@custom:storage-location`, so storage gaps are no longer needed. | — |
 | OpenZeppelin Upgrades (`validate`, Foundry `validateUpgrade`) | Checks layout compatibility between implementations from build info, including namespaced storage. | Recognizes namespaces only through `@custom:storage-location`. Slots reached through hex constants and assembly, as in this repository, are not checked. |
@@ -104,7 +104,7 @@ Drawbacks:
 This repository writes slot constants as hex literals and reads them from assembly, which places them outside the reach of most layout tools. The missing piece is a project-wide consistency check, and it does not need a new library:
 
 1. **Now (done in PR #25).** `script/check-storage-slots.py` collects every `*_SLOT`, `*_SEED` and `*_LOCATION` constant and reads the formula comment above it. It recomputes the value, then fails on a mismatch, a missing declaration, or a reused slot or namespace id. Its weakness is that it depends on the comment format, so the format itself must be kept.
-2. **On a compiler upgrade.** New modules should use `erc7201()` with `@custom:storage-location`, so that OpenZeppelin `validate` covers them. Kernel is the exception: with no size headroom, even a compiler change needs separate verification there.
+2. **For new code (the compiler is now 0.8.35).** New modules should use `erc7201()` with `@custom:storage-location`, so that OpenZeppelin `validate` covers them. Kernel keeps its existing `keccak` and `keccak - 1` slots: moving them would change where existing accounts keep their state.
 
 ---
 
