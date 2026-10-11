@@ -10,6 +10,7 @@ import { Kernel } from "../../src/erc7579-smartaccount/Kernel.sol";
 import { KernelFactory } from "../../src/erc7579-smartaccount/factory/KernelFactory.sol";
 import { ECDSAValidator } from "../../src/erc7579-validators/ECDSAValidator.sol";
 import { MultiSigValidator } from "../../src/erc7579-validators/MultiSigValidator.sol";
+import { WeightedECDSAValidator } from "../../src/erc7579-validators/WeightedECDSAValidator.sol";
 import { IValidator, IHook } from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import { ValidationId, ExecMode } from "../../src/erc7579-smartaccount/types/Types.sol";
 import {
@@ -18,7 +19,10 @@ import {
     HOOK_MODULE_INSTALLED,
     CALLTYPE_SINGLE,
     EXECTYPE_DEFAULT,
-    EXEC_MODE_DEFAULT
+    EXEC_MODE_DEFAULT,
+    ERC1271_MAGICVALUE,
+    ERC1271_INVALID,
+    KERNEL_WRAPPER_TYPE_HASH
 } from "../../src/erc7579-smartaccount/types/Constants.sol";
 import { ValidatorLib } from "../../src/erc7579-smartaccount/utils/ValidationTypeLib.sol";
 import { ExecLib, ExecModePayload } from "../../src/erc7579-smartaccount/utils/ExecLib.sol";
@@ -319,6 +323,68 @@ contract KernelTest is Test {
         entryPoint.handleOps(ops, payable(beneficiary));
 
         assertEq(target.balance, 1 ether, "4-of-5 multisig account should execute");
+    }
+
+    /// @dev With a weighted root validator, one guardian below the threshold must not
+    ///      produce a valid ERC-1271 signature by repeating its own signature
+    function test_IsValidSignature_WeightedRootRejectsDuplicateGuardian() public {
+        WeightedECDSAValidator weighted = new WeightedECDSAValidator();
+        (address high, uint256 highKey) = makeAddrAndKey("weighted-guardian-a");
+        (address low, uint256 lowKey) = makeAddrAndKey("weighted-guardian-b");
+        if (high < low) {
+            (high, low) = (low, high);
+            (highKey, lowKey) = (lowKey, highKey);
+        }
+        address[] memory guardians = new address[](2);
+        guardians[0] = high;
+        guardians[1] = low;
+        uint24[] memory weights = new uint24[](2);
+        weights[0] = 100;
+        weights[1] = 100;
+
+        bytes memory initData = abi.encodeCall(
+            Kernel.initialize,
+            (
+                ValidatorLib.validatorToIdentifier(IValidator(address(weighted))),
+                IHook(HOOK_MODULE_INSTALLED),
+                abi.encode(guardians, weights, uint24(150), uint48(0)),
+                hex"",
+                new bytes[](0)
+            )
+        );
+        vm.prank(senderCreator);
+        Kernel account = Kernel(payable(kernelFactory.createAccount(initData, bytes32(uint256(150)))));
+
+        bytes32 hash = keccak256("permit");
+        bytes32 wrapped = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                keccak256(
+                    abi.encode(
+                        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                        keccak256("Kernel"),
+                        keccak256("0.3.3"),
+                        block.chainid,
+                        address(account)
+                    )
+                ),
+                keccak256(abi.encode(KERNEL_WRAPPER_TYPE_HASH, hash))
+            )
+        );
+        (uint8 vh, bytes32 rh, bytes32 sh) = vm.sign(highKey, wrapped);
+        (uint8 vl, bytes32 rl, bytes32 sl) = vm.sign(lowKey, wrapped);
+        bytes memory sigHigh = abi.encodePacked(rh, sh, vh);
+
+        assertEq(
+            account.isValidSignature(hash, abi.encodePacked(bytes1(0x00), sigHigh, rl, sl, vl)),
+            ERC1271_MAGICVALUE,
+            "two guardians reach the threshold"
+        );
+        assertEq(
+            account.isValidSignature(hash, abi.encodePacked(bytes1(0x00), sigHigh, sigHigh)),
+            ERC1271_INVALID,
+            "duplicated guardian signature must be rejected"
+        );
     }
 
     /* //////////////////////////////////////////////////////////////

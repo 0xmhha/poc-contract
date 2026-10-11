@@ -294,12 +294,15 @@ contract WeightedECDSAValidator is EIP712, IValidator {
         address prevSigner = address(uint160(type(uint160).max));
         for (uint256 i = 0; i < sigCount; i++) {
             address signer = ECDSA.recover(hash, data[i * 65:(i + 1) * 65]);
-            totalWeight += guardian[signer][msg.sender].weight;
+            uint256 weight = guardian[signer][msg.sender].weight;
+            // Check ordering (strictly descending, so no duplicates) and guardian status
+            // before counting the weight, otherwise the last signature is never checked
+            if (signer >= prevSigner || weight == 0) {
+                return ERC1271_INVALID;
+            }
+            totalWeight += weight;
             if (totalWeight >= strg.threshold) {
                 return ERC1271_MAGICVALUE;
-            }
-            if (signer >= prevSigner) {
-                return ERC1271_INVALID;
             }
             prevSigner = signer;
         }
