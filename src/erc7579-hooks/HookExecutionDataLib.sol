@@ -1,126 +1,138 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import { IERC7579Account } from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
+import { CallType } from "../erc7579-smartaccount/types/Types.sol";
+import { CALLTYPE_SINGLE, CALLTYPE_BATCH, CALLTYPE_DELEGATECALL } from "../erc7579-smartaccount/types/Constants.sol";
+import { LibERC7579 } from "solady/accounts/LibERC7579.sol";
+
 /**
  * @title HookExecutionDataLib
- * @notice Shared library for extracting execution data from potentially wrapped calldata
- * @dev Used by ERC-7579 Hook modules (PolicyHook, SpendingLimitHook, AuditHook) to decode
- *      the actual execution target, value, and calldata from Account Abstraction execution paths.
+ * @notice Shared library for decoding the executions behind the msgData Kernel passes to hooks
+ * @dev Used by ERC-7579 Hook modules (PolicyHook, SpendingLimitHook, AuditHook, HealthFactorHook).
  *
- *      Supports three calldata layouts:
- *      1. executeFromExecutor path: selector(4) + ABI-encoded (ExecMode, bytes executionCalldata)
- *      2. executeUserOp path: ABI-encoded (ExecMode, bytes executionCalldata) with selector stripped
- *      3. Direct/raw path: target(20) || value(32) || calldata(variable)
+ *      Kernel passes the following msgData to `preCheck`:
+ *      1. `execute` (root hook, and executeUserOp, which strips only its own selector):
+ *         execute.selector(4) || abi.encode(ExecMode, bytes executionCalldata)
+ *      2. `executeFromExecutor`:
+ *         executeFromExecutor.selector(4) || abi.encode(ExecMode, bytes executionCalldata)
+ *      3. Any other account function (installModule, uninstallModule, fallback selectors, or a
+ *         non-execute selector reached through executeUserOp): the raw call to the account.
  *
- *      All functions are `internal pure` so they get inlined at compile time (no DELEGATECALL overhead).
+ *      For layouts 1 and 2 the bytes argument is located through its ABI offset (as Kernel's ABI
+ *      decoder reads it) and decoded per the ExecMode call type with the same LibERC7579 decoders
+ *      Kernel uses to execute. Layout 3 is reported as a single call whose target is the account
+ *      itself (the hook's `msg.sender`).
+ *
+ *      Callers iterate executions with `getExecutionCount` + `getExecution`. Unsupported call types
+ *      and malformed encodings revert (fail closed).
  */
 library HookExecutionDataLib {
-    /// @notice Known function selector for wrapper calldata detection (executeFromExecutor path)
-    bytes4 internal constant EXECUTE_FROM_EXECUTOR_SELECTOR = bytes4(keccak256("executeFromExecutor(bytes32,bytes)"));
+    /// @notice Kernel `execute(bytes32,bytes)` selector
+    bytes4 internal constant EXECUTE_SELECTOR = IERC7579Account.execute.selector;
+
+    /// @notice Kernel `executeFromExecutor(bytes32,bytes)` selector
+    bytes4 internal constant EXECUTE_FROM_EXECUTOR_SELECTOR = IERC7579Account.executeFromExecutor.selector;
+
+    error UnsupportedCallType(CallType callType);
+    error InvalidExecutionCalldata();
 
     /**
-     * @notice Extract the actual execution target, value, and calldata from potentially wrapped msgData
-     * @dev In the Account Abstraction path, msgData may be:
-     *      - executeUserOp path: ABI-encoded (ExecMode, executionCalldata) with selector already stripped
-     *      - executeFromExecutor path: selector + ABI-encoded (ExecMode, executionCalldata)
-     *      - Direct path: raw execution calldata (target[0:20] || value[20:52] || calldata[52:])
-     *      This function detects the wrapper format and extracts the inner execution data.
+     * @notice Number of executions encoded in msgData
      * @param msgData The calldata passed to preCheck
-     * @param msgValue The ETH value passed to preCheck
-     * @return target The execution target address
-     * @return value The ETH value for the execution
-     * @return execCalldata The inner calldata (selector + arguments) being called on the target
+     * @return isExecute True if msgData is an execute/executeFromExecutor call
+     * @return callType CallType of the ExecMode (CALLTYPE_SINGLE when isExecute is false)
+     * @return count Number of executions (1 for single, delegatecall and non-execute calls)
      */
-    function extractExecutionData(bytes calldata msgData, uint256 msgValue)
+    function getExecutionCount(bytes calldata msgData)
         internal
         pure
-        returns (address target, uint256 value, bytes calldata execCalldata)
+        returns (bool isExecute, CallType callType, uint256 count)
     {
-        // Path 1: executeFromExecutor wrapper — starts with 4-byte selector
-        if (msgData.length >= 4) {
-            bytes4 selector = bytes4(msgData[0:4]);
-
-            if (selector == EXECUTE_FROM_EXECUTOR_SELECTOR) {
-                if (msgData.length >= 100) {
-                    bytes calldata abiPayload = msgData[4:];
-                    return decodeAbiWrappedExecution(abiPayload, msgValue);
-                }
-            }
-
-            // Path 2: executeUserOp path — selector already stripped, data is abi.encode(ExecMode, bytes)
-            if (msgData.length >= 96) {
-                uint256 offset = uint256(bytes32(msgData[32:64]));
-                if (offset == 0x40) {
-                    return decodeAbiWrappedExecution(msgData, msgValue);
-                }
-            }
-        }
-
-        // Path 3: Raw execution calldata — target[0:20] || value[20:52] || calldata[52:]
-        if (msgData.length >= 20) {
-            target = address(bytes20(msgData[0:20]));
-        }
-        if (msgData.length >= 52) {
-            value = uint256(bytes32(msgData[20:52]));
+        bytes calldata executionCalldata;
+        (isExecute, callType, executionCalldata) = decodeExecuteCalldata(msgData);
+        if (!isExecute) return (false, CALLTYPE_SINGLE, 1);
+        if (callType == CALLTYPE_BATCH) {
+            count = LibERC7579.decodeBatch(executionCalldata).length;
+        } else if (callType == CALLTYPE_SINGLE || callType == CALLTYPE_DELEGATECALL) {
+            count = 1;
         } else {
-            value = msgValue;
-        }
-        if (msgData.length > 52) {
-            execCalldata = msgData[52:];
-        } else {
-            execCalldata = msgData[0:0];
+            revert UnsupportedCallType(callType);
         }
     }
 
     /**
-     * @notice Decode ABI-encoded (ExecMode, bytes executionCalldata) and extract raw execution data
-     * @param abiPayload ABI-encoded payload: ExecMode(32) + offset(32) + length(32) + executionCalldata
-     * @param msgValue Fallback value if inner calldata doesn't contain value
-     * @return target The execution target address
+     * @notice Decode the i-th execution encoded in msgData
+     * @dev For CALLTYPE_DELEGATECALL the delegate is returned as target and value is 0.
+     *      For non-execute msgData the account itself is returned as target.
+     * @param msgData The calldata passed to preCheck
+     * @param msgValue The ETH value passed to preCheck
+     * @param index Execution index (< count from getExecutionCount)
+     * @return target The execution target (delegate for delegatecall)
      * @return value The ETH value for the execution
-     * @return execCalldata The inner calldata being called on the target
+     * @return data The calldata executed on the target
      */
-    function decodeAbiWrappedExecution(bytes calldata abiPayload, uint256 msgValue)
+    function getExecution(bytes calldata msgData, uint256 msgValue, uint256 index)
+        internal
+        view
+        returns (address target, uint256 value, bytes calldata data)
+    {
+        (bool isExecute, CallType callType, bytes calldata executionCalldata) = decodeExecuteCalldata(msgData);
+        if (!isExecute) {
+            if (index != 0) revert InvalidExecutionCalldata();
+            return (msg.sender, msgValue, msgData);
+        }
+        if (callType == CALLTYPE_BATCH) {
+            bytes32[] calldata pointers = LibERC7579.decodeBatch(executionCalldata);
+            if (index >= pointers.length) revert InvalidExecutionCalldata();
+            (target, value, data) = LibERC7579.getExecution(pointers, index);
+            // getExecution loads the full target word and Kernel calls its low 160 bits: clean it here
+            // instead of relying on compiler cleanup at each use
+            assembly ("memory-safe") {
+                target := shr(96, shl(96, target))
+            }
+            return (target, value, data);
+        }
+        if (index != 0) revert InvalidExecutionCalldata();
+        if (callType == CALLTYPE_SINGLE) {
+            return LibERC7579.decodeSingle(executionCalldata);
+        }
+        if (callType == CALLTYPE_DELEGATECALL) {
+            (target, data) = LibERC7579.decodeDelegate(executionCalldata);
+            return (target, 0, data);
+        }
+        revert UnsupportedCallType(callType);
+    }
+
+    /**
+     * @notice Split execute/executeFromExecutor calldata into CallType and executionCalldata
+     * @dev Follows the ABI offset of the bytes argument and checks bounds like the ABI decoder.
+     * @param msgData The calldata passed to preCheck
+     * @return isExecute True if msgData starts with the execute or executeFromExecutor selector
+     * @return callType CallType of the ExecMode
+     * @return executionCalldata The bytes executionCalldata argument
+     */
+    function decodeExecuteCalldata(bytes calldata msgData)
         internal
         pure
-        returns (address target, uint256 value, bytes calldata execCalldata)
+        returns (bool isExecute, CallType callType, bytes calldata executionCalldata)
     {
-        if (abiPayload.length < 96) {
-            if (abiPayload.length >= 20) {
-                target = address(bytes20(abiPayload[0:20]));
-            }
-            value = msgValue;
-            execCalldata = abiPayload[0:0];
-            return (target, value, execCalldata);
+        executionCalldata = msgData[0:0];
+        if (msgData.length < 4) return (false, callType, executionCalldata);
+        bytes4 selector = bytes4(msgData[0:4]);
+        if (selector != EXECUTE_SELECTOR && selector != EXECUTE_FROM_EXECUTOR_SELECTOR) {
+            return (false, callType, executionCalldata);
         }
-
-        uint256 dataLength = uint256(bytes32(abiPayload[64:96]));
-        uint256 dataStart = 96;
-        uint256 dataEnd = dataStart + dataLength;
-
-        if (dataEnd > abiPayload.length) {
-            if (abiPayload.length >= 20) {
-                target = address(bytes20(abiPayload[0:20]));
-            }
-            value = msgValue;
-            execCalldata = abiPayload[0:0];
-            return (target, value, execCalldata);
-        }
-
-        bytes calldata innerData = abiPayload[dataStart:dataEnd];
-
-        if (innerData.length >= 20) {
-            target = address(bytes20(innerData[0:20]));
-        }
-        if (innerData.length >= 52) {
-            value = uint256(bytes32(innerData[20:52]));
-        } else {
-            value = msgValue;
-        }
-        if (innerData.length > 52) {
-            execCalldata = innerData[52:];
-        } else {
-            execCalldata = innerData[0:0];
-        }
+        // selector(4) + ExecMode(32) + offset(32)
+        if (msgData.length < 68) revert InvalidExecutionCalldata();
+        uint256 offset = uint256(bytes32(msgData[36:68]));
+        // The length word must lie inside the arguments area, which starts at byte 4
+        if (offset > msgData.length - 36) revert InvalidExecutionCalldata();
+        uint256 lengthPos = 4 + offset;
+        uint256 length = uint256(bytes32(msgData[lengthPos:lengthPos + 32]));
+        if (length > msgData.length - lengthPos - 32) revert InvalidExecutionCalldata();
+        isExecute = true;
+        callType = CallType.wrap(msgData[4]);
+        executionCalldata = msgData[lengthPos + 32:lengthPos + 32 + length];
     }
 }

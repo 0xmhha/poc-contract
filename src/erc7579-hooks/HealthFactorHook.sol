@@ -2,8 +2,9 @@
 pragma solidity ^0.8.28;
 
 import { IHook, IModule } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import { MODULE_TYPE_HOOK, CALLTYPE_SINGLE, CALLTYPE_BATCH } from "../erc7579-smartaccount/types/Constants.sol";
+import { MODULE_TYPE_HOOK, CALLTYPE_SINGLE } from "../erc7579-smartaccount/types/Constants.sol";
 import { CallType } from "../erc7579-smartaccount/types/Types.sol";
+import { HookExecutionDataLib } from "./HookExecutionDataLib.sol";
 
 /**
  * @title ILendingPool
@@ -152,15 +153,12 @@ contract HealthFactorHook is IHook {
 
     /**
      * @notice Pre-execution check - records current health factor
+     * @dev Batch and delegatecall executions are always monitored (a batch may reach a monitored
+     *      target, a delegate runs arbitrary code as the account); a single call is monitored when
+     *      its target is.
      * @param msgSender The smart account (msg.sender from Kernel, i.e. the account itself)
-     * @param msgValue ETH value (unused)
-     * @param msgData Calldata from the Kernel execution function, containing the actual
-     *        execution target encoded within. Layout:
-     *        - bytes [0:4]: function selector (execute or executeFromExecutor)
-     *        - bytes [4:36]: ExecMode (bytes32) - first byte is CallType
-     *        - bytes [36:68]: ABI offset to executionCalldata
-     *        - bytes [68:100]: ABI length of executionCalldata
-     *        - bytes [100+]: executionCalldata (for CALLTYPE_SINGLE: target(20) + value(32) + callData)
+     * @param msgValue ETH value passed by Kernel
+     * @param msgData The calldata Kernel passed to the hook (see HookExecutionDataLib)
      * @return hookData Encoded pre-tx health factor, or empty if skipped
      */
     function preCheck(address msgSender, uint256 msgValue, bytes calldata msgData)
@@ -169,7 +167,7 @@ contract HealthFactorHook is IHook {
         override
         returns (bytes memory hookData)
     {
-        (msgSender, msgValue); // Silence unused warnings
+        (msgSender); // Silence unused warning
 
         AccountConfig storage config = accountConfigs[msg.sender];
 
@@ -178,41 +176,21 @@ contract HealthFactorHook is IHook {
             return bytes("");
         }
 
-        // Decode the actual execution target from msgData
-        // msgData layout: selector(4) + ExecMode(32) + ABI-encoded bytes(offset, length, data)
-        // Minimum length: 4 (selector) + 32 (ExecMode) + 32 (offset) + 32 (length) + 20 (target) = 120
-        if (msgData.length < 120) {
-            // Not enough data to extract a target - skip check
+        // Decode the executions behind the Kernel calldata
+        (bool isExecute, CallType callType, uint256 count) = HookExecutionDataLib.getExecutionCount(msgData);
+        if (!isExecute) {
+            // Not an execution (e.g. module management) - skip check
             return bytes("");
         }
 
-        // Extract CallType from ExecMode (first byte after selector)
-        CallType callType = CallType.wrap(msgData[4]);
-
-        // Extract execution target based on call type
-        address target;
-
-        if (callType == CALLTYPE_SINGLE) {
-            // For single calls, executionCalldata = target(20) + value(32) + callData
-            // The ABI-encoded bytes offset is at msgData[36:68], length at msgData[68:100]
-            // executionCalldata starts at msgData[100]
-            // Target is the first 20 bytes of executionCalldata
-            target = address(bytes20(msgData[100:120]));
-        } else if (callType == CALLTYPE_BATCH) {
-            // For batch calls, we cannot simply extract a single target.
-            // The executionCalldata is ABI-encoded Execution[] which requires
-            // dynamic decoding. For safety, enforce the check on the full
-            // transaction by recording health factor (always monitor batch calls).
-            // This ensures no batch transaction can degrade health factor below threshold.
-            uint256 batchHf = ILendingPool(LENDING_POOL).calculateHealthFactor(msg.sender);
-            return abi.encode(msg.sender, batchHf, config.minHealthFactor);
-        } else {
-            // Delegate calls or unknown call types - skip check
-            return bytes("");
+        bool monitor = callType != CALLTYPE_SINGLE;
+        for (uint256 i = 0; i < count; i++) {
+            (address target,,) = HookExecutionDataLib.getExecution(msgData, msgValue, i);
+            if (monitoredTargets[msg.sender][target]) monitor = true;
         }
 
-        // Skip if target not monitored
-        if (!monitoredTargets[msg.sender][target]) {
+        // Skip if no monitored target is reached
+        if (!monitor) {
             return bytes("");
         }
 

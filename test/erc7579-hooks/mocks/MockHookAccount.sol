@@ -2,6 +2,15 @@
 pragma solidity ^0.8.28;
 
 import { IHook } from "../../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
+import { IERC7579Account } from "../../../src/erc7579-smartaccount/interfaces/IERC7579Account.sol";
+import { ExecMode } from "../../../src/erc7579-smartaccount/types/Types.sol";
+
+/// @notice msgData Kernel passes to hooks for a single-call execute:
+///         execute.selector || abi.encode(ExecMode(CALLTYPE_SINGLE), target || value || callData)
+function kernelExecuteMsgData(address target, uint256 value, bytes memory callData) pure returns (bytes memory) {
+    return
+        abi.encodeCall(IERC7579Account.execute, (ExecMode.wrap(bytes32(0)), abi.encodePacked(target, value, callData)));
+}
 
 /**
  * @title MockHookAccount
@@ -25,8 +34,8 @@ contract MockHookAccount {
         payable
         returns (bytes memory)
     {
-        // Build msgData as hooks expect: target (20 bytes) + value (32 bytes) + callData
-        bytes memory msgData = abi.encodePacked(target, value, callData);
+        // Build msgData as Kernel passes it to hooks (single-call execute)
+        bytes memory msgData = kernelExecuteMsgData(target, value, callData);
 
         // Pre-check
         bytes memory hookData = hook.preCheck{ value: msg.value }(msg.sender, value, msgData);
@@ -46,8 +55,8 @@ contract MockHookAccount {
         payable
         returns (bytes memory result)
     {
-        // Build msgData as hooks expect
-        bytes memory msgData = abi.encodePacked(target, value, callData);
+        // Build msgData as Kernel passes it to hooks (single-call execute)
+        bytes memory msgData = kernelExecuteMsgData(target, value, callData);
 
         // Pre-check
         bytes memory hookData = hook.preCheck{ value: 0 }(msg.sender, value, msgData);

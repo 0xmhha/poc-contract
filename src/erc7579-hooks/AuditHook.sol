@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 import { IHook } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import { MODULE_TYPE_HOOK } from "../erc7579-smartaccount/types/Constants.sol";
+import { MODULE_TYPE_HOOK, CALLTYPE_DELEGATECALL } from "../erc7579-smartaccount/types/Constants.sol";
+import { CallType } from "../erc7579-smartaccount/types/Types.sol";
 import { HookExecutionDataLib } from "./HookExecutionDataLib.sol";
 
 /**
@@ -121,9 +122,10 @@ contract AuditHook is IHook {
 
     /**
      * @notice Pre-execution check - logs transaction and checks restrictions
+     * @dev Every execution in msgData is checked against the blocklist.
      * @param msgSender The original sender
      * @param msgValue ETH value being sent
-     * @param msgData The calldata being executed
+     * @param msgData The calldata Kernel passed to the hook (see HookExecutionDataLib)
      * @return hookData Encoded audit entry index
      */
     function preCheck(address msgSender, uint256 msgValue, bytes calldata msgData)
@@ -136,28 +138,34 @@ contract AuditHook is IHook {
 
         if (!store.config.isEnabled) revert ModuleNotEnabled();
 
-        // Extract execution data, handling wrapper calldata from AA/executor paths
+        // Extract execution data from the Kernel calldata (single, batch or delegatecall).
+        // A batch is logged as one entry with target/selector 0 and the summed value.
+        (, CallType callType, uint256 count) = HookExecutionDataLib.getExecutionCount(msgData);
         address target = address(0);
-        uint256 execValue = msgValue;
+        uint256 execValue = 0;
         bytes4 selector = bytes4(0);
 
-        if (msgData.length >= 20) {
-            bytes calldata execCalldata;
-            (target, execValue, execCalldata) = HookExecutionDataLib.extractExecutionData(msgData, msgValue);
+        for (uint256 i = 0; i < count; i++) {
+            (address execTarget, uint256 value, bytes calldata execCalldata) =
+                HookExecutionDataLib.getExecution(msgData, msgValue, i);
+            bytes4 execSelector = execCalldata.length >= 4 ? bytes4(execCalldata[0:4]) : bytes4(0);
 
-            if (execCalldata.length >= 4) {
-                selector = bytes4(execCalldata[0:4]);
+            // Check blocklist
+            if (store.blocklist[execTarget]) {
+                emit TransactionBlocked(msg.sender, execTarget, "Address is blocked");
+                revert AddressBlocked(execTarget);
+            }
+
+            execValue += value;
+            if (count == 1) {
+                target = execTarget;
+                selector = execSelector;
             }
         }
 
-        // Check blocklist
-        if (store.blocklist[target]) {
-            emit TransactionBlocked(msg.sender, target, "Address is blocked");
-            revert AddressBlocked(target);
-        }
-
-        // Check if flagged transaction
-        bool isFlagged = execValue >= store.config.highValueThreshold;
+        // Check if flagged transaction. A delegate can move any value as the account, so
+        // delegatecall is always treated as high value (fail closed).
+        bool isFlagged = execValue >= store.config.highValueThreshold || callType == CALLTYPE_DELEGATECALL;
 
         // Check pending delay for flagged transactions
         if (isFlagged && store.config.flaggedDelay > 0) {
