@@ -458,6 +458,28 @@ contract KernelTest is Test {
         );
     }
 
+    /// @dev An EIP-7702 delegated EOA has no root hook stored (address(0)); executeUserOp must
+    ///      treat that as "no hook" instead of calling preCheck on address(0)
+    function test_HandleOps_ExecuteUserOpOn7702Account() public {
+        (address eoa, uint256 eoaKey) = makeAddrAndKey("eoa7702");
+        vm.signAndAttachDelegation(address(kernelImpl), eoaKey);
+        vm.deal(eoa, 10 ether);
+
+        address target = makeAddr("target");
+        PackedUserOperation memory userOp = _createUserOp(eoa, 0, target, 1 ether, hex"");
+        userOp.callData = abi.encodePacked(Kernel.executeUserOp.selector, userOp.callData);
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(eoaKey, ECDSA.toEthSignedMessageHash(entryPoint.getUserOpHash(userOp)));
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
+        ops[0] = userOp;
+        vm.prank(beneficiary, beneficiary);
+        entryPoint.handleOps(ops, payable(beneficiary));
+
+        assertEq(target.balance, 1 ether, "executeUserOp should run on a 7702 account");
+    }
+
     /* //////////////////////////////////////////////////////////////
                         RECEIVE ETH TESTS
     //////////////////////////////////////////////////////////////*/

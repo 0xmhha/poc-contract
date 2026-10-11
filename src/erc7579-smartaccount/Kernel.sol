@@ -420,7 +420,8 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     {
         bytes memory context;
         IHook hook = executionHook[userOpHash];
-        bool callHook = address(hook) != HOOK_MODULE_INSTALLED;
+        // address(0) is the root hook of an EIP-7702 account; validateUserOp treats it as "no hook"
+        bool callHook = uint160(address(hook)) > uint160(HOOK_MODULE_INSTALLED);
         if (callHook) {
             // removed 4bytes selector
             context = _doPreHook(hook, msg.value, userOp.callData[4:]);
