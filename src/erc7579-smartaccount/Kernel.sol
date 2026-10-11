@@ -215,7 +215,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
             revert InvalidValidationType();
         }
         _setRootValidator(_rootValidator);
-        if (_validationStorage().validationConfig[_rootValidator].hook == IHook(HOOK_MODULE_NOT_INSTALLED)) {
+        if (address(_validationStorage().validationConfig[_rootValidator].hook) == HOOK_MODULE_NOT_INSTALLED) {
             // when new rootValidator is not installed yet
             ValidationConfig memory config = ValidationConfig({ nonce: uint32(vs.currentNonce), hook: hook });
             _installValidation(_rootValidator, config, validatorData, hookData);
@@ -418,7 +418,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         // execute() runs the root validator hook itself; calling it here too would run it twice
         if (bytes4(callData) == this.execute.selector) {
             ValidationStorage storage vs = _validationStorage();
-            if (hook == vs.validationConfig[vs.rootValidator].hook) callHook = false;
+            if (address(hook) == address(vs.validationConfig[vs.rootValidator].hook)) callHook = false;
         }
         if (callHook) {
             context = _doPreHook(hook, msg.value, callData);
@@ -501,7 +501,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         if (moduleType == MODULE_TYPE_VALIDATOR) {
             ValidationStorage storage vs = _validationStorage();
             ValidationId vId = ValidatorLib.validatorToIdentifier(IValidator(module));
-            if (vs.validationConfig[vId].hook != IHook(HOOK_MODULE_NOT_INSTALLED)) {
+            if (address(vs.validationConfig[vId].hook) != HOOK_MODULE_NOT_INSTALLED) {
                 revert ModuleAlreadyInstalled(moduleType, module);
             }
             if (vs.validationConfig[vId].nonce == vs.currentNonce) {
@@ -731,7 +731,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         if (moduleType == MODULE_TYPE_VALIDATOR) {
             ValidationId vId = ValidatorLib.validatorToIdentifier(IValidator(module));
             moduleHook = _validationStorage().validationConfig[vId].hook;
-            if (moduleHook == IHook(HOOK_MODULE_NOT_INSTALLED)) {
+            if (address(moduleHook) == HOOK_MODULE_NOT_INSTALLED) {
                 revert ModuleNotInstalled(moduleType, module);
             }
         } else if (moduleType == MODULE_TYPE_EXECUTOR) {
@@ -777,7 +777,7 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
             _clearSelectorData(selector);
         } else if (moduleType == MODULE_TYPE_HOOK) {
             ValidationId vId = _validationStorage().rootValidator;
-            if (_validationStorage().validationConfig[vId].hook == IHook(module)) {
+            if (address(_validationStorage().validationConfig[vId].hook) == module) {
                 _validationStorage().validationConfig[vId].hook = IHook(HOOK_MODULE_INSTALLED);
             }
         }
@@ -813,8 +813,9 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         returns (bool)
     {
         if (moduleType == MODULE_TYPE_VALIDATOR) {
-            return _validationStorage().validationConfig[ValidatorLib.validatorToIdentifier(IValidator(module))].hook
-                != IHook(HOOK_MODULE_NOT_INSTALLED);
+            return address(
+                _validationStorage().validationConfig[ValidatorLib.validatorToIdentifier(IValidator(module))].hook
+            ) != HOOK_MODULE_NOT_INSTALLED;
         } else if (moduleType == MODULE_TYPE_EXECUTOR) {
             return address(_executorConfig(IExecutor(module)).hook) != HOOK_MODULE_NOT_INSTALLED;
         } else if (moduleType == MODULE_TYPE_FALLBACK) {
