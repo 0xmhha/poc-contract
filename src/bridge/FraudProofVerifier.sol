@@ -5,7 +5,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import { BridgeValidator } from "./BridgeValidator.sol";
+import { OptimisticVerifier } from "./OptimisticVerifier.sol";
 
 /**
  * @title FraudProofVerifier
@@ -13,11 +13,16 @@ import { BridgeValidator } from "./BridgeValidator.sol";
  * @dev Implements multiple fraud proof types with Merkle and state proof validation
  *
  * Fraud Proof Types:
- * - InvalidSignature: MPC signature verification failure
  * - DoubleSpending: Same funds used in multiple requests
  * - InvalidAmount: Amount mismatch between chains
  * - InvalidToken: Unauthorized token in bridge request
- * - ReplayAttack: Nonce reuse detected
+ * - InvalidSignature, ReplayAttack: rejected. Their evidence (signatures, sender/nonce) is
+ *   chosen by the submitter and cannot be tied to the challenged request, so accepting them
+ *   would let any challenger prove "fraud" against a legitimate request.
+ *
+ * Proofs may only be submitted by the active challenger of a request (or the owner) while the
+ * request is Challenged in the OptimisticVerifier, and are evaluated against the request data
+ * recorded there.
  */
 contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
     // ============ Errors ============
@@ -54,11 +59,11 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
      */
     enum FraudProofType {
         None,
-        InvalidSignature, // MPC signature verification failed
+        InvalidSignature, // MPC signature verification failed (rejected: evidence cannot be bound)
         DoubleSpending, // Same funds used multiple times
         InvalidAmount, // Amount mismatch
         InvalidToken, // Unauthorized token
-        ReplayAttack // Nonce reuse
+        ReplayAttack // Nonce reuse (rejected: evidence cannot be bound)
     }
 
     // ============ Structs ============
@@ -166,6 +171,12 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
     {
         if (proof.proofType == FraudProofType.None) revert InvalidProofType();
         if (proof.requestId == bytes32(0)) revert InvalidRequestId();
+        if (proof.proofType == FraudProofType.InvalidSignature || proof.proofType == FraudProofType.ReplayAttack) {
+            revert InvalidProofType();
+        }
+
+        // Only the active challenger (or owner) may submit, and only while the request is challenged
+        _checkActiveChallenger(proof.requestId);
 
         // Check if proof already submitted for this request
         if (proofRecords[proof.requestId].submittedAt > 0) revert ProofAlreadySubmitted();
@@ -201,6 +212,7 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
         // Verify proof was submitted
         if (record.submittedAt == 0) revert InvalidProof();
         if (record.verified) return record.isValid;
+        if (msg.sender != record.submitter && msg.sender != owner()) revert UnauthorizedCaller();
 
         // Check proof hasn't expired
         if (block.timestamp > record.submittedAt + PROOF_EXPIRY) revert ProofExpired();
@@ -213,17 +225,15 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
 
         if (proofHash != record.proofHash) revert InvalidProof();
 
-        // Verify based on proof type
-        if (proof.proofType == FraudProofType.InvalidSignature) {
-            isValid = _verifyInvalidSignatureProof(proof);
-        } else if (proof.proofType == FraudProofType.DoubleSpending) {
+        // Verify based on proof type, against the request recorded in the OptimisticVerifier
+        OptimisticVerifier.BridgeRequest memory request =
+            OptimisticVerifier(payable(optimisticVerifier)).getRequest(proof.requestId);
+        if (proof.proofType == FraudProofType.DoubleSpending) {
             isValid = _verifyDoubleSpendingProof(proof);
         } else if (proof.proofType == FraudProofType.InvalidAmount) {
-            isValid = _verifyInvalidAmountProof(proof);
+            isValid = _verifyInvalidAmountProof(proof, request);
         } else if (proof.proofType == FraudProofType.InvalidToken) {
-            isValid = _verifyInvalidTokenProof(proof);
-        } else if (proof.proofType == FraudProofType.ReplayAttack) {
-            isValid = _verifyReplayAttackProof(proof);
+            isValid = _verifyInvalidTokenProof(proof, request);
         }
 
         // Update record
@@ -396,58 +406,6 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
     // ============ Internal Functions ============
 
     /**
-     * @notice Verify invalid signature proof
-     * @dev Fraud proof is valid if signatures do NOT pass BridgeValidator verification
-     * @param proof The fraud proof containing BridgeMessage and signatures
-     * @return isValid True if fraud is proven (signatures are invalid)
-     *
-     * Evidence format: abi.encode(BridgeValidator.BridgeMessage, bytes[] signatures)
-     * - BridgeMessage: The bridge message that was supposedly validated
-     * - signatures: The signatures that were used to validate the message
-     *
-     * This proves fraud if:
-     * 1. The signatures do not meet the threshold requirement
-     * 2. The signatures are from unauthorized signers
-     * 3. The message was altered after signing
-     */
-    function _verifyInvalidSignatureProof(FraudProof calldata proof) internal view returns (bool) {
-        if (proof.evidence.length == 0) return false;
-        if (bridgeValidator == address(0)) revert ZeroAddress();
-
-        // Decode evidence: BridgeMessage struct and signatures array
-        (BridgeValidator.BridgeMessage memory message, bytes[] memory signatures) =
-            abi.decode(proof.evidence, (BridgeValidator.BridgeMessage, bytes[]));
-
-        // Basic validation
-        if (signatures.length == 0) return false;
-
-        // Call BridgeValidator to verify signatures
-        // If verification returns false, fraud is proven (signatures are invalid)
-        try BridgeValidator(bridgeValidator).verifySignaturesView(message, signatures) returns (bool valid, uint256) {
-            // Fraud is proven if signatures are NOT valid
-            // validCount helps understand how many signatures were actually valid
-            if (!valid) {
-                return true; // Fraud proven: insufficient valid signatures
-            }
-
-            // Additional check: verify the requestId matches
-            if (message.requestId != proof.requestId) {
-                return true; // Fraud proven: message requestId mismatch
-            }
-
-            return false; // No fraud: signatures are valid
-        } catch (bytes memory reason) {
-            // Only treat specific revert reasons as potential fraud
-            // Generic reverts (e.g., expired message, gas issues) should NOT be fraud evidence
-            if (reason.length == 0) {
-                return false; // Unknown revert - not sufficient evidence
-            }
-            // Log the revert for investigation but don't auto-confirm fraud
-            return false;
-        }
-    }
-
-    /**
      * @notice Verify double spending proof
      * @param proof The fraud proof
      * @return isValid Whether the proof is valid
@@ -471,8 +429,10 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
         bytes32 root = stateRoots[chainId];
         if (root == bytes32(0)) return false;
 
-        // Verify that inputHash is included in the Merkle tree (proves shared input)
-        bytes32 leaf = keccak256(abi.encodePacked(txHash1, txHash2, inputHash));
+        // Verify that inputHash is included in the Merkle tree (proves shared input).
+        // The leaf commits to the requestId so an attested double-spend cannot be reused
+        // against other requests.
+        bytes32 leaf = keccak256(abi.encodePacked(proof.requestId, txHash1, txHash2, inputHash));
         if (!MerkleProof.verify(proof.merkleProof, root, leaf)) return false;
 
         return true;
@@ -481,13 +441,21 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Verify invalid amount proof
      * @param proof The fraud proof
+     * @param request The challenged request
      * @return isValid Whether the proof is valid
      */
-    function _verifyInvalidAmountProof(FraudProof calldata proof) internal view returns (bool) {
+    function _verifyInvalidAmountProof(FraudProof calldata proof, OptimisticVerifier.BridgeRequest memory request)
+        internal
+        view
+        returns (bool)
+    {
         if (proof.evidence.length == 0) return false;
 
         (uint256 sourceAmount, uint256 targetAmount, uint256 expectedAmount) =
             abi.decode(proof.evidence, (uint256, uint256, uint256));
+
+        // The expected amount must be the amount recorded for the challenged request
+        if (expectedAmount != request.amount) return false;
 
         // Verify merkle proof for the claimed amounts
         if (proof.merkleProof.length == 0) return false;
@@ -508,52 +476,50 @@ contract FraudProofVerifier is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Verify invalid token proof
      * @param proof The fraud proof
+     * @param request The challenged request
      * @return isValid Whether the proof is valid
      */
-    function _verifyInvalidTokenProof(FraudProof calldata proof) internal view returns (bool) {
+    function _verifyInvalidTokenProof(FraudProof calldata proof, OptimisticVerifier.BridgeRequest memory request)
+        internal
+        view
+        returns (bool)
+    {
         // Decode evidence: (address token, uint256 chainId)
         if (proof.evidence.length == 0) return false;
 
         (address token, uint256 chainId) = abi.decode(proof.evidence, (address, uint256));
+
+        // Evidence must name the token and source chain of the challenged request
+        if (token != request.token || chainId != request.sourceChain) return false;
 
         // Check if token is NOT authorized for the chain
         return !authorizedTokens[chainId][token];
     }
 
     /**
-     * @notice Verify replay attack proof
-     * @param proof The fraud proof
-     * @return isValid Whether the proof is valid
+     * @notice Revert unless msg.sender is the active challenger of the request or the owner
+     * @param requestId ID of the challenged request
      */
-    function _verifyReplayAttackProof(FraudProof calldata proof) internal view returns (bool) {
-        // Decode evidence: (address sender, uint256 nonce, bytes32 previousTxHash)
-        if (proof.evidence.length == 0) return false;
-        if (bridgeValidator == address(0)) revert ZeroAddress();
+    function _checkActiveChallenger(bytes32 requestId) internal view {
+        if (optimisticVerifier == address(0)) revert OptimisticVerifierNotSet();
 
-        (address sender, uint256 nonce, bytes32 previousTxHash) =
-            abi.decode(proof.evidence, (address, uint256, bytes32));
-
-        // Check if nonce was already used in BridgeValidator
-        if (!BridgeValidator(bridgeValidator).usedNonces(sender, nonce)) return false;
-
-        // Verify merkle proof shows previous usage
-        if (proof.merkleProof.length == 0) return false;
-        if (previousTxHash == bytes32(0)) return false;
-
-        return true;
+        OptimisticVerifier verifier = OptimisticVerifier(payable(optimisticVerifier));
+        if (verifier.getRequestStatus(requestId) != OptimisticVerifier.RequestStatus.Challenged) {
+            revert InvalidRequestId();
+        }
+        if (msg.sender != owner() && msg.sender != verifier.getChallenge(requestId).challenger) {
+            revert UnauthorizedCaller();
+        }
     }
 
     /**
      * @notice Notify OptimisticVerifier of fraud proof result
+     * @dev Reverts if the OptimisticVerifier rejects the resolution so a valid proof is never
+     *      recorded as verified without the challenge being resolved.
      * @param requestId ID of the request
      * @param fraudProven Whether fraud was proven
      */
     function _notifyOptimisticVerifier(bytes32 requestId, bool fraudProven) internal {
-        (bool success,) =
-            optimisticVerifier.call(abi.encodeWithSignature("resolveChallenge(bytes32,bool)", requestId, fraudProven));
-
-        if (!success) {
-            emit OptimisticVerifierNotificationFailed(requestId, fraudProven);
-        }
+        OptimisticVerifier(payable(optimisticVerifier)).resolveChallenge(requestId, fraudProven);
     }
 }
