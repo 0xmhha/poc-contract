@@ -155,7 +155,7 @@ contract HealthFactorHook is IHook {
      * @notice Pre-execution check - records current health factor
      * @dev Batch and delegatecall executions are always monitored (a batch may reach a monitored
      *      target, a delegate runs arbitrary code as the account); a single call is monitored when
-     *      its target is.
+     *      its target is. Executions targeting this hook or the account itself are rejected.
      * @param msgSender The smart account (msg.sender from Kernel, i.e. the account itself)
      * @param msgValue ETH value passed by Kernel
      * @param msgData The calldata Kernel passed to the hook (see HookExecutionDataLib)
@@ -186,6 +186,7 @@ contract HealthFactorHook is IHook {
         bool monitor = callType != CALLTYPE_SINGLE;
         for (uint256 i = 0; i < count; i++) {
             (address target,,) = HookExecutionDataLib.getExecution(msgData, msgValue, i);
+            HookExecutionDataLib.checkExecutionTarget(target);
             if (monitoredTargets[msg.sender][target]) monitor = true;
         }
 

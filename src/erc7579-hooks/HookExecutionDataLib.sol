@@ -36,6 +36,7 @@ library HookExecutionDataLib {
 
     error UnsupportedCallType(CallType callType);
     error InvalidExecutionCalldata();
+    error ForbiddenExecutionTarget(address target);
 
     /**
      * @notice Number of executions encoded in msgData
@@ -102,6 +103,18 @@ library HookExecutionDataLib {
             return (target, 0, data);
         }
         revert UnsupportedCallType(callType);
+    }
+
+    /**
+     * @notice Reject execution targets the calling hook cannot police
+     * @dev Reverts if `target` is the hook itself (a monitored execution could rewrite the hook's
+     *      own configuration) or the account itself (a nested self-call such as execute(...) runs
+     *      executions this hook never sees). Called from the hook, so address(this) is the hook and
+     *      msg.sender is the account. Apply only to executions decoded from an execute payload.
+     * @param target The execution target
+     */
+    function checkExecutionTarget(address target) internal view {
+        if (target == address(this) || target == msg.sender) revert ForbiddenExecutionTarget(target);
     }
 
     /**

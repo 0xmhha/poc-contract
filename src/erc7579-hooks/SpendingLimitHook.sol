@@ -19,7 +19,8 @@ import { HookExecutionDataLib } from "./HookExecutionDataLib.sol";
  *      An allowance granted inside the execution can be spent later, outside it, where no balance
  *      diff is taken. preCheck therefore rejects approve / increaseAllowance / permit calls to a
  *      configured token, and rejects delegatecall (the delegate could grant allowances or change
- *      this hook's configuration as the account).
+ *      this hook's configuration as the account). Calls to this hook or to the account itself are
+ *      rejected too, so a monitored execution cannot raise its own limit.
  *
  *      Inspired by kernel-7579-plugins SpendingLimit.sol (ZeroDev, MIT).
  *
@@ -343,6 +344,7 @@ contract SpendingLimitHook is IHook {
 
         for (uint256 i = 0; i < count; i++) {
             (address target,, bytes calldata data) = HookExecutionDataLib.getExecution(msgData, msgValue, i);
+            HookExecutionDataLib.checkExecutionTarget(target);
 
             if (target == address(0) || !store.limits[target].isEnabled || data.length < 4) continue;
             bytes4 selector = bytes4(data[0:4]);

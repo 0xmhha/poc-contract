@@ -122,7 +122,8 @@ contract AuditHook is IHook {
 
     /**
      * @notice Pre-execution check - logs transaction and checks restrictions
-     * @dev Every execution in msgData is checked against the blocklist.
+     * @dev Every execution in msgData is checked against the blocklist. Executions targeting this
+     *      hook (except queueFlaggedTransaction) or the account itself are rejected.
      * @param msgSender The original sender
      * @param msgValue ETH value being sent
      * @param msgData The calldata Kernel passed to the hook (see HookExecutionDataLib)
@@ -140,7 +141,7 @@ contract AuditHook is IHook {
 
         // Extract execution data from the Kernel calldata (single, batch or delegatecall).
         // A batch is logged as one entry with target/selector 0 and the summed value.
-        (, CallType callType, uint256 count) = HookExecutionDataLib.getExecutionCount(msgData);
+        (bool isExecute, CallType callType, uint256 count) = HookExecutionDataLib.getExecutionCount(msgData);
         address target = address(0);
         uint256 execValue = 0;
         bytes4 selector = bytes4(0);
@@ -149,6 +150,11 @@ contract AuditHook is IHook {
             (address execTarget, uint256 value, bytes calldata execCalldata) =
                 HookExecutionDataLib.getExecution(msgData, msgValue, i);
             bytes4 execSelector = execCalldata.length >= 4 ? bytes4(execCalldata[0:4]) : bytes4(0);
+
+            // Reject self-reconfiguration; queueing a flagged transaction stays possible
+            if (isExecute && (execTarget != address(this) || execSelector != this.queueFlaggedTransaction.selector)) {
+                HookExecutionDataLib.checkExecutionTarget(execTarget);
+            }
 
             // Check blocklist
             if (store.blocklist[execTarget]) {

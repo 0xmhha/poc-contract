@@ -162,8 +162,9 @@ contract PolicyHook is IHook {
 
     /**
      * @notice Pre-execution check - validates policies
-     * @dev Every execution in msgData is checked (each entry of a batch). Delegatecall requires an
-     *      allowed delegate.
+     * @dev Every execution in msgData is checked (each entry of a batch). Executions targeting this
+     *      hook or the account itself are rejected, so a monitored execution cannot change this
+     *      policy or hide calls in a nested self-call. Delegatecall requires an allowed delegate.
      * @param msgValue ETH value being sent
      * @param msgData The calldata Kernel passed to the hook (see HookExecutionDataLib)
      * @return hookData Data to pass to postCheck
@@ -180,12 +181,13 @@ contract PolicyHook is IHook {
         if (store.isPaused) revert AccountIsPaused();
 
         // Check every execution behind the Kernel calldata (single, batch or delegatecall)
-        (, CallType callType, uint256 count) = HookExecutionDataLib.getExecutionCount(msgData);
+        (bool isExecute, CallType callType, uint256 count) = HookExecutionDataLib.getExecutionCount(msgData);
         address target;
         uint256 execValue;
         for (uint256 i = 0; i < count; i++) {
             bytes calldata execCalldata;
             (target, execValue, execCalldata) = HookExecutionDataLib.getExecution(msgData, msgValue, i);
+            if (isExecute) HookExecutionDataLib.checkExecutionTarget(target);
 
             // A delegate runs arbitrary code as the account, so no target/selector/value rule can
             // bound it: only explicitly allowed delegates pass, in both modes (fail closed).
