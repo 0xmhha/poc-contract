@@ -172,8 +172,9 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
     /// @notice EIP-712 type hash for permission grants
     /// @dev rulesHash is keccak256 of the concatenated RULE_TYPEHASH struct hashes, in order,
     ///      so a relayer cannot add, drop or reorder the rules the granter signed.
+    ///      isAdjustmentAllowed is signed too, so a relayer cannot flip it.
     bytes32 public constant PERMISSION_GRANT_TYPEHASH = keccak256(
-        "PermissionGrant(address granter,address grantee,address target,bytes32 permissionTypeHash,bytes32 dataHash,bytes32 rulesHash,uint256 nonce,uint256 deadline)"
+        "PermissionGrant(address granter,address grantee,address target,bytes32 permissionTypeHash,bool isAdjustmentAllowed,bytes32 dataHash,bytes32 rulesHash,uint256 nonce,uint256 deadline)"
     );
 
     /// @notice EIP-712 type hash for one rule inside rulesHash
@@ -332,6 +333,7 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
                 grantee,
                 target,
                 keccak256(bytes(permission.permissionType)),
+                permission.isAdjustmentAllowed,
                 keccak256(permission.data),
                 keccak256(abi.encodePacked(ruleHashes)),
                 nonce,
@@ -448,7 +450,13 @@ contract ERC7715PermissionManager is IERC7715PermissionManager, Ownable, Reentra
      * @param amount Amount to consume
      * @return success Whether the usage was successful
      */
-    function usePermission(bytes32 permissionId, uint256 amount) external override nonReentrant returns (bool success) {
+    function usePermission(bytes32 permissionId, uint256 amount)
+        external
+        override
+        nonReentrant
+        whenNotPaused
+        returns (bool success)
+    {
         PermissionRecord storage record = permissions[permissionId];
 
         if (record.createdAt == 0) revert PermissionNotFound();

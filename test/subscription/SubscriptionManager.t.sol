@@ -510,6 +510,28 @@ contract SubscriptionManagerTest is Test {
         assertEq(subManager.getSubscription(subscriptionId).paymentCount, 0);
     }
 
+    function test_ProcessPayment_RevertsWhilePermissionManagerPaused() public {
+        (bytes32 subscriptionId,) = _subscribeAs(subscriber);
+        vm.prank(owner);
+        permManager.setPaused(true);
+
+        uint256 balanceBefore = token.balanceOf(subscriber);
+        vm.warp(1 + 7 days + 4 days); // past the grace period
+        vm.prank(processor);
+        vm.expectRevert(IERC7715PermissionManager.PermissionPaused.selector);
+        subManager.processPayment(subscriptionId);
+
+        // The batch also reverts rather than expiring subscriptions because of an operator pause
+        bytes32[] memory ids = new bytes32[](1);
+        ids[0] = subscriptionId;
+        vm.prank(processor);
+        vm.expectRevert(IERC7715PermissionManager.PermissionPaused.selector);
+        subManager.batchProcessPayments(ids);
+
+        assertEq(token.balanceOf(subscriber), balanceBefore);
+        assertTrue(subManager.getSubscription(subscriptionId).active);
+    }
+
     function test_Subscribe_RevertsWhenFirstPaymentFails() public {
         vm.prank(merchant);
         uint256 noTrialPlanId =

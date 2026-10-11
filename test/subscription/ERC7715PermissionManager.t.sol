@@ -155,6 +155,7 @@ contract ERC7715PermissionManagerTest is Test {
                 grantee,
                 target,
                 keccak256(bytes(defaultPermission.permissionType)),
+                defaultPermission.isAdjustmentAllowed,
                 keccak256(defaultPermission.data),
                 keccak256(""), // rulesHash of an empty rule list
                 manager.nonces(granter),
@@ -234,6 +235,20 @@ contract ERC7715PermissionManagerTest is Test {
         assertTrue(manager.isPermissionValid(permissionId));
         vm.warp(expiry + 1);
         assertFalse(manager.isPermissionValid(permissionId));
+    }
+
+    /// @notice A relayer must not be able to flip isAdjustmentAllowed. Before the fix the flag was
+    ///         not part of the signed struct, so a relayer could lock (or unlock) adjustments.
+    function test_GrantPermissionWithSignature_RevertsWhenAdjustmentFlagChanged() public {
+        vm.warp(1 days);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory signature = _signGrant(defaultRules, deadline);
+
+        IERC7715PermissionManager.Permission memory flipped = defaultPermission;
+        flipped.isAdjustmentAllowed = !defaultPermission.isAdjustmentAllowed;
+        vm.prank(makeAddr("relayer"));
+        vm.expectRevert(IERC7715PermissionManager.InvalidSignature.selector);
+        manager.grantPermissionWithSignature(granter, grantee, target, flipped, defaultRules, deadline, signature);
     }
 
     function _signGrant(IERC7715PermissionManager.Rule[] memory rules, uint256 deadline)
@@ -388,6 +403,19 @@ contract ERC7715PermissionManagerTest is Test {
         vm.prank(unauthorized);
         vm.expectRevert(IERC7715PermissionManager.UnauthorizedCaller.selector);
         manager.usePermission(permissionId, 10 ether);
+    }
+
+    function test_UsePermission_RevertsWhenPaused() public {
+        vm.prank(granter);
+        bytes32 permissionId = manager.grantPermission(grantee, target, defaultPermission, defaultRules);
+
+        vm.prank(owner);
+        manager.setPaused(true);
+
+        vm.prank(target);
+        vm.expectRevert(IERC7715PermissionManager.PermissionPaused.selector);
+        manager.usePermission(permissionId, 10 ether);
+        assertEq(manager.getTotalUsage(permissionId), 0);
     }
 
     // ============ View Function Tests ============
