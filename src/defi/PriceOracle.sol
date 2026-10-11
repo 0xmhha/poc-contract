@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IUniswapV3Pool } from "./interfaces/UniswapV3.sol";
 import { IPriceOracle } from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
@@ -137,6 +138,8 @@ contract PriceOracle is Ownable, IPriceOracle {
      */
     function setUniswapPool(address token, address pool, uint32 twapPeriod, address quoteToken) external onlyOwner {
         if (pool == address(0)) revert ZeroAddress();
+        // A zero TWAP period would divide by zero when averaging tick cumulatives
+        if (twapPeriod == 0) revert InvalidPoolConfiguration(token);
 
         IUniswapV3Pool uniPool = IUniswapV3Pool(pool);
         address token0 = uniPool.token0();
@@ -335,12 +338,8 @@ contract PriceOracle is Ownable, IPriceOracle {
             arithmeticMeanTick--;
         }
 
-        // Convert tick to raw price (Q192 format normalized)
-        uint256 rawPrice = _tickToPrice(arithmeticMeanTick, config.isToken0);
-
-        // Adjust for token decimals difference
-        // Uniswap V3 price = token1/token0, need to scale based on decimals
-        uint256 price = _adjustPriceForDecimals(rawPrice, config.tokenDecimals, config.quoteDecimals, config.isToken0);
+        // Convert tick to the price of one whole target token in quote tokens (PRICE_DECIMALS)
+        uint256 price = _tickToPrice(arithmeticMeanTick, config.isToken0, config.tokenDecimals, config.quoteDecimals);
 
         // If quote token is not USD-pegged, convert using quote token's USD price
         if (config.quoteToken != address(0)) {
@@ -350,46 +349,6 @@ contract PriceOracle is Ownable, IPriceOracle {
 
         return
             PriceData({ price: price, decimals: PRICE_DECIMALS, updatedAt: block.timestamp, source: "UniswapV3TWAP" });
-    }
-
-    /**
-     * @notice Adjust price for token decimals difference
-     * @dev Uniswap V3 tick represents price as token1/token0
-     * @param rawPrice The raw price from tick calculation
-     * @param tokenDecimals Decimals of the target token
-     * @param quoteDecimals Decimals of the quote token
-     * @param isToken0 Whether target token is token0 in the pool
-     */
-    function _adjustPriceForDecimals(uint256 rawPrice, uint8 tokenDecimals, uint8 quoteDecimals, bool isToken0)
-        internal
-        pure
-        returns (uint256)
-    {
-        // The tick-based price already accounts for the mathematical ratio
-        // We need to adjust for decimal differences between tokens
-        //
-        // If isToken0: price = quote/token = token1/token0
-        // - Need to scale by 10^(tokenDecimals - quoteDecimals)
-        // If !isToken0: price = quote/token = token0/token1
-        // - Need to scale by 10^(tokenDecimals - quoteDecimals)
-
-        if (isToken0) {
-            // Target is token0, quote is token1
-            // Adjust: multiply by 10^(token0Decimals) / 10^(token1Decimals)
-            if (tokenDecimals >= quoteDecimals) {
-                return rawPrice * (10 ** (tokenDecimals - quoteDecimals));
-            } else {
-                return rawPrice / (10 ** (quoteDecimals - tokenDecimals));
-            }
-        } else {
-            // Target is token1, quote is token0
-            // Adjust: multiply by 10^(token1Decimals) / 10^(token0Decimals)
-            if (tokenDecimals >= quoteDecimals) {
-                return rawPrice * (10 ** (tokenDecimals - quoteDecimals));
-            } else {
-                return rawPrice / (10 ** (quoteDecimals - tokenDecimals));
-            }
-        }
     }
 
     /**
@@ -410,25 +369,38 @@ contract PriceOracle is Ownable, IPriceOracle {
     }
 
     /**
-     * @notice Convert a Uniswap V3 tick to a price
+     * @notice Convert a Uniswap V3 tick to the price of one whole target token in quote tokens
+     * @dev Follows Uniswap OracleLibrary.getQuoteAtTick: the tick encodes token1/token0 in raw units,
+     *      so token0 is priced by multiplying by the ratio and token1 by dividing by it. Uses 512-bit
+     *      mulDiv so the squared sqrt ratio and the decimal scaling cannot overflow.
      * @param tick The tick value
-     * @param isToken0 Whether the token is token0 in the pool
+     * @param isToken0 Whether the target token is token0 in the pool
+     * @param tokenDecimals Decimals of the target token
+     * @param quoteDecimals Decimals of the quote token
+     * @return The price scaled to PRICE_DECIMALS
      */
-    function _tickToPrice(int24 tick, bool isToken0) internal pure returns (uint256) {
-        // sqrtPriceX96 = sqrt(1.0001^tick) * 2^96
-        // price = (sqrtPriceX96 / 2^96)^2 = sqrtPriceX96^2 / 2^192
+    function _tickToPrice(int24 tick, bool isToken0, uint8 tokenDecimals, uint8 quoteDecimals)
+        internal
+        pure
+        returns (uint256)
+    {
+        // One whole target token, pre-scaled by PRICE_DECIMALS to keep precision
+        uint256 baseAmount = 10 ** (uint256(tokenDecimals) + PRICE_DECIMALS);
+        uint160 sqrtRatioX96 = _getSqrtRatioAtTick(tick);
 
-        uint160 sqrtPriceX96 = _getSqrtRatioAtTick(tick);
-        uint256 priceX192 = uint256(sqrtPriceX96) * uint256(sqrtPriceX96);
-
-        // Scale to PRICE_DECIMALS
-        if (isToken0) {
-            // price = token1/token0, so we need inverse
-            return (uint256(1) << 192) * (10 ** PRICE_DECIMALS) / priceX192;
+        uint256 quoteAmount;
+        if (sqrtRatioX96 <= type(uint128).max) {
+            uint256 ratioX192 = uint256(sqrtRatioX96) * sqrtRatioX96;
+            quoteAmount =
+                isToken0 ? Math.mulDiv(ratioX192, baseAmount, 1 << 192) : Math.mulDiv(1 << 192, baseAmount, ratioX192);
         } else {
-            // price = token0/token1
-            return priceX192 * (10 ** PRICE_DECIMALS) / (uint256(1) << 192);
+            uint256 ratioX128 = Math.mulDiv(sqrtRatioX96, sqrtRatioX96, 1 << 64);
+            quoteAmount =
+                isToken0 ? Math.mulDiv(ratioX128, baseAmount, 1 << 128) : Math.mulDiv(1 << 128, baseAmount, ratioX128);
         }
+
+        // Raw quote units -> whole quote tokens
+        return quoteAmount / (10 ** quoteDecimals);
     }
 
     /**

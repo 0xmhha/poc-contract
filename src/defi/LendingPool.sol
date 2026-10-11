@@ -82,6 +82,9 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
     /// @notice List of supported assets
     address[] public supportedAssets;
 
+    /// @notice Whether an asset has been added to supportedAssets (kept across delist/relist)
+    mapping(address => bool) internal _isListed;
+
     /// @notice Maximum price staleness (5 minutes)
     uint256 public constant MAX_PRICE_AGE = 5 minutes;
 
@@ -118,7 +121,8 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
      * @param config The asset configuration
      */
     function configureAsset(address asset, AssetConfig memory config) external onlyOwner {
-        if (assetConfigs[asset].ltv == 0) {
+        if (!_isListed[asset]) {
+            _isListed[asset] = true;
             supportedAssets.push(asset);
         }
 
@@ -235,18 +239,18 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         uint256 sharesToBurn = (amount * userShares) / userBalance;
 
         // Check liquidity
-        uint256 availableLiquidity = reserve.totalDeposits - reserve.totalBorrows;
-        if (amount > availableLiquidity) revert InsufficientLiquidity();
+        if (amount > _getAvailableLiquidity(asset)) revert InsufficientLiquidity();
 
         // Update state
         depositShares[asset][msg.sender] -= sharesToBurn;
         reserve.totalShares -= sharesToBurn;
         reserve.totalDeposits -= amount;
 
-        // Check health factor after withdrawal
+        // Check health factor and LTV-based borrow capacity after withdrawal
         if (borrowAmounts[asset][msg.sender] > 0 || _hasBorrows(msg.sender)) {
             uint256 healthFactor = calculateHealthFactor(msg.sender);
             if (healthFactor < HEALTH_FACTOR_THRESHOLD) revert InsufficientCollateral();
+            if (!_isWithinBorrowCapacity(msg.sender)) revert InsufficientCollateral();
         }
 
         // Transfer tokens
@@ -267,8 +271,7 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         ReserveData storage reserve = _reserves[asset];
 
         // Check liquidity
-        uint256 availableLiquidity = reserve.totalDeposits - reserve.totalBorrows;
-        if (amount > availableLiquidity) revert InsufficientLiquidity();
+        if (amount > _getAvailableLiquidity(asset)) revert InsufficientLiquidity();
 
         // Update user borrow
         _updateUserBorrow(asset, msg.sender);
@@ -277,9 +280,10 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         borrowAmounts[asset][msg.sender] += amount;
         reserve.totalBorrows += amount;
 
-        // Check health factor
+        // Check health factor and LTV-based borrow capacity
         uint256 healthFactor = calculateHealthFactor(msg.sender);
         if (healthFactor < HEALTH_FACTOR_THRESHOLD) revert InsufficientCollateral();
+        if (!_isWithinBorrowCapacity(msg.sender)) revert InsufficientCollateral();
 
         // Transfer tokens
         IERC20(asset).safeTransfer(msg.sender, amount);
@@ -386,9 +390,7 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
     {
         _validateAsset(asset, true, false, false);
 
-        ReserveData storage reserve = _reserves[asset];
-        uint256 availableLiquidity = reserve.totalDeposits - reserve.totalBorrows;
-        if (amount > availableLiquidity) revert InsufficientLiquidity();
+        if (amount > _getAvailableLiquidity(asset)) revert InsufficientLiquidity();
 
         uint256 fee = (amount * FLASH_LOAN_FEE) / BASIS_POINTS;
         uint256 balanceBefore = IERC20(asset).balanceOf(address(this));
@@ -561,11 +563,13 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
             uint256 protocolShare = (interestEarned * assetConfigs[asset].reserveFactor) / BASIS_POINTS;
             protocolReserves[asset] += protocolShare;
 
-            // Update liquidity index (interest to depositors)
+            // Update liquidity index and credit the depositors' share of interest, so that
+            // share-based deposit balances grow with accrued interest
             if (reserve.totalDeposits > 0) {
                 uint256 depositInterest = interestEarned - protocolShare;
                 reserve.liquidityIndex =
                     (reserve.liquidityIndex * (reserve.totalDeposits + depositInterest)) / reserve.totalDeposits;
+                reserve.totalDeposits += depositInterest;
             }
         }
 
@@ -657,11 +661,46 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         return (shares * reserve.totalDeposits) / totalShares;
     }
 
+    /// @dev Liquidity that can leave the pool: deposits not lent out. Accrued protocol reserves are
+    ///      owed out of outstanding borrows, so deposits can be below borrows at full utilization;
+    ///      saturate at zero instead of underflowing.
+    function _getAvailableLiquidity(address asset) internal view returns (uint256) {
+        ReserveData storage reserve = _reserves[asset];
+        return reserve.totalDeposits > reserve.totalBorrows ? reserve.totalDeposits - reserve.totalBorrows : 0;
+    }
+
     function _hasBorrows(address user) internal view returns (bool) {
         for (uint256 i = 0; i < supportedAssets.length; i++) {
             if (borrowAmounts[supportedAssets[i]][user] > 0) return true;
         }
         return false;
+    }
+
+    /// @dev New borrows and withdrawals are limited by LTV (sum of collateral value * ltv), while
+    ///      liquidation remains governed by the liquidation threshold via calculateHealthFactor.
+    function _isWithinBorrowCapacity(address user) internal view returns (bool) {
+        uint256 borrowCapacity;
+        uint256 totalDebtValue;
+
+        for (uint256 i = 0; i < supportedAssets.length; i++) {
+            address asset = supportedAssets[i];
+            AssetConfig memory config = assetConfigs[asset];
+
+            if (config.canCollateral) {
+                uint256 depositBalance = getDepositBalance(asset, user);
+                if (depositBalance > 0) {
+                    uint256 value = _getAssetValue(asset, depositBalance);
+                    borrowCapacity += (value * config.ltv) / BASIS_POINTS;
+                }
+            }
+
+            uint256 borrowBalance = getBorrowBalance(asset, user);
+            if (borrowBalance > 0) {
+                totalDebtValue += _getAssetValue(asset, borrowBalance);
+            }
+        }
+
+        return totalDebtValue <= borrowCapacity;
     }
 
     function _getWeightedLiquidationThreshold(address user, uint256 totalCollateralValue)
