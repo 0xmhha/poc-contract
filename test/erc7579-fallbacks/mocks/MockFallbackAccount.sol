@@ -20,6 +20,18 @@ contract MockFallbackAccount {
         executors[module] = true;
     }
 
+    /// @notice Runs several calls from the account in one top-level call (one transaction)
+    function executeBatch(address[] calldata targets, bytes[] calldata datas) external {
+        for (uint256 i = 0; i < targets.length; i++) {
+            (bool success, bytes memory result) = targets[i].call(datas[i]);
+            if (!success) {
+                assembly {
+                    revert(add(result, 0x20), mload(result))
+                }
+            }
+        }
+    }
+
     /// @notice Single-call executeFromExecutor; calldata is target (20) || value (32) || data
     function executeFromExecutor(bytes32, bytes calldata executionCalldata)
         external
@@ -204,7 +216,7 @@ contract MockFlashLoanProvider {
         );
 
         (bool success, bytes memory result) = receiver.call(callData);
-        require(success, _getRevertMsg(result));
+        _bubble(success, result);
 
         // Verify repayment
         for (uint256 i = 0; i < assets.length; i++) {
@@ -229,7 +241,7 @@ contract MockFlashLoanProvider {
         );
 
         (bool success, bytes memory result) = receiver.call(callData);
-        require(success, _getRevertMsg(result));
+        _bubble(success, result);
 
         // Verify repayment
         IERC20(token).safeTransferFrom(receiver, address(this), amount + fee);
@@ -250,7 +262,7 @@ contract MockFlashLoanProvider {
             abi.encode(token, address(0), amount, uint256(0), data)
         );
         (bool success, bytes memory result) = msg.sender.call(callData);
-        require(success, _getRevertMsg(result));
+        _bubble(success, result);
 
         require(IERC20(token).balanceOf(address(this)) >= balanceBefore + fee, "Not repaid");
     }
@@ -271,16 +283,17 @@ contract MockFlashLoanProvider {
             "receiveFlashLoan(address[],uint256[],uint256[],bytes)", tokens, amounts, fees, userData
         );
         (bool success, bytes memory result) = recipient.call(callData);
-        require(success, _getRevertMsg(result));
+        _bubble(success, result);
 
         require(IERC20(token).balanceOf(address(this)) >= balanceBefore + fee, "Not repaid");
     }
 
-    function _getRevertMsg(bytes memory _returnData) internal pure returns (string memory) {
-        if (_returnData.length < 68) return "Transaction reverted silently";
-        assembly {
-            _returnData := add(_returnData, 0x04)
+    /// @dev Re-raises the receiver's revert data unchanged so tests can match custom errors
+    function _bubble(bool success, bytes memory result) internal pure {
+        if (!success) {
+            assembly {
+                revert(add(result, 0x20), mload(result))
+            }
         }
-        return abi.decode(_returnData, (string));
     }
 }
