@@ -82,7 +82,7 @@ The StableNet PoC contracts fall into seven areas.
 | AuditHook | Transaction audit log, blocklist, queueing of flagged transactions |
 | HealthFactorHook | Reverts when a call to a lending target drops the health factor below the threshold |
 
-`HookExecutionDataLib` is a shared library that extracts execution data from wrapped calldata. PolicyHook, SpendingLimitHook and AuditHook use it.
+`HookExecutionDataLib` is a shared library that decodes the executions (single, batch or delegatecall) behind the calldata Kernel passes to hooks. PolicyHook, SpendingLimitHook, AuditHook and HealthFactorHook use it.
 
 ### Fallbacks (`erc7579-fallbacks`)
 

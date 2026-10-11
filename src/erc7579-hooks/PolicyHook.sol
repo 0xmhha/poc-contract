@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 import { IHook } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import { MODULE_TYPE_HOOK } from "../erc7579-smartaccount/types/Constants.sol";
+import { MODULE_TYPE_HOOK, CALLTYPE_DELEGATECALL } from "../erc7579-smartaccount/types/Constants.sol";
+import { CallType } from "../erc7579-smartaccount/types/Types.sol";
 import { HookExecutionDataLib } from "./HookExecutionDataLib.sol";
 
 /**
@@ -161,8 +162,11 @@ contract PolicyHook is IHook {
 
     /**
      * @notice Pre-execution check - validates policies
+     * @dev Every execution in msgData is checked (each entry of a batch). Executions targeting this
+     *      hook or the account itself are rejected, so a monitored execution cannot change this
+     *      policy or hide calls in a nested self-call. Delegatecall requires an allowed delegate.
      * @param msgValue ETH value being sent
-     * @param msgData The calldata being executed
+     * @param msgData The calldata Kernel passed to the hook (see HookExecutionDataLib)
      * @return hookData Data to pass to postCheck
      */
     function preCheck(address, uint256 msgValue, bytes calldata msgData)
@@ -176,24 +180,34 @@ contract PolicyHook is IHook {
         // Check if paused
         if (store.isPaused) revert AccountIsPaused();
 
-        // Extract execution data, handling wrapper calldata from AA/executor paths
-        if (msgData.length < 20) {
-            return abi.encode(address(0), uint256(0));
-        }
+        // Check every execution behind the Kernel calldata (single, batch or delegatecall)
+        (bool isExecute, CallType callType, uint256 count) = HookExecutionDataLib.getExecutionCount(msgData);
+        address target;
+        uint256 execValue;
+        for (uint256 i = 0; i < count; i++) {
+            bytes calldata execCalldata;
+            (target, execValue, execCalldata) = HookExecutionDataLib.getExecution(msgData, msgValue, i);
+            if (isExecute) HookExecutionDataLib.checkExecutionTarget(target);
 
-        (address target, uint256 execValue, bytes calldata execCalldata) =
-            HookExecutionDataLib.extractExecutionData(msgData, msgValue);
+            // A delegate runs arbitrary code as the account, so no target/selector/value rule can
+            // bound it: only explicitly allowed delegates pass, in both modes (fail closed).
+            if (callType == CALLTYPE_DELEGATECALL && !store.targets[target].isAllowed) {
+                revert TargetNotAllowed(target);
+            }
 
-        // Check policy mode
-        if (store.mode == PolicyMode.ALLOWLIST) {
-            _checkAllowlistPolicy(store, target, execValue, execCalldata);
-        } else {
-            _checkBlocklistPolicy(store, target, execValue, execCalldata);
+            // Check policy mode
+            if (store.mode == PolicyMode.ALLOWLIST) {
+                _checkAllowlistPolicy(store, target, execValue, execCalldata);
+            } else {
+                _checkBlocklistPolicy(store, target, execValue, execCalldata);
+            }
         }
 
         // Check and record transaction count
         _checkAndRecordTxCount(store);
 
+        // Batches report no single target
+        if (count != 1) (target, execValue) = (address(0), 0);
         return abi.encode(target, execValue);
     }
 

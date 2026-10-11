@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { AuditHook } from "../../src/erc7579-hooks/AuditHook.sol";
-import { MockHookAccount } from "./mocks/MockHookAccount.sol";
+import { MockHookAccount, kernelExecuteMsgData } from "./mocks/MockHookAccount.sol";
 
 contract AuditHookTest is Test {
     AuditHook public hook;
@@ -132,7 +132,7 @@ contract AuditHookTest is Test {
         vm.prank(address(account));
         hook.setBlocklist(blockedAddress, true);
 
-        bytes memory msgData = abi.encodePacked(blockedAddress, uint256(0.1 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(blockedAddress, uint256(0.1 ether), "");
 
         vm.prank(address(account));
         vm.expectRevert(abi.encodeWithSelector(AuditHook.AddressBlocked.selector, blockedAddress));
@@ -146,7 +146,8 @@ contract AuditHookTest is Test {
     function test_PreCheck_CreatesAuditEntry() public {
         _installHook();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(0.5 ether), bytes4(0x12_345_678), bytes28(0));
+        bytes memory msgData =
+            kernelExecuteMsgData(recipient, uint256(0.5 ether), abi.encodePacked(bytes4(0x12_345_678), bytes28(0)));
 
         vm.prank(address(account));
         bytes memory hookData = hook.preCheck(user, 0.5 ether, msgData);
@@ -166,7 +167,7 @@ contract AuditHookTest is Test {
     function test_PreCheck_FlagsHighValue() public {
         _installHook();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(2 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(recipient, uint256(2 ether), "");
 
         vm.prank(address(account));
         hook.preCheck(user, 2 ether, msgData);
@@ -178,7 +179,7 @@ contract AuditHookTest is Test {
     function test_PostCheck_MarksExecuted() public {
         _installHook();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(0.5 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(recipient, uint256(0.5 ether), "");
 
         vm.prank(address(account));
         bytes memory hookData = hook.preCheck(user, 0.5 ether, msgData);
@@ -196,7 +197,7 @@ contract AuditHookTest is Test {
         assertEq(hook.getAuditLogLength(address(account)), 0);
 
         // Create 3 audit entries
-        bytes memory msgData = abi.encodePacked(recipient, uint256(0.1 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(recipient, uint256(0.1 ether), "");
 
         vm.startPrank(address(account));
         hook.preCheck(user, 0.1 ether, msgData);
@@ -211,11 +212,11 @@ contract AuditHookTest is Test {
         _installHook();
 
         vm.startPrank(address(account));
-        hook.preCheck(user, 0, abi.encodePacked(recipient, uint256(0.1 ether), ""));
-        hook.preCheck(user, 0, abi.encodePacked(recipient, uint256(0.2 ether), ""));
-        hook.preCheck(user, 0, abi.encodePacked(recipient, uint256(0.3 ether), ""));
-        hook.preCheck(user, 0, abi.encodePacked(recipient, uint256(0.4 ether), ""));
-        hook.preCheck(user, 0, abi.encodePacked(recipient, uint256(0.5 ether), ""));
+        hook.preCheck(user, 0, kernelExecuteMsgData(recipient, uint256(0.1 ether), ""));
+        hook.preCheck(user, 0, kernelExecuteMsgData(recipient, uint256(0.2 ether), ""));
+        hook.preCheck(user, 0, kernelExecuteMsgData(recipient, uint256(0.3 ether), ""));
+        hook.preCheck(user, 0, kernelExecuteMsgData(recipient, uint256(0.4 ether), ""));
+        hook.preCheck(user, 0, kernelExecuteMsgData(recipient, uint256(0.5 ether), ""));
         vm.stopPrank();
 
         // Get entries 1-3
@@ -240,7 +241,7 @@ contract AuditHookTest is Test {
     function test_FlaggedDelay_FirstSubmission() public {
         _installHookWithDelay();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(2 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(recipient, uint256(2 ether), "");
 
         // Without queuing first, should revert with TransactionNotQueued
         vm.prank(address(account));
@@ -255,7 +256,7 @@ contract AuditHookTest is Test {
     function test_FlaggedDelay_StillPending() public {
         _installHookWithDelay();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(2 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(recipient, uint256(2 ether), "");
 
         // Pre-compute values BEFORE any external calls to prevent optimizer deferral of TIMESTAMP
         bytes32 txHash = _getTxHash(address(account), recipient, 2 ether, msgData);
@@ -277,7 +278,7 @@ contract AuditHookTest is Test {
         _installHookWithDelay();
 
         uint256 startTime = block.timestamp;
-        bytes memory msgData = abi.encodePacked(recipient, uint256(2 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(recipient, uint256(2 ether), "");
 
         // Queue the transaction first
         vm.prank(address(account));
@@ -297,7 +298,7 @@ contract AuditHookTest is Test {
     function test_FlaggedDelay_NoDelayForLowValue() public {
         _installHookWithDelay();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(0.5 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(recipient, uint256(0.5 ether), "");
 
         // Should not trigger delay
         vm.prank(address(account));
@@ -311,7 +312,7 @@ contract AuditHookTest is Test {
         _installHookWithDelay();
 
         uint256 startTime = block.timestamp;
-        bytes memory msgData = abi.encodePacked(recipient, uint256(2 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(recipient, uint256(2 ether), "");
 
         // Get pending time before queueing
         uint256 pendingBefore = hook.getPendingExecutionTime(address(account), recipient, 2 ether, msgData);
@@ -361,7 +362,7 @@ contract AuditHookTest is Test {
     function test_CanExecute_StillPending() public {
         _installHookWithDelay();
 
-        bytes memory msgData = abi.encodePacked(recipient, uint256(2 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(recipient, uint256(2 ether), "");
 
         // Queue the transaction
         vm.prank(address(account));
@@ -390,9 +391,9 @@ contract AuditHookTest is Test {
         _installHook();
 
         // Create msgData with value encoded in raw execution format (target || value || calldata)
-        bytes memory msgData1 = abi.encodePacked(recipient, uint256(0.5 ether), "");
-        bytes memory msgData2 = abi.encodePacked(recipient, uint256(2 ether), "");
-        bytes memory msgData3 = abi.encodePacked(recipient, uint256(0.3 ether), "");
+        bytes memory msgData1 = kernelExecuteMsgData(recipient, uint256(0.5 ether), "");
+        bytes memory msgData2 = kernelExecuteMsgData(recipient, uint256(2 ether), "");
+        bytes memory msgData3 = kernelExecuteMsgData(recipient, uint256(0.3 ether), "");
 
         vm.startPrank(address(account));
 
@@ -423,7 +424,7 @@ contract AuditHookTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_PreCheck_RevertModuleNotEnabled() public {
-        bytes memory msgData = abi.encodePacked(recipient, uint256(0.1 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(recipient, uint256(0.1 ether), "");
 
         vm.prank(address(account));
         vm.expectRevert(AuditHook.ModuleNotEnabled.selector);

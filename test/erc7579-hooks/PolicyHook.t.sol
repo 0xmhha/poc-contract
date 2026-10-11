@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { PolicyHook } from "../../src/erc7579-hooks/PolicyHook.sol";
-import { MockHookAccount, MockERC20 } from "./mocks/MockHookAccount.sol";
+import { MockHookAccount, MockERC20, kernelExecuteMsgData } from "./mocks/MockHookAccount.sol";
 
 /**
  * @title PolicyHook Test
@@ -271,7 +271,7 @@ contract PolicyHookTest is Test {
         hook.pause();
         vm.stopPrank();
 
-        bytes memory msgData = abi.encodePacked(trustedTarget, uint256(0.1 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(trustedTarget, uint256(0.1 ether), "");
 
         vm.prank(address(account));
         vm.expectRevert(PolicyHook.AccountIsPaused.selector);
@@ -289,7 +289,7 @@ contract PolicyHookTest is Test {
         hook.addAllowedTarget(trustedTarget);
         vm.stopPrank();
 
-        bytes memory msgData = abi.encodePacked(trustedTarget, uint256(0.5 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(trustedTarget, uint256(0.5 ether), "");
 
         vm.prank(address(account));
         hook.preCheck(user, 0.5 ether, msgData);
@@ -300,7 +300,7 @@ contract PolicyHookTest is Test {
         _installWithAllowlistMode();
 
         // trustedTarget is NOT added to allowlist
-        bytes memory msgData = abi.encodePacked(untrustedTarget, uint256(0.5 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(untrustedTarget, uint256(0.5 ether), "");
 
         vm.prank(address(account));
         vm.expectRevert(abi.encodeWithSelector(PolicyHook.TargetNotAllowed.selector, untrustedTarget));
@@ -318,7 +318,7 @@ contract PolicyHookTest is Test {
 
         // Build calldata with allowed selector
         bytes memory callData = abi.encodeWithSelector(TRANSFER_SELECTOR, user, 100);
-        bytes memory msgData = abi.encodePacked(trustedTarget, uint256(0), callData);
+        bytes memory msgData = kernelExecuteMsgData(trustedTarget, uint256(0), callData);
 
         vm.prank(address(account));
         hook.preCheck(user, 0, msgData);
@@ -336,7 +336,7 @@ contract PolicyHookTest is Test {
 
         // Build calldata with non-allowed selector
         bytes memory callData = abi.encodeWithSelector(APPROVE_SELECTOR, user, 100);
-        bytes memory msgData = abi.encodePacked(trustedTarget, uint256(0), callData);
+        bytes memory msgData = kernelExecuteMsgData(trustedTarget, uint256(0), callData);
 
         vm.prank(address(account));
         vm.expectRevert(abi.encodeWithSelector(PolicyHook.SelectorNotAllowed.selector, trustedTarget, APPROVE_SELECTOR));
@@ -351,7 +351,7 @@ contract PolicyHookTest is Test {
         _installWithBlocklistMode();
 
         // Any target not in blocklist should be allowed
-        bytes memory msgData = abi.encodePacked(trustedTarget, uint256(0.5 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(trustedTarget, uint256(0.5 ether), "");
 
         vm.prank(address(account));
         hook.preCheck(user, 0.5 ether, msgData);
@@ -364,7 +364,7 @@ contract PolicyHookTest is Test {
         vm.prank(address(account));
         hook.addBlockedTarget(untrustedTarget);
 
-        bytes memory msgData = abi.encodePacked(untrustedTarget, uint256(0.5 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(untrustedTarget, uint256(0.5 ether), "");
 
         vm.prank(address(account));
         vm.expectRevert(abi.encodeWithSelector(PolicyHook.TargetIsBlocked.selector, untrustedTarget));
@@ -378,7 +378,7 @@ contract PolicyHookTest is Test {
         hook.addBlockedSelector(restrictedTarget, MALICIOUS_SELECTOR);
 
         bytes memory callData = abi.encodeWithSelector(MALICIOUS_SELECTOR);
-        bytes memory msgData = abi.encodePacked(restrictedTarget, uint256(0), callData);
+        bytes memory msgData = kernelExecuteMsgData(restrictedTarget, uint256(0), callData);
 
         vm.prank(address(account));
         vm.expectRevert(
@@ -399,7 +399,7 @@ contract PolicyHookTest is Test {
         hook.setTargetValueLimit(trustedTarget, MAX_VALUE_PER_TX);
         vm.stopPrank();
 
-        bytes memory msgData = abi.encodePacked(trustedTarget, uint256(0.5 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(trustedTarget, uint256(0.5 ether), "");
 
         vm.prank(address(account));
         hook.preCheck(user, 0.5 ether, msgData);
@@ -414,7 +414,7 @@ contract PolicyHookTest is Test {
         hook.setTargetValueLimit(trustedTarget, MAX_VALUE_PER_TX);
         vm.stopPrank();
 
-        bytes memory msgData = abi.encodePacked(trustedTarget, uint256(2 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(trustedTarget, uint256(2 ether), "");
 
         vm.prank(address(account));
         vm.expectRevert(
@@ -430,7 +430,7 @@ contract PolicyHookTest is Test {
         hook.addAllowedTarget(trustedTarget);
 
         // No value limit set - should allow any value
-        bytes memory msgData = abi.encodePacked(trustedTarget, uint256(100 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(trustedTarget, uint256(100 ether), "");
 
         vm.prank(address(account));
         hook.preCheck(user, 100 ether, msgData);
@@ -449,7 +449,7 @@ contract PolicyHookTest is Test {
         hook.setTransactionCountLimit(MAX_TX_COUNT, PERIOD_DAILY);
         vm.stopPrank();
 
-        bytes memory msgData = abi.encodePacked(trustedTarget, uint256(0.1 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(trustedTarget, uint256(0.1 ether), "");
 
         // Execute multiple transactions under limit
         for (uint256 i = 0; i < 5; i++) {
@@ -468,7 +468,7 @@ contract PolicyHookTest is Test {
         hook.setTransactionCountLimit(3, PERIOD_DAILY); // Only 3 tx allowed
         vm.stopPrank();
 
-        bytes memory msgData = abi.encodePacked(trustedTarget, uint256(0.1 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(trustedTarget, uint256(0.1 ether), "");
 
         // Execute 3 transactions (at limit)
         for (uint256 i = 0; i < 3; i++) {
@@ -490,7 +490,7 @@ contract PolicyHookTest is Test {
         hook.setTransactionCountLimit(3, PERIOD_DAILY);
         vm.stopPrank();
 
-        bytes memory msgData = abi.encodePacked(trustedTarget, uint256(0.1 ether), "");
+        bytes memory msgData = kernelExecuteMsgData(trustedTarget, uint256(0.1 ether), "");
 
         // Use all 3 transactions
         for (uint256 i = 0; i < 3; i++) {

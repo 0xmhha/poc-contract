@@ -471,7 +471,7 @@ contract HealthFactorHookTest is Test {
      */
     function _buildSingleExecMsgData(address target, uint256 value) internal pure returns (bytes memory) {
         return abi.encodePacked(
-            bytes4(0x51945447), // execute selector
+            bytes4(0xe9ae5c53), // execute(bytes32,bytes) selector
             bytes32(0), // ExecMode with CALLTYPE_SINGLE (0x00)
             uint256(0x40), // ABI offset for bytes parameter
             uint256(52), // ABI length: target(20) + value(32) = 52 bytes

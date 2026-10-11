@@ -82,7 +82,7 @@ StableNet PoC 컨트랙트는 다음 일곱 영역으로 나뉩니다.
 | AuditHook | 트랜잭션 감사 로그, blocklist, 의심 트랜잭션 큐잉 |
 | HealthFactorHook | lending 대상 호출 뒤 health factor가 임계값 아래로 떨어지면 revert |
 
-`HookExecutionDataLib`는 wrapping된 calldata에서 실행 데이터를 추출하는 공용 라이브러리로, PolicyHook·SpendingLimitHook·AuditHook이 함께 사용합니다.
+`HookExecutionDataLib`는 Kernel이 hook에 넘기는 calldata에서 실행(single·batch·delegatecall)을 디코딩하는 공용 라이브러리로, PolicyHook·SpendingLimitHook·AuditHook·HealthFactorHook이 함께 사용합니다.
 
 ### Fallbacks (`erc7579-fallbacks`)
 
