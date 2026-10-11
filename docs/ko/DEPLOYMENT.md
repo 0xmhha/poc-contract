@@ -370,6 +370,9 @@ forge script script/DeployAll.s.sol:DeployAllScript \
 | `DEPLOY_LAYER` | 배포할 레이어 (0, 1, 2, all) | all |
 | `AUDIT_RETENTION_PERIOD` | 감사 로그 보관 기간 | 365일 |
 | `POR_REQUIRED_CONFIRMATIONS` | 준비금 증명 확인 수 | 3 |
+| `FRAUD_PROOF_SOURCE_CHAINS` | FraudProofVerifier에 토큰을 허용할 출발 체인 id 목록(쉼표 구분). 미설정 시 InvalidToken fraud proof는 fail closed | 미설정 |
+| `FRAUD_PROOF_TOKENS_<chainId>` | 해당 출발 체인에서 허용할 토큰 주소 목록(쉼표 구분, 추가만 함) | 미설정 |
+| `SUBSCRIPTION_ENFORCE_MERCHANT_REGISTRY` | MerchantRegistry를 SubscriptionManager에 연결. `true`이면 검증되고 정지되지 않은 merchant만 플랜 생성·결제 수령 가능 | false |
 
 ## 배포 결과
 

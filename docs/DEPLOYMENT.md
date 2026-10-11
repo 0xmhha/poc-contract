@@ -117,6 +117,9 @@ FraudProofVerifier.setBridgeValidator(BridgeValidator)
 | `BRIDGE_GUARDIANS` | deployer x3 | Comma-separated guardian addresses |
 | `BRIDGE_SIGNER_THRESHOLD` | `3` | MPC signer threshold |
 | `BRIDGE_GUARDIAN_THRESHOLD` | `2` | Guardian threshold |
+| `FRAUD_PROOF_SOURCE_CHAINS` | unset | Comma-separated source chain ids whose tokens are authorized on FraudProofVerifier. Unset: InvalidToken fraud proofs fail closed |
+| `FRAUD_PROOF_TOKENS_<chainId>` | unset | Comma-separated token addresses authorized for that source chain (add-only) |
+| `SUBSCRIPTION_ENFORCE_MERCHANT_REGISTRY` | `false` | Link MerchantRegistry to SubscriptionManager. When `true`, only verified, unsuspended merchants can create plans and be paid |
 
 See `.env.example` for the full list.
 
