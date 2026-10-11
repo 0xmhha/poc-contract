@@ -8,6 +8,8 @@ import { MockERC20 as LMock, MockPriceOracle, MockFlashLoanReceiver } from "./Le
 import { StakingVault } from "../../src/defi/StakingVault.sol";
 import { IStakingVault } from "../../src/defi/interfaces/IStakingVault.sol";
 import { MockERC20 as SMock } from "./StakingVault.t.sol";
+import { PriceOracle } from "../../src/defi/PriceOracle.sol";
+import { MockUniswapV3Pool, MockERC20 as OMock } from "./PriceOracle.t.sol";
 
 /// @notice Regression tests for audited DeFi defects
 contract LendingPoolAuditRegressionTest is Test {
@@ -354,5 +356,59 @@ contract StakingVaultAuditRegressionTest is Test {
         vm.stopPrank();
         assertEq(v.getVaultState().rewardsRemaining, 200e18);
         assertEq(token.balanceOf(address(v)), 200e18);
+    }
+}
+
+/// @notice Regression tests for audited PriceOracle defects
+contract PriceOracleAuditRegressionTest is Test {
+    /// @dev Builds a token0/token1 pool whose 1800s TWAP is `meanTick` and registers both tokens
+    function _oracle(uint8 d0, uint8 d1, int56 meanTick) internal returns (PriceOracle o, OMock t0, OMock t1) {
+        o = new PriceOracle();
+        t0 = new OMock("T0", "T0", d0);
+        t1 = new OMock("T1", "T1", d1);
+        MockUniswapV3Pool p = new MockUniswapV3Pool(address(t0), address(t1));
+        p.setTickCumulatives(0, meanTick * 1800);
+        o.setUniswapPool(address(t0), address(p), 1800, address(0));
+        o.setUniswapPool(address(t1), address(p), 1800, address(0));
+    }
+
+    // ---------------------------------------------------------------- DEFI-4
+
+    /// @dev tick 23027 => token1/token0 ~= 10, so 1 token0 ~= 10 token1
+    function test_DEFI4_TwapDirection() public {
+        (PriceOracle o, OMock t0, OMock t1) = _oracle(18, 18, 23_027);
+        assertApproxEqRel(o.getPrice(address(t0)), 10e18, 0.0001e18);
+        assertApproxEqRel(o.getPrice(address(t1)), 0.1e18, 0.0001e18);
+    }
+
+    /// @dev USDC(6) = token0, WETH(18) = token1, tick 196000 => 1 WETH ~= 3077.89 USDC
+    function test_DEFI4_RealisticDecimalsNoOverflow() public {
+        (PriceOracle o, OMock usdc, OMock weth) = _oracle(6, 18, 196_000);
+        assertApproxEqRel(o.getPrice(address(weth)), 3_077_894_537_834_347_985_158, 0.0001e18);
+        assertApproxEqRel(o.getPrice(address(usdc)), 324_897_421_827_719, 0.0001e18);
+    }
+
+    /// @dev Same market with token order swapped: WETH(18) = token0, USDC(6) = token1, negative tick
+    function test_DEFI4_NegativeTick() public {
+        (PriceOracle o, OMock weth, OMock usdc) = _oracle(18, 6, -196_000);
+        assertApproxEqRel(o.getPrice(address(weth)), 3_077_894_537_834_347_985_158, 0.0001e18);
+        assertApproxEqRel(o.getPrice(address(usdc)), 324_897_421_827_719, 0.0001e18);
+    }
+
+    /// @dev Large ticks (sqrtRatioX96 > 2^128) use the X128 path without overflow
+    function test_DEFI4_LargeTick() public {
+        (PriceOracle o, OMock t0,) = _oracle(18, 18, 800_000);
+        assertApproxEqRel(
+            o.getPrice(address(t0)), 55_185_056_322_850_362_586_846_946_569_204_953_762_671_997_789_423_161, 0.0001e18
+        );
+    }
+
+    function test_DEFI4_ZeroTwapPeriodRejected() public {
+        PriceOracle o = new PriceOracle();
+        OMock t0 = new OMock("T0", "T0", 18);
+        OMock t1 = new OMock("T1", "T1", 18);
+        MockUniswapV3Pool p = new MockUniswapV3Pool(address(t0), address(t1));
+        vm.expectRevert(abi.encodeWithSelector(PriceOracle.InvalidPoolConfiguration.selector, address(t0)));
+        o.setUniswapPool(address(t0), address(p), 0, address(0));
     }
 }
