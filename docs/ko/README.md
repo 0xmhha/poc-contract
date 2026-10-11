@@ -17,7 +17,7 @@ ERC-4337 Account Abstraction, ERC-7579 Modular Smart Account, 스텔스 주소 (
 ```bash
 # Foundry 설치
 curl -L https://foundry.paradigm.xyz | bash
-foundryup --install v1.8.3
+foundryup --install v1.8.3   # 오래된 foundryup: foundryup --version v1.8.3
 
 # 버전 확인
 forge --version
