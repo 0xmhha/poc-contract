@@ -46,6 +46,13 @@ contract SponsorPaymaster is BasePaymaster {
     /// @notice Maximum costs reserved by validated operations awaiting settlement.
     mapping(bytes32 => mapping(address => uint256)) public userCampaignReserved;
 
+    /// @notice Gas added to the recorded spending for the cost charged after `actualGasCost`
+    /// @dev `actualGasCost` passed to postOp excludes the postOp gas itself and the 10% penalty
+    ///      on unused postOp gas, yet both are charged to this paymaster's deposit. Measured,
+    ///      that cost is about 45k gas for the first spend of a campaign (two new storage slots)
+    ///      and about 55.5k gas at MAX_POSTOP_GAS_LIMIT. 60k covers it at the cap.
+    uint256 public constant POSTOP_GAS_OVERHEAD = 60_000;
+
     error InvalidExecutionCalldata();
 
     event SignerChanged(address indexed oldSigner, address indexed newSigner);
@@ -105,6 +112,10 @@ contract SponsorPaymaster is BasePaymaster {
         returns (bytes memory context, uint256 validationData)
     {
         (userOpHash); // silence unused variable warning
+
+        // The signature does not cover paymasterAndData[20:52], so bound the postOp gas limit
+        // a user can raise after signing (and the unused postOp gas penalty that follows).
+        _checkPostOpGasLimit(userOp);
 
         bytes calldata paymasterData = _parsePaymasterData(userOp.paymasterAndData);
 
@@ -206,16 +217,21 @@ contract SponsorPaymaster is BasePaymaster {
         internal
         override
     {
-        (actualUserOpFeePerGas); // silence unused warning
-
         if (mode == PostOpMode.postOpReverted) {
             return;
         }
 
         (address sender, bytes32 campaignId, uint256 reservedCost) = abi.decode(context, (address, bytes32, uint256));
         userCampaignReserved[campaignId][sender] -= reservedCost;
-        campaignSpending[campaignId] += actualGasCost;
-        userCampaignSpending[campaignId][sender] += actualGasCost;
+
+        // Record the postOp cost the EntryPoint charges after actualGasCost as well. The deposit
+        // never pays more than the reserved maxCost, so the recorded amount is capped there.
+        uint256 spent = actualGasCost + POSTOP_GAS_OVERHEAD * actualUserOpFeePerGas;
+        if (spent > reservedCost) {
+            spent = reservedCost;
+        }
+        campaignSpending[campaignId] += spent;
+        userCampaignSpending[campaignId][sender] += spent;
     }
 
     /**

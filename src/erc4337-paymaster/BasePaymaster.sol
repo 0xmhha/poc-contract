@@ -56,8 +56,10 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
     ///      charges this paymaster's deposit 10% of the unused part of it (when more than
     ///      40k gas is unused), on top of the postOp gas actually used. Neither amount is in
     ///      the `actualGasCost` passed to postOp. The cap bounds that cost. Measured postOp
-    ///      usage of the ERC20/Permit2 refund is about 8k gas, so 150k leaves a wide margin
+    ///      usage is about 8k gas for the ERC20/Permit2 refund and about 45k gas for the
+    ///      SponsorPaymaster settlement (first spend of a campaign), so 150k leaves a wide margin
     ///      and matches the postOp limit the paymaster proxy requests for the token paymasters.
+    ///      SponsorPaymaster needs the cap because its signature does not cover this field.
     uint256 public constant MAX_POSTOP_GAS_LIMIT = 150_000;
 
     error OnlyEntryPoint();
