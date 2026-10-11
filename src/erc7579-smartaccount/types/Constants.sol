@@ -67,6 +67,7 @@ bytes32 constant HOOK_MANAGER_STORAGE_SLOT =
 // bytes32(uint256(keccak256('kernel.v3.validation')) - 1)
 bytes32 constant VALIDATION_MANAGER_STORAGE_SLOT =
     0x7_bca_a2c_ed2_a71_450_ed5_a9a_1b4_848_e8e_520_6db_c3f_060_11e_595_f7f_554_28c_c6f_84f;
+// bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
 bytes32 constant ERC1967_IMPLEMENTATION_SLOT =
     0x3_608_94a_13b_a1a_321_066_7c8_284_92d_b98_dca_3e2_076_cc3_735_a92_0a3_ca5_05d_382_bbc;
 

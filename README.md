@@ -12,13 +12,13 @@ Smart contract PoC for StableNet — ERC-4337 Account Abstraction, ERC-7579 Modu
 
 ### 1. Prerequisites
 
-- [Foundry](https://getfoundry.sh/) >= 1.0.0
+- [Foundry](https://getfoundry.sh/) v1.8.3, the version CI uses. Other versions can disagree with CI: for example, newer forge clears transient storage between top-level test calls, and `forge fmt` output differs
 - Node.js >= 18 (for TypeScript deploy scripts)
 
 ```bash
 # Install Foundry
 curl -L https://foundry.paradigm.xyz | bash
-foundryup
+foundryup --install v1.8.3
 ```
 
 ### 2. Setup
