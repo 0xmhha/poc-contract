@@ -67,6 +67,14 @@ contract ERC20Paymaster is BasePaymaster {
     /// @notice Minimum token charge to prevent dust/zero-cost attacks
     uint256 public constant MIN_TOKEN_CHARGE = 1;
 
+    /// @notice Gas billed in postOp for the cost the EntryPoint charges after `actualGasCost`
+    /// @dev `actualGasCost` passed to postOp excludes the postOp gas itself and the 10% penalty
+    ///      on unused postOp gas, yet both are charged to this paymaster's deposit. Measured with
+    ///      an OpenZeppelin ERC-20, that uncharged cost is about 8.2k gas when no penalty applies
+    ///      and about 22.4k gas at MAX_POSTOP_GAS_LIMIT (8.2k + (150k - 7.5k) / 10). 30k covers
+    ///      it at the cap with headroom for tokens with a more expensive transfer.
+    uint256 public constant POSTOP_GAS_OVERHEAD = 30_000;
+
     /// @notice Cached reference price per token for circuit breaker
     mapping(address => uint256) public referencePrice;
 
@@ -226,6 +234,9 @@ contract ERC20Paymaster is BasePaymaster {
     {
         (userOpHash); // silence unused warning
 
+        // Bound the postOp gas the user can make this paymaster pay for (see POSTOP_GAS_OVERHEAD)
+        _checkPostOpGasLimit(userOp);
+
         bytes calldata paymasterData = _parsePaymasterData(userOp.paymasterAndData);
 
         // Decode envelope (no trailing signature for ERC20)
@@ -289,16 +300,18 @@ contract ERC20Paymaster is BasePaymaster {
         internal
         override
     {
-        (actualUserOpFeePerGas); // silence unused warning
-
         // Decode context
         PostOpContext memory ctx = abi.decode(context, (PostOpContext));
 
         // Calculate actual token cost based on actual gas used
         // Use proportion: actualTokenCost = maxTokenCost * actualGasCost / maxCost
+        // actualGasCost excludes the postOp gas and the unused postOp gas penalty, which the
+        // EntryPoint charges to the deposit afterwards; bill them as POSTOP_GAS_OVERHEAD.
+        // The result is capped at maxTokenCost below, so the refund stays non-negative.
         uint256 actualTokenCost;
         if (ctx.maxCost > 0) {
-            actualTokenCost = (ctx.maxTokenCost * actualGasCost) / ctx.maxCost;
+            uint256 gasCost = actualGasCost + POSTOP_GAS_OVERHEAD * actualUserOpFeePerGas;
+            actualTokenCost = (ctx.maxTokenCost * gasCost) / ctx.maxCost;
         }
 
         // Minimum charge to prevent zero-cost exploitation
