@@ -472,6 +472,85 @@ contract RegulatoryRegistryTest is Test {
         registry.replaceApprover(makeAddr("unknown"), makeAddr("new"));
     }
 
+    function test_ApproverRole_CannotBeGrantedOutsideManagedList() public {
+        address extra = makeAddr("extra");
+        bytes32 approverRole = registry.APPROVER_ROLE();
+        vm.prank(admin);
+        vm.expectRevert(bytes4(keccak256("ApproverRoleManaged()")));
+        registry.grantRole(approverRole, extra);
+        assertFalse(registry.hasRole(approverRole, extra));
+    }
+
+    function test_ApproverRole_CannotBeRevokedOrRenouncedDirectly() public {
+        bytes32 approverRole = registry.APPROVER_ROLE();
+        vm.prank(admin);
+        vm.expectRevert(bytes4(keccak256("ApproverRoleManaged()")));
+        registry.revokeRole(approverRole, approver1);
+
+        vm.prank(approver1);
+        vm.expectRevert(bytes4(keccak256("ApproverRoleManaged()")));
+        registry.renounceRole(approverRole, approver1);
+        assertTrue(registry.hasRole(approverRole, approver1));
+    }
+
+    function test_GrantRole_OtherRolesStillWork() public {
+        address newAdmin = makeAddr("newAdmin");
+        bytes32 adminRole = registry.DEFAULT_ADMIN_ROLE();
+        vm.prank(admin);
+        registry.grantRole(adminRole, newAdmin);
+        assertTrue(registry.hasRole(adminRole, newAdmin));
+    }
+
+    function test_ReplaceApprover_DropsReplacedApproversVote() public {
+        vm.prank(regulator);
+        uint256 requestId = registry.createTraceRequest(targetAccount, keccak256("test"), 1);
+        vm.prank(approver1);
+        registry.approveTraceRequest(requestId);
+
+        address newApprover = makeAddr("newApprover");
+        vm.prank(admin);
+        registry.replaceApprover(approver1, newApprover);
+
+        // approver1's vote no longer counts: one more vote is not enough
+        vm.prank(newApprover);
+        registry.approveTraceRequest(requestId);
+        RegulatoryRegistry.TraceRequest memory request = registry.getTraceRequest(requestId);
+        assertFalse(request.isApproved);
+        assertEq(request.approvalCount, 1);
+
+        vm.prank(approver2);
+        registry.approveTraceRequest(requestId);
+        assertTrue(registry.getTraceRequest(requestId).isApproved);
+        vm.prank(regulator);
+        registry.executeTraceRequest(requestId);
+    }
+
+    function test_ReplaceApprover_InvalidatesCompletedApproval() public {
+        vm.prank(regulator);
+        uint256 requestId = registry.createTraceRequest(targetAccount, keccak256("test"), 1);
+        vm.prank(approver1);
+        registry.approveTraceRequest(requestId);
+        vm.prank(approver2);
+        registry.approveTraceRequest(requestId);
+
+        address newApprover = makeAddr("newApprover");
+        vm.prank(admin);
+        registry.replaceApprover(approver1, newApprover);
+
+        vm.prank(regulator);
+        vm.expectRevert(RegulatoryRegistry.InsufficientApprovals.selector);
+        registry.executeTraceRequest(requestId);
+        (bool ready,) = registry.canExecuteTraceRequest(requestId);
+        assertFalse(ready);
+
+        // A current approver can restore the quorum
+        vm.prank(approver3);
+        registry.approveTraceRequest(requestId);
+        vm.prank(regulator);
+        registry.executeTraceRequest(requestId);
+        assertTrue(registry.getTraceRequest(requestId).isExecuted);
+    }
+
     // ============ View Function Tests ============
 
     function test_IsActiveRegulator() public {

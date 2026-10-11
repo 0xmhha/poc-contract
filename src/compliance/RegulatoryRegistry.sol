@@ -103,6 +103,7 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
     error EmptyName();
     error NotRequestCreator();
     error JurisdictionMismatch();
+    error ApproverRoleManaged();
 
     // ============ Constructor ============
     constructor(address[] memory initialApprovers) {
@@ -279,7 +280,10 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
 
         if (request.id == 0) revert RequestNotFound();
         if (request.isCancelled) revert RequestCancelled();
-        if (request.isApproved) revert RequestAlreadyApproved();
+        // A request approved before an approver was replaced can collect a new vote
+        if (request.isApproved && _currentApprovalCount(requestId) >= REQUIRED_APPROVALS) {
+            revert RequestAlreadyApproved();
+        }
         if (block.timestamp > request.expiresAt) {
             emit TraceRequestExpired(requestId);
             revert RequestExpired();
@@ -287,7 +291,8 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
         if (hasApproved[requestId][msg.sender]) revert AlreadyApproved();
 
         hasApproved[requestId][msg.sender] = true;
-        request.approvalCount++;
+        // Count only votes from the current approvers, so a replaced approver's vote drops out
+        request.approvalCount = _currentApprovalCount(requestId);
 
         emit TraceRequestApproved(requestId, msg.sender, request.approvalCount);
 
@@ -307,7 +312,9 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
         if (request.id == 0) revert RequestNotFound();
         if (request.isCancelled) revert RequestCancelled();
         if (request.isExecuted) revert RequestAlreadyExecuted();
-        if (!request.isApproved) revert InsufficientApprovals();
+        if (!request.isApproved || _currentApprovalCount(requestId) < REQUIRED_APPROVALS) {
+            revert InsufficientApprovals();
+        }
         if (block.timestamp > request.expiresAt) {
             emit TraceRequestExpired(requestId);
             revert RequestExpired();
@@ -374,6 +381,37 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
         emit ApproverAdded(newApprover);
     }
 
+    /**
+     * @notice APPROVER_ROLE is managed only through the constructor and replaceApprover
+     * @dev Granting it directly would add approvers outside approverList (bypassing MAX_APPROVERS),
+     *      and revoking or renouncing it would leave approverList out of sync.
+     */
+    function grantRole(bytes32 role, address account) public override {
+        if (role == APPROVER_ROLE) revert ApproverRoleManaged();
+        super.grantRole(role, account);
+    }
+
+    /// @inheritdoc AccessControl
+    function revokeRole(bytes32 role, address account) public override {
+        if (role == APPROVER_ROLE) revert ApproverRoleManaged();
+        super.revokeRole(role, account);
+    }
+
+    /// @inheritdoc AccessControl
+    function renounceRole(bytes32 role, address callerConfirmation) public override {
+        if (role == APPROVER_ROLE) revert ApproverRoleManaged();
+        super.renounceRole(role, callerConfirmation);
+    }
+
+    /**
+     * @notice Number of current approvers (approverList) that approved a request
+     */
+    function _currentApprovalCount(uint256 requestId) internal view returns (uint8 count) {
+        for (uint256 i = 0; i < approverList.length; i++) {
+            if (hasApproved[requestId][approverList[i]]) count++;
+        }
+    }
+
     // ============ View Functions ============
 
     /**
@@ -423,7 +461,9 @@ contract RegulatoryRegistry is AccessControl, Pausable, ReentrancyGuard {
         if (request.id == 0) return (false, "Request not found");
         if (request.isCancelled) return (false, "Request cancelled");
         if (request.isExecuted) return (false, "Already executed");
-        if (!request.isApproved) return (false, "Insufficient approvals");
+        if (!request.isApproved || _currentApprovalCount(requestId) < REQUIRED_APPROVALS) {
+            return (false, "Insufficient approvals");
+        }
         if (block.timestamp > request.expiresAt) return (false, "Request expired");
 
         return (true, "");
