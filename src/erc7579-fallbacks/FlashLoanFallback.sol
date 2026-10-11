@@ -2,9 +2,10 @@
 pragma solidity ^0.8.28;
 
 import { IFallback, IModule } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import { MODULE_TYPE_FALLBACK } from "../erc7579-smartaccount/types/Constants.sol";
+import { MODULE_TYPE_EXECUTOR, MODULE_TYPE_FALLBACK } from "../erc7579-smartaccount/types/Constants.sol";
+import { IERC7579Account } from "../erc7579-smartaccount/interfaces/IERC7579Account.sol";
+import { ExecMode } from "../erc7579-smartaccount/types/Types.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title FlashLoanFallback
@@ -23,6 +24,17 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
  * - Flash loan logging
  * - Automatic repayment handling
  *
+ * Installation:
+ * - Install as a CALL-type fallback for each callback selector AND as an executor. The borrowed
+ *   funds land on the account, so the strategy calls and the repayment run through
+ *   `executeFromExecutor` on the account, not from this module's own address.
+ * - Uninstalling either module type disables the module for the account.
+ *
+ * Usage (one batch from the account):
+ * 1. `beginFlashLoan(lender)` on this module
+ * 2. the lender's flash loan function, with this account as receiver
+ * A callback is accepted only from the lender named in step 1, once, within the same transaction.
+ *
  * Use Cases:
  * - Arbitrage strategies
  * - Liquidations
@@ -30,8 +42,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
  * - Leverage/deleverage operations
  */
 contract FlashLoanFallback is IFallback {
-    using SafeERC20 for IERC20;
-
     /// @notice Configuration for each smart account
     struct AccountConfig {
         bool requireWhitelistedProtocol; // Only allow whitelisted protocols
@@ -71,6 +81,9 @@ contract FlashLoanFallback is IFallback {
     // ERC-3156 callback return value
     bytes32 private constant ERC3156_CALLBACK_SUCCESS = keccak256("ERC3156FlashBorrower.onFlashLoan");
 
+    // Transient slot seed for the lender an account expects a callback from: keccak256("FlashLoanFallback.pending")
+    bytes32 private constant PENDING_LOAN_SEED = 0x6ee09fca6dd6f728696e9ec0e9bdf353870f1a3cc9dbdcfb7f10f81cbcdfb179;
+
     // Events
     event FlashLoanExecuted(
         address indexed account, address indexed protocol, address[] tokens, uint256[] amounts, uint256[] premiums
@@ -86,11 +99,14 @@ contract FlashLoanFallback is IFallback {
     error CallbackNotRegistered(bytes32 callbackId);
     error RepaymentFailed();
     error InvalidInitiator();
+    error FlashLoanNotExpected(address protocol);
 
     // ============ IModule Implementation ============
 
     /// @inheritdoc IModule
     function onInstall(bytes calldata data) external payable override {
+        // Installed under two module types: the second install with no data keeps the first one's config
+        if (data.length == 0 && accountStorage[msg.sender].config.isEnabled) return;
         if (data.length == 0) {
             // Default: require whitelist, log enabled
             accountStorage[msg.sender].config =
@@ -117,7 +133,7 @@ contract FlashLoanFallback is IFallback {
 
     /// @inheritdoc IModule
     function isModuleType(uint256 moduleTypeId) external pure override returns (bool) {
-        return moduleTypeId == MODULE_TYPE_FALLBACK;
+        return moduleTypeId == MODULE_TYPE_FALLBACK || moduleTypeId == MODULE_TYPE_EXECUTOR;
     }
 
     /// @inheritdoc IModule
@@ -146,6 +162,7 @@ contract FlashLoanFallback is IFallback {
         (address protocol, address smartAccount) = _extractContext();
 
         _validateProtocol(smartAccount, protocol);
+        _consumePendingLoan(smartAccount, protocol);
         _validateInitiator(smartAccount, initiator);
 
         // Decode and execute callback
@@ -153,10 +170,10 @@ contract FlashLoanFallback is IFallback {
             _executeCallback(smartAccount, params);
         }
 
-        // Approve repayment to AAVE pool
+        // The pool pulls repayment from the account: approve exactly what is owed
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 amountOwing = amounts[i] + premiums[i];
-            IERC20(assets[i]).approve(protocol, amountOwing);
+            _executeFromAccount(smartAccount, assets[i], abi.encodeCall(IERC20.approve, (protocol, amountOwing)));
         }
 
         // Log flash loan
@@ -170,7 +187,8 @@ contract FlashLoanFallback is IFallback {
     /**
      * @notice Uniswap v3 flash loan callback
      * @dev No initiator argument: a Uniswap v3 pool invokes this callback only on the caller of
-     *      `flash()`, so the smart account itself must have started the loan.
+     *      `flash()`, so the smart account itself must have started the loan. Repayment is pushed
+     *      from the account.
      * @param fee0 Fee amount for token0
      * @param fee1 Fee amount for token1
      * @param data Encoded parameters for the operation
@@ -179,6 +197,7 @@ contract FlashLoanFallback is IFallback {
         (address protocol, address smartAccount) = _extractContext();
 
         _validateProtocol(smartAccount, protocol);
+        _consumePendingLoan(smartAccount, protocol);
 
         // Decode callback data
         (address token0, address token1, uint256 amount0, uint256 amount1, bytes memory callbackData) =
@@ -189,12 +208,12 @@ contract FlashLoanFallback is IFallback {
             _executeCallback(smartAccount, callbackData);
         }
 
-        // Repay flash loan
+        // Repay flash loan from the account
         if (amount0 > 0) {
-            IERC20(token0).safeTransfer(protocol, amount0 + fee0);
+            _executeFromAccount(smartAccount, token0, abi.encodeCall(IERC20.transfer, (protocol, amount0 + fee0)));
         }
         if (amount1 > 0) {
-            IERC20(token1).safeTransfer(protocol, amount1 + fee1);
+            _executeFromAccount(smartAccount, token1, abi.encodeCall(IERC20.transfer, (protocol, amount1 + fee1)));
         }
 
         // Log flash loan
@@ -215,10 +234,10 @@ contract FlashLoanFallback is IFallback {
 
     /**
      * @notice Balancer flash loan callback
-     * @dev No initiator argument: the Balancer Vault lets anyone name this account as recipient,
-     *      so the loan's origin cannot be verified here. Repayment is pushed from this module's
-     *      own balance, never pulled from the account, so a loan started by a third party cannot
-     *      charge the account's funds.
+     * @dev No initiator argument: the Balancer Vault lets anyone name this account as recipient.
+     *      The pending-loan check rejects any loan the account did not announce with
+     *      `beginFlashLoan` in the same transaction, so a third party cannot make the account
+     *      run a callback or pay a fee. Repayment is pushed from the account.
      * @param tokens Array of borrowed tokens
      * @param amounts Array of borrowed amounts
      * @param feeAmounts Array of fee amounts
@@ -233,15 +252,18 @@ contract FlashLoanFallback is IFallback {
         (address protocol, address smartAccount) = _extractContext();
 
         _validateProtocol(smartAccount, protocol);
+        _consumePendingLoan(smartAccount, protocol);
 
         // Execute callback if provided
         if (userData.length > 0) {
             _executeCallback(smartAccount, userData);
         }
 
-        // Repay flash loan
+        // Repay flash loan from the account
         for (uint256 i = 0; i < tokens.length; i++) {
-            IERC20(tokens[i]).safeTransfer(protocol, amounts[i] + feeAmounts[i]);
+            _executeFromAccount(
+                smartAccount, tokens[i], abi.encodeCall(IERC20.transfer, (protocol, amounts[i] + feeAmounts[i]))
+            );
         }
 
         // Log flash loan
@@ -266,6 +288,7 @@ contract FlashLoanFallback is IFallback {
         (address protocol, address smartAccount) = _extractContext();
 
         _validateProtocol(smartAccount, protocol);
+        _consumePendingLoan(smartAccount, protocol);
         _validateInitiator(smartAccount, initiator);
 
         // Execute callback if provided
@@ -273,8 +296,8 @@ contract FlashLoanFallback is IFallback {
             _executeCallback(smartAccount, data);
         }
 
-        // Approve repayment to lender
-        IERC20(token).approve(protocol, amount + fee);
+        // The lender pulls repayment from the account: approve exactly what is owed
+        _executeFromAccount(smartAccount, token, abi.encodeCall(IERC20.approve, (protocol, amount + fee)));
 
         // Log flash loan
         address[] memory tokens = new address[](1);
@@ -287,6 +310,21 @@ contract FlashLoanFallback is IFallback {
         _logFlashLoan(smartAccount, protocol, tokens, amounts, premiums, initiator, true);
 
         return ERC3156_CALLBACK_SUCCESS;
+    }
+
+    // ============ Loan Authorization ============
+
+    /**
+     * @notice Announce a flash loan the account is about to take from `protocol`
+     * @dev Call from the account in the same transaction as the loan, right before it. The
+     *      announcement is held in transient storage and consumed by the first callback.
+     * @param protocol The lender expected to call back
+     */
+    function beginFlashLoan(address protocol) external {
+        bytes32 slot = _pendingLoanSlot(msg.sender);
+        assembly ("memory-safe") {
+            tstore(slot, protocol)
+        }
     }
 
     // ============ Configuration Management ============
@@ -482,6 +520,32 @@ contract FlashLoanFallback is IFallback {
         if (initiator != smartAccount) revert InvalidInitiator();
     }
 
+    function _pendingLoanSlot(address smartAccount) internal pure returns (bytes32 slot) {
+        assembly ("memory-safe") {
+            mstore(0x00, smartAccount)
+            mstore(0x20, PENDING_LOAN_SEED)
+            slot := keccak256(0x00, 0x40)
+        }
+    }
+
+    /// @dev Accepts one callback per `beginFlashLoan`, and only from the announced lender
+    function _consumePendingLoan(address smartAccount, address protocol) internal {
+        bytes32 slot = _pendingLoanSlot(smartAccount);
+        address expected;
+        assembly ("memory-safe") {
+            expected := tload(slot)
+            tstore(slot, 0)
+        }
+        if (expected == address(0) || expected != protocol) revert FlashLoanNotExpected(protocol);
+    }
+
+    /// @dev Runs a call as the account; requires this module to be installed as its executor
+    function _executeFromAccount(address smartAccount, address target, bytes memory data) internal {
+        // Default mode (single call, revert on failure); calldata is target || value || data
+        IERC7579Account(smartAccount)
+            .executeFromExecutor(ExecMode.wrap(bytes32(0)), abi.encodePacked(target, uint256(0), data));
+    }
+
     function _executeCallback(address smartAccount, bytes memory data) internal {
         // Check if this is a callback ID or raw call data
         if (data.length == 32) {
@@ -490,14 +554,12 @@ contract FlashLoanFallback is IFallback {
 
             if (callback.target == address(0)) revert CallbackNotRegistered(callbackId);
 
-            (bool success,) = callback.target.call(callback.callData);
-            if (!success) revert RepaymentFailed();
+            _executeFromAccount(smartAccount, callback.target, callback.callData);
         } else if (data.length > 0) {
             // Decode as direct call (target, callData)
             (address target, bytes memory callData) = abi.decode(data, (address, bytes));
             if (target != address(0)) {
-                (bool success,) = target.call(callData);
-                if (!success) revert RepaymentFailed();
+                _executeFromAccount(smartAccount, target, callData);
             }
         }
     }

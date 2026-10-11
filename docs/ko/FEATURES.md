@@ -88,7 +88,7 @@ StableNet PoC 컨트랙트는 다음 일곱 영역으로 나뉩니다.
 
 | 컨트랙트 | 기능 |
 |---|---|
-| FlashLoanFallback | AAVE v3(`executeOperation`), Uniswap v3(`uniswapV3FlashCallback`), Balancer(`receiveFlashLoan`), ERC-3156(`onFlashLoan`) callback 처리. 프로토콜 whitelist, 로그 |
+| FlashLoanFallback | AAVE v3(`executeOperation`), Uniswap v3(`uniswapV3FlashCallback`), Balancer(`receiveFlashLoan`), ERC-3156(`onFlashLoan`) callback 처리. fallback과 executor로 함께 설치해야 하며, strategy 호출과 상환은 account 명의로 실행. 대출마다 같은 트랜잭션 안에서 먼저 `beginFlashLoan(lender)`를 호출해야 하고, 없으면 callback이 revert. 프로토콜 whitelist, 로그 |
 | TokenReceiverFallback | ERC-777 등 Kernel이 기본 지원하지 않는 토큰 수신 callback. whitelist·blacklist |
 
 ### Plugins (`erc7579-plugins`, executor 타입)

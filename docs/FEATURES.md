@@ -88,7 +88,7 @@ The StableNet PoC contracts fall into seven areas.
 
 | Contract | Features |
 |---|---|
-| FlashLoanFallback | Flash loan callbacks for AAVE v3 (`executeOperation`), Uniswap v3 (`uniswapV3FlashCallback`), Balancer (`receiveFlashLoan`), ERC-3156 (`onFlashLoan`). Protocol whitelist, logging |
+| FlashLoanFallback | Flash loan callbacks for AAVE v3 (`executeOperation`), Uniswap v3 (`uniswapV3FlashCallback`), Balancer (`receiveFlashLoan`), ERC-3156 (`onFlashLoan`). Install as both fallback and executor: strategy calls and repayment run as the account. The account calls `beginFlashLoan(lender)` in the same transaction before each loan; callbacks without it revert. Protocol whitelist, logging |
 | TokenReceiverFallback | Receiver callbacks for token standards Kernel does not support natively, such as ERC-777. Whitelist and blacklist |
 
 ### Plugins (`erc7579-plugins`, executor type)
