@@ -219,6 +219,28 @@ contract KernelTest is Test {
         assertEq(Kernel(payable(deployed)).accountId(), "kernel.advanced.0.3.3");
     }
 
+    /// @dev ERC-7562 OP-054: account creation runs in the validation phase, so neither the factory nor
+    ///      the staker may call the EntryPoint (previously both called ENTRYPOINT.senderCreator())
+    function test_CreateAccount_DoesNotCallEntryPoint() public {
+        bytes memory initData = _ecdsaInitData(owner);
+
+        vm.expectCall(address(entryPoint), "", 0);
+        vm.prank(senderCreator);
+        kernelFactory.createAccount(initData, bytes32(uint256(7)));
+    }
+
+    function test_FactoryStaker_DoesNotCallEntryPoint() public {
+        bytes memory initData = _ecdsaInitData(owner);
+
+        vm.expectCall(address(entryPoint), "", 0);
+        vm.prank(senderCreator);
+        factoryStaker.deployWithFactory(kernelFactory, initData, bytes32(uint256(7)));
+    }
+
+    function test_KernelFactory_CachesSenderCreator() public view {
+        assertEq(kernelFactory.SENDER_CREATOR(), address(entryPoint.senderCreator()));
+    }
+
     /// @dev The staker keeps the "only via EntryPoint" rule: other callers are rejected
     function test_FactoryStaker_RejectsCallerOtherThanSenderCreator() public {
         vm.expectRevert(FactoryStaker.NotCalledFromEntryPoint.selector);

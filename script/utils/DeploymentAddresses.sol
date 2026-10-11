@@ -862,7 +862,7 @@ abstract contract DeploymentHelper is Script {
     }
 
     /**
-     * @notice Require a reused KernelFactory to trust the FactoryStaker in use
+     * @notice Require a reused KernelFactory to trust the FactoryStaker in use and to cache SENDER_CREATOR()
      * @dev Uses a low-level staticcall so a factory without STAKER() (older two-argument
      *      factory) or without code fails with a clear message instead of a bare revert.
      * @param factory The existing KernelFactory address
@@ -873,6 +873,13 @@ abstract contract DeploymentHelper is Script {
         require(
             ok && ret.length == 32 && abi.decode(ret, (address)) == staker,
             "Existing KernelFactory STAKER() does not match the FactoryStaker in use. Redeploy KernelFactory."
+        );
+        // Factories built before SENDER_CREATOR() was cached call the EntryPoint during account
+        // creation (ERC-7562 OP-054) and cannot serve the current FactoryStaker
+        (ok, ret) = factory.staticcall(abi.encodeWithSignature("SENDER_CREATOR()"));
+        require(
+            ok && ret.length == 32 && abi.decode(ret, (address)) != address(0),
+            "Existing KernelFactory has no SENDER_CREATOR(). Redeploy KernelFactory."
         );
     }
 

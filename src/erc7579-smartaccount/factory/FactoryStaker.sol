@@ -25,8 +25,9 @@ contract FactoryStaker is Ownable {
             revert NotApprovedFactory();
         }
         // KernelFactory trusts this contract in place of the SenderCreator, so enforce the
-        // SenderCreator check here
-        if (msg.sender != address(factory.ENTRYPOINT().senderCreator())) {
+        // SenderCreator check here. Read the factory's cached copy: calling the EntryPoint during
+        // account creation is forbidden by ERC-7562 (OP-054).
+        if (msg.sender != factory.SENDER_CREATOR()) {
             revert NotCalledFromEntryPoint();
         }
         return factory.createAccount(createData, salt);
