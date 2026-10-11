@@ -310,9 +310,9 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
         emit SubscriptionCreated(subscriptionId, planId, msg.sender, block.timestamp);
 
-        // Process first payment if no trial period
+        // Process first payment if no trial period; a failed first payment aborts the subscription
         if (plan.trialPeriod == 0) {
-            _processPayment(subscriptionId);
+            if (!_processPayment(subscriptionId)) revert PaymentFailed();
         }
     }
 
@@ -343,6 +343,11 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
     /**
      * @notice Process a subscription payment
+     * @dev Reverts if the subscription does not exist, is inactive or is not yet due.
+     *      A payment that cannot be collected (invalid permission, exhausted allowance or
+     *      insufficient token balance/allowance) does not revert: the subscription enters its
+     *      grace period, or is deactivated once the grace period has passed, and
+     *      PaymentFailedLog is emitted.
      * @param subscriptionId Subscription to process
      */
     function processPayment(bytes32 subscriptionId) external nonReentrant {
@@ -354,6 +359,8 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
     /**
      * @notice Process multiple subscription payments (batch)
+     * @dev Entries that do not exist, are inactive or are not yet due are skipped, and a payment
+     *      that cannot be collected is recorded as failed, so one subscriber cannot block the batch.
      * @param subscriptionIds Array of subscription IDs to process
      */
     function batchProcessPayments(bytes32[] calldata subscriptionIds) external nonReentrant {
@@ -362,14 +369,17 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         }
 
         for (uint256 i = 0; i < subscriptionIds.length; i++) {
+            Subscription storage sub = subscriptions[subscriptionIds[i]];
+            if (sub.startTime == 0 || !sub.active || block.timestamp < sub.nextPayment) continue;
             _processPayment(subscriptionIds[i]);
         }
     }
 
     /**
      * @notice Internal function to process payment
+     * @return paid True if the payment was collected, false if it was recorded as failed
      */
-    function _processPayment(bytes32 subscriptionId) internal {
+    function _processPayment(bytes32 subscriptionId) internal returns (bool paid) {
         Subscription storage sub = subscriptions[subscriptionId];
         if (sub.startTime == 0) revert SubscriptionNotFound();
         if (!sub.active) revert SubscriptionNotActive();
@@ -384,26 +394,31 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
         // Verify permission is still valid
         if (!PERMISSION_MANAGER.isPermissionValid(sub.permissionId)) {
-            // Check grace period
-            if (block.timestamp > sub.nextPayment + plan.gracePeriod) {
-                sub.active = false;
-                plan.subscriberCount--;
-                revert SubscriptionExpired();
-            }
-            sub.inGracePeriod = true;
-            revert PaymentFailed();
+            return _recordPaymentFailure(subscriptionId, sub, plan, "Permission invalid");
         }
 
-        // Use permission
-        bool success = PERMISSION_MANAGER.usePermission(sub.permissionId, terms.amount);
-        if (!success) {
-            if (block.timestamp > sub.nextPayment + plan.gracePeriod) {
-                sub.active = false;
-                plan.subscriberCount--;
-                revert SubscriptionExpired();
+        // Verify the subscriber can cover the charge, so the transfers below cannot revert
+        if (
+            IERC20(plan.token).balanceOf(sub.subscriber) < terms.amount
+                || IERC20(plan.token).allowance(sub.subscriber, address(this)) < terms.amount
+        ) {
+            return _recordPaymentFailure(subscriptionId, sub, plan, "Insufficient funds");
+        }
+
+        // Use permission (an exhausted allowance reverts in the permission manager)
+        try PERMISSION_MANAGER.usePermission(sub.permissionId, terms.amount) returns (bool success) {
+            if (!success) {
+                return _recordPaymentFailure(subscriptionId, sub, plan, "Permission use failed");
             }
-            sub.inGracePeriod = true;
-            revert PaymentFailed();
+        } catch (bytes memory reason) {
+            // A paused permission manager is an operator action, not a subscriber failure:
+            // bubble it up instead of moving the subscription towards expiry.
+            if (reason.length >= 4 && bytes4(reason) == IERC7715PermissionManager.PermissionPaused.selector) {
+                assembly ("memory-safe") {
+                    revert(add(reason, 32), mload(reason))
+                }
+            }
+            return _recordPaymentFailure(subscriptionId, sub, plan, "Permission use failed");
         }
 
         // Calculate fee
@@ -432,6 +447,31 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         sub.inGracePeriod = false;
 
         emit PaymentProcessed(subscriptionId, sub.subscriber, plan.merchant, terms.amount, sub.paymentCount);
+        return true;
+    }
+
+    /**
+     * @notice Record a payment that could not be collected
+     * @dev Persists the grace-period flag, or deactivates the subscription once the grace period
+     *      has passed, instead of reverting (a revert would roll these writes back).
+     * @return paid Always false
+     */
+    function _recordPaymentFailure(
+        bytes32 subscriptionId,
+        Subscription storage sub,
+        Plan storage plan,
+        string memory reason
+    ) internal returns (bool paid) {
+        if (block.timestamp > sub.nextPayment + plan.gracePeriod) {
+            sub.active = false;
+            sub.inGracePeriod = false;
+            plan.subscriberCount--;
+            emit PaymentFailedLog(subscriptionId, sub.subscriber, "Subscription expired");
+        } else {
+            sub.inGracePeriod = true;
+            emit PaymentFailedLog(subscriptionId, sub.subscriber, reason);
+        }
+        return false;
     }
 
     /* //////////////////////////////////////////////////////////////

@@ -388,6 +388,138 @@ contract SubscriptionManagerTest is Test {
         subManager.processPayment(subscriptionId);
     }
 
+    /// @dev Subscribe `who` to the default plan (7-day trial, 3-day grace) with its own permission
+    function _subscribeAs(address who) internal returns (bytes32 subscriptionId, bytes32 permId) {
+        token.mint(who, 1000 ether);
+        IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(1000 ether))
+        });
+        vm.startPrank(who);
+        token.approve(address(subManager), type(uint256).max);
+        permId = permManager.grantPermission(
+            address(subManager), address(subManager), permission, new IERC7715PermissionManager.Rule[](0)
+        );
+        subscriptionId = subManager.subscribe(planId, permId);
+        vm.stopPrank();
+    }
+
+    function test_ProcessPayment_FailureWithinGracePersistsGraceState() public {
+        (bytes32 subscriptionId, bytes32 permId) = _subscribeAs(subscriber);
+        vm.prank(subscriber);
+        permManager.revokePermission(permId);
+
+        vm.warp(1 + 7 days + 1 hours);
+        vm.prank(processor);
+        subManager.processPayment(subscriptionId);
+
+        ISubscriptionManager.Subscription memory sub = subManager.getSubscription(subscriptionId);
+        assertTrue(sub.inGracePeriod);
+        assertTrue(sub.active);
+        assertEq(sub.paymentCount, 0);
+    }
+
+    function test_ProcessPayment_FailureAfterGraceDeactivatesSubscription() public {
+        (bytes32 subscriptionId, bytes32 permId) = _subscribeAs(subscriber);
+        vm.prank(subscriber);
+        permManager.revokePermission(permId);
+
+        vm.warp(1 + 7 days + 4 days);
+        vm.prank(processor);
+        subManager.processPayment(subscriptionId);
+
+        assertFalse(subManager.getSubscription(subscriptionId).active);
+        assertEq(subManager.getPlan(planId).subscriberCount, 0);
+        assertFalse(subManager.isPaymentDue(subscriptionId));
+    }
+
+    function test_BatchProcessPayments_SkipsRevokedPermission() public {
+        (bytes32 subA, bytes32 permA) = _subscribeAs(makeAddr("alice"));
+        (bytes32 subB,) = _subscribeAs(makeAddr("bob"));
+        vm.prank(makeAddr("alice"));
+        permManager.revokePermission(permA);
+
+        bytes32[] memory ids = new bytes32[](2);
+        ids[0] = subA;
+        ids[1] = subB;
+        vm.warp(1 + 7 days);
+        vm.prank(processor);
+        subManager.batchProcessPayments(ids);
+
+        assertEq(subManager.getSubscription(subB).paymentCount, 1, "bob charged despite alice's revocation");
+        assertTrue(subManager.getSubscription(subA).inGracePeriod, "alice's failure recorded");
+    }
+
+    function test_BatchProcessPayments_SkipsRevokedTokenApproval() public {
+        address alice = makeAddr("alice");
+        (bytes32 subA,) = _subscribeAs(alice);
+        (bytes32 subB,) = _subscribeAs(makeAddr("bob"));
+        vm.prank(alice);
+        token.approve(address(subManager), 0);
+
+        bytes32[] memory ids = new bytes32[](2);
+        ids[0] = subA;
+        ids[1] = subB;
+        vm.warp(1 + 7 days);
+        vm.prank(processor);
+        subManager.batchProcessPayments(ids);
+
+        assertEq(subManager.getSubscription(subB).paymentCount, 1);
+        assertTrue(subManager.getSubscription(subA).inGracePeriod);
+    }
+
+    function test_BatchProcessPayments_SkipsNotDueAndInactive() public {
+        (bytes32 subA,) = _subscribeAs(makeAddr("alice"));
+        (bytes32 subB,) = _subscribeAs(makeAddr("bob"));
+        vm.prank(owner);
+        subManager.emergencyCancelSubscription(subA);
+
+        bytes32[] memory ids = new bytes32[](3);
+        ids[0] = subA; // inactive
+        ids[1] = bytes32(uint256(123)); // unknown
+        ids[2] = subB;
+        vm.warp(1 + 7 days);
+        vm.prank(processor);
+        subManager.batchProcessPayments(ids);
+        assertEq(subManager.getSubscription(subB).paymentCount, 1);
+
+        // Re-running immediately skips subB as not due instead of reverting
+        vm.prank(processor);
+        subManager.batchProcessPayments(ids);
+        assertEq(subManager.getSubscription(subB).paymentCount, 1);
+    }
+
+    function test_ProcessPayment_ExhaustedPermissionLimitRecordsFailure() public {
+        // Permission limit below the plan amount: usePermission reverts with InsufficientAllowance
+        IERC7715PermissionManager.Permission memory permission = IERC7715PermissionManager.Permission({
+            permissionType: "subscription", isAdjustmentAllowed: true, data: abi.encode(uint256(5 ether))
+        });
+        vm.startPrank(subscriber);
+        token.approve(address(subManager), type(uint256).max);
+        bytes32 permId = permManager.grantPermission(
+            address(subManager), address(subManager), permission, new IERC7715PermissionManager.Rule[](0)
+        );
+        bytes32 subscriptionId = subManager.subscribe(planId, permId);
+        vm.stopPrank();
+
+        vm.warp(1 + 7 days);
+        vm.prank(processor);
+        subManager.processPayment(subscriptionId);
+
+        assertTrue(subManager.getSubscription(subscriptionId).inGracePeriod);
+        assertEq(subManager.getSubscription(subscriptionId).paymentCount, 0);
+    }
+
+    function test_Subscribe_RevertsWhenFirstPaymentFails() public {
+        vm.prank(merchant);
+        uint256 noTrialPlanId =
+            subManager.createPlan(10 ether, 30 days, address(token), 0, 3 days, 0, "No Trial", "Desc");
+
+        // No token approval: the first payment cannot be collected
+        vm.prank(subscriber);
+        vm.expectRevert(ISubscriptionManager.PaymentFailed.selector);
+        subManager.subscribe(noTrialPlanId, permissionId);
+    }
+
     // ============ View Function Tests ============
 
     function test_GetSubscriberSubscriptions() public {
