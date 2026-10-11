@@ -27,13 +27,21 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  * Known validation-phase violations:
  *   - VerifyingPaymaster: `senderNonce[sender]++` (internal storage write)
  *   - SponsorPaymaster:   `senderNonce[sender]++` (internal storage write)
- *   - Permit2Paymaster:   `PERMIT2.permit()` (external contract state write — most severe)
- *   - ERC20Paymaster:     `balanceOf()` / `allowance()` (external storage reads)
+ *   - Permit2Paymaster:   `PERMIT2.permit()` and `PERMIT2.transferFrom()` pre-charge
+ *                         (external contract state writes — most severe)
+ *   - ERC20Paymaster:     `safeTransferFrom()` pre-charge (external token storage write)
+ *
+ * The token paymasters pre-charge the max token cost during validation on purpose: if
+ * postOp reverts, the EntryPoint still charges the paymaster's deposit, so collecting
+ * tokens only in postOp would let users get gas for free. Do not move the token transfer
+ * to `_postOp`.
  *
  * For future public mempool support, the following changes are required:
  *   1. Move `senderNonce++` to `_postOp` or remove in favor of EntryPoint's built-in nonce
- *   2. Move `PERMIT2.permit()` to `_postOp` or require pre-approval before UserOp submission
- *   3. Operate ERC20Paymaster as a staked paymaster to relax associated storage rules
+ *   2. Require Permit2 pre-approval before UserOp submission instead of calling
+ *      `PERMIT2.permit()` in validation
+ *   3. Operate ERC20Paymaster and Permit2Paymaster as staked paymasters to relax the
+ *      associated storage rules
  *
  * See individual contract warnings for detailed remediation guidance.
  */
