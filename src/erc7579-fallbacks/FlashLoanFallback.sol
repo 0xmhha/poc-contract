@@ -132,7 +132,7 @@ contract FlashLoanFallback is IFallback {
      * @param assets Array of borrowed assets
      * @param amounts Array of borrowed amounts
      * @param premiums Array of premiums (fees)
-     * @param initiator The address that initiated the flash loan
+     * @param initiator The address that initiated the flash loan; must be the smart account itself
      * @param params Encoded parameters for the operation
      * @return bool True if the operation was successful
      */
@@ -146,6 +146,7 @@ contract FlashLoanFallback is IFallback {
         (address protocol, address smartAccount) = _extractContext();
 
         _validateProtocol(smartAccount, protocol);
+        _validateInitiator(smartAccount, initiator);
 
         // Decode and execute callback
         if (params.length > 0) {
@@ -168,6 +169,8 @@ contract FlashLoanFallback is IFallback {
 
     /**
      * @notice Uniswap v3 flash loan callback
+     * @dev No initiator argument: a Uniswap v3 pool invokes this callback only on the caller of
+     *      `flash()`, so the smart account itself must have started the loan.
      * @param fee0 Fee amount for token0
      * @param fee1 Fee amount for token1
      * @param data Encoded parameters for the operation
@@ -212,6 +215,10 @@ contract FlashLoanFallback is IFallback {
 
     /**
      * @notice Balancer flash loan callback
+     * @dev No initiator argument: the Balancer Vault lets anyone name this account as recipient,
+     *      so the loan's origin cannot be verified here. Repayment is pushed from this module's
+     *      own balance, never pulled from the account, so a loan started by a third party cannot
+     *      charge the account's funds.
      * @param tokens Array of borrowed tokens
      * @param amounts Array of borrowed amounts
      * @param feeAmounts Array of fee amounts
@@ -245,7 +252,7 @@ contract FlashLoanFallback is IFallback {
 
     /**
      * @notice ERC-3156 flash loan callback
-     * @param initiator The address that initiated the flash loan
+     * @param initiator The address that initiated the flash loan; must be the smart account itself
      * @param token The borrowed token
      * @param amount The borrowed amount
      * @param fee The fee amount
@@ -259,6 +266,7 @@ contract FlashLoanFallback is IFallback {
         (address protocol, address smartAccount) = _extractContext();
 
         _validateProtocol(smartAccount, protocol);
+        _validateInitiator(smartAccount, initiator);
 
         // Execute callback if provided
         if (data.length > 0) {
@@ -466,6 +474,12 @@ contract FlashLoanFallback is IFallback {
         if (store.config.requireWhitelistedProtocol && !store.protocolWhitelist[protocol]) {
             revert ProtocolNotWhitelisted(protocol);
         }
+    }
+
+    /// @dev Pull-based lenders (AAVE, ERC-3156) collect repayment from the account through its allowance,
+    ///      so a loan started by anyone other than the account would make the account pay the premium.
+    function _validateInitiator(address smartAccount, address initiator) internal pure {
+        if (initiator != smartAccount) revert InvalidInitiator();
     }
 
     function _executeCallback(address smartAccount, bytes memory data) internal {
