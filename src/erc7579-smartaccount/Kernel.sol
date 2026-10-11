@@ -228,6 +228,9 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
 
     function upgradeTo(address _newImplementation) external payable onlyEntryPointOrSelfOrRoot {
         assembly ("memory-safe") {
+            // An implementation without code would leave the proxy permanently unusable
+            // Reverts without data: Kernel has no bytecode headroom for a custom error (EIP-170)
+            if iszero(extcodesize(_newImplementation)) { revert(0, 0) }
             sstore(ERC1967_IMPLEMENTATION_SLOT, _newImplementation)
         }
         emit Upgraded(_newImplementation);
