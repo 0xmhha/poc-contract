@@ -8,6 +8,7 @@ import { IStakeManager } from "../../src/erc4337-entrypoint/interfaces/IStakeMan
 import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import { Kernel } from "../../src/erc7579-smartaccount/Kernel.sol";
 import { KernelFactory } from "../../src/erc7579-smartaccount/factory/KernelFactory.sol";
+import { FactoryStaker } from "../../src/erc7579-smartaccount/factory/FactoryStaker.sol";
 import { ECDSAValidator } from "../../src/erc7579-validators/ECDSAValidator.sol";
 import { MultiSigValidator } from "../../src/erc7579-validators/MultiSigValidator.sol";
 import { WeightedECDSAValidator } from "../../src/erc7579-validators/WeightedECDSAValidator.sol";
@@ -32,6 +33,7 @@ contract KernelTest is Test {
     EntryPoint public entryPoint;
     Kernel public kernelImpl;
     KernelFactory public kernelFactory;
+    FactoryStaker public factoryStaker;
     ECDSAValidator public ecdsaValidator;
 
     address public owner;
@@ -59,8 +61,10 @@ contract KernelTest is Test {
         // Deploy Kernel implementation
         kernelImpl = new Kernel(IEntryPoint(address(entryPoint)));
 
-        // Deploy KernelFactory
-        kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)));
+        // Deploy FactoryStaker and a KernelFactory that trusts it
+        factoryStaker = new FactoryStaker(address(this));
+        kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)), address(factoryStaker));
+        factoryStaker.approveFactory(kernelFactory, true);
 
         // Deploy ECDSAValidator
         ecdsaValidator = new ECDSAValidator();
@@ -201,6 +205,73 @@ contract KernelTest is Test {
         address account = _createKernelAccount(owner);
         ExecMode mode = _encodeSimpleSingle();
         assertTrue(Kernel(payable(account)).supportsExecutionMode(mode), "Should support default execution mode");
+    }
+
+    /// @dev SenderCreator can deploy through the approved FactoryStaker
+    function test_FactoryStaker_DeploysWhenCalledBySenderCreator() public {
+        bytes memory initData = _ecdsaInitData(owner);
+        address predicted = kernelFactory.getAddress(initData, bytes32(0));
+
+        vm.prank(senderCreator);
+        address deployed = factoryStaker.deployWithFactory(kernelFactory, initData, bytes32(0));
+
+        assertEq(deployed, predicted, "staker deploys the counterfactual address");
+        assertEq(Kernel(payable(deployed)).accountId(), "kernel.advanced.0.3.3");
+    }
+
+    /// @dev The staker keeps the "only via EntryPoint" rule: other callers are rejected
+    function test_FactoryStaker_RejectsCallerOtherThanSenderCreator() public {
+        vm.expectRevert(FactoryStaker.NotCalledFromEntryPoint.selector);
+        factoryStaker.deployWithFactory(kernelFactory, _ecdsaInitData(owner), bytes32(0));
+    }
+
+    function test_FactoryStaker_RejectsUnapprovedFactory() public {
+        factoryStaker.approveFactory(kernelFactory, false);
+
+        vm.prank(senderCreator);
+        vm.expectRevert(FactoryStaker.NotApprovedFactory.selector);
+        factoryStaker.deployWithFactory(kernelFactory, _ecdsaInitData(owner), bytes32(0));
+    }
+
+    /// @dev A KernelFactory that does not name this staker still rejects it
+    function test_KernelFactory_RejectsUntrustedStaker() public {
+        KernelFactory otherFactory =
+            new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)), address(0));
+        factoryStaker.approveFactory(otherFactory, true);
+
+        vm.prank(senderCreator);
+        vm.expectRevert(KernelFactory.NotCalledFromEntryPoint.selector);
+        factoryStaker.deployWithFactory(otherFactory, _ecdsaInitData(owner), bytes32(0));
+    }
+
+    function test_KernelFactory_RejectsDirectCallFromStranger() public {
+        vm.expectRevert(KernelFactory.NotCalledFromEntryPoint.selector);
+        kernelFactory.createAccount(_ecdsaInitData(owner), bytes32(0));
+    }
+
+    /// @dev Full ERC-4337 path: initCode names the FactoryStaker, the EntryPoint deploys and runs the op
+    function test_HandleOps_DeploysThroughFactoryStaker() public {
+        bytes memory initData = _ecdsaInitData(owner);
+        address account = kernelFactory.getAddress(initData, bytes32(0));
+        vm.deal(account, 10 ether);
+
+        address target = makeAddr("target");
+        PackedUserOperation memory userOp = _createUserOp(account, 0, target, 1 ether, hex"");
+        userOp.initCode = abi.encodePacked(
+            address(factoryStaker),
+            abi.encodeCall(FactoryStaker.deployWithFactory, (kernelFactory, initData, bytes32(0)))
+        );
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(ownerKey, ECDSA.toEthSignedMessageHash(entryPoint.getUserOpHash(userOp)));
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
+        ops[0] = userOp;
+        vm.prank(beneficiary, beneficiary);
+        entryPoint.handleOps(ops, payable(beneficiary));
+
+        assertGt(account.code.length, 0, "account deployed through the staker");
+        assertEq(target.balance, 1 ether, "deployment op executed");
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -433,6 +504,19 @@ contract KernelTest is Test {
     /* //////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    function _ecdsaInitData(address accountOwner) internal view returns (bytes memory) {
+        return abi.encodeCall(
+            Kernel.initialize,
+            (
+                ValidatorLib.validatorToIdentifier(IValidator(address(ecdsaValidator))),
+                IHook(HOOK_MODULE_INSTALLED),
+                abi.encodePacked(accountOwner),
+                hex"",
+                new bytes[](0)
+            )
+        );
+    }
 
     function _createKernelAccount(address accountOwner) internal returns (address) {
         ValidationId rootValidator = ValidatorLib.validatorToIdentifier(IValidator(address(ecdsaValidator)));

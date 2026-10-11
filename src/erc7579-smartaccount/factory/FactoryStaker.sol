@@ -10,6 +10,7 @@ contract FactoryStaker is Ownable {
     mapping(KernelFactory => bool) public approved;
 
     error NotApprovedFactory();
+    error NotCalledFromEntryPoint();
 
     constructor(address _owner) {
         _initializeOwner(_owner);
@@ -22,6 +23,11 @@ contract FactoryStaker is Ownable {
     {
         if (!approved[factory]) {
             revert NotApprovedFactory();
+        }
+        // KernelFactory trusts this contract in place of the SenderCreator, so enforce the
+        // SenderCreator check here
+        if (msg.sender != address(factory.ENTRYPOINT().senderCreator())) {
+            revert NotCalledFromEntryPoint();
         }
         return factory.createAccount(createData, salt);
     }
