@@ -235,8 +235,7 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         uint256 sharesToBurn = (amount * userShares) / userBalance;
 
         // Check liquidity
-        uint256 availableLiquidity = reserve.totalDeposits - reserve.totalBorrows;
-        if (amount > availableLiquidity) revert InsufficientLiquidity();
+        if (amount > _getAvailableLiquidity(asset)) revert InsufficientLiquidity();
 
         // Update state
         depositShares[asset][msg.sender] -= sharesToBurn;
@@ -267,8 +266,7 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         ReserveData storage reserve = _reserves[asset];
 
         // Check liquidity
-        uint256 availableLiquidity = reserve.totalDeposits - reserve.totalBorrows;
-        if (amount > availableLiquidity) revert InsufficientLiquidity();
+        if (amount > _getAvailableLiquidity(asset)) revert InsufficientLiquidity();
 
         // Update user borrow
         _updateUserBorrow(asset, msg.sender);
@@ -386,9 +384,7 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
     {
         _validateAsset(asset, true, false, false);
 
-        ReserveData storage reserve = _reserves[asset];
-        uint256 availableLiquidity = reserve.totalDeposits - reserve.totalBorrows;
-        if (amount > availableLiquidity) revert InsufficientLiquidity();
+        if (amount > _getAvailableLiquidity(asset)) revert InsufficientLiquidity();
 
         uint256 fee = (amount * FLASH_LOAN_FEE) / BASIS_POINTS;
         uint256 balanceBefore = IERC20(asset).balanceOf(address(this));
@@ -561,11 +557,13 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
             uint256 protocolShare = (interestEarned * assetConfigs[asset].reserveFactor) / BASIS_POINTS;
             protocolReserves[asset] += protocolShare;
 
-            // Update liquidity index (interest to depositors)
+            // Update liquidity index and credit the depositors' share of interest, so that
+            // share-based deposit balances grow with accrued interest
             if (reserve.totalDeposits > 0) {
                 uint256 depositInterest = interestEarned - protocolShare;
                 reserve.liquidityIndex =
                     (reserve.liquidityIndex * (reserve.totalDeposits + depositInterest)) / reserve.totalDeposits;
+                reserve.totalDeposits += depositInterest;
             }
         }
 
@@ -655,6 +653,14 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         if (totalShares == 0) return 0;
 
         return (shares * reserve.totalDeposits) / totalShares;
+    }
+
+    /// @dev Liquidity that can leave the pool: deposits not lent out. Accrued protocol reserves are
+    ///      owed out of outstanding borrows, so deposits can be below borrows at full utilization;
+    ///      saturate at zero instead of underflowing.
+    function _getAvailableLiquidity(address asset) internal view returns (uint256) {
+        ReserveData storage reserve = _reserves[asset];
+        return reserve.totalDeposits > reserve.totalBorrows ? reserve.totalDeposits - reserve.totalBorrows : 0;
     }
 
     function _hasBorrows(address user) internal view returns (bool) {
