@@ -119,6 +119,7 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
     uint256 public depositCount;
 
     /// @notice Mapping of used proofs to prevent replay attacks
+    /// @dev Keyed per deposit, so one stealth address can receive and release several deposits
     mapping(bytes32 => bool) public usedProofs;
 
     /// @notice Stealth Ledger contract for balance tracking
@@ -229,7 +230,7 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
         if (recipient != msg.sender) revert Unauthorized();
 
         // Verify proof (simplified - in production, use proper stealth address verification)
-        if (!_verifyStealthProof(deposit.stealthAddress, recipient, proof)) {
+        if (!_verifyStealthProof(depositId, deposit.stealthAddress, recipient, proof)) {
             revert InvalidProof();
         }
 
@@ -262,12 +263,19 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
      *
      *      Additional protections included: msg.sender binding (front-running protection),
      *      chain ID domain separation, and proof reuse prevention via usedProofs mapping.
+     *      The usedProofs key includes the deposit ID: the proof for a stealth address is the same
+     *      for every deposit sent to it, so a key without the deposit ID would let the owner
+     *      withdraw only the first deposit and lock the rest.
      */
-    function _verifyStealthProof(bytes32 stealthHash, address recipient, bytes calldata proof) internal returns (bool) {
+    function _verifyStealthProof(bytes32 depositId, bytes32 stealthHash, address recipient, bytes calldata proof)
+        internal
+        returns (bool)
+    {
         if (proof.length < 20) return false;
 
-        // Include msg.sender and chainid for front-running protection and domain separation
-        bytes32 proofHash = keccak256(abi.encodePacked(msg.sender, recipient, proof, block.chainid));
+        // Include msg.sender and chainid for front-running protection and domain separation,
+        // and the deposit ID so the proof is consumed only for this deposit
+        bytes32 proofHash = keccak256(abi.encodePacked(msg.sender, recipient, proof, block.chainid, depositId));
 
         // Prevent proof reuse
         if (usedProofs[proofHash]) return false;
