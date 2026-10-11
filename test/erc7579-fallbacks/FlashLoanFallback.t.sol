@@ -59,6 +59,20 @@ contract FlashLoanFallbackTest is Test {
         assertFalse(config.logFlashLoans);
     }
 
+    function test_OnInstall_EmptyDataKeepsConfig() public {
+        vm.prank(address(account));
+        fallbackModule.onInstall(abi.encode(false, false));
+
+        // Second install (as executor) with no data must not reset the config to defaults
+        vm.prank(address(account));
+        fallbackModule.onInstall("");
+
+        FlashLoanFallback.AccountConfig memory config = fallbackModule.getConfig(address(account));
+        assertFalse(config.requireWhitelistedProtocol);
+        assertFalse(config.logFlashLoans);
+        assertTrue(config.isEnabled);
+    }
+
     function test_OnUninstall() public {
         _installModule();
 
@@ -71,7 +85,7 @@ contract FlashLoanFallbackTest is Test {
     function test_IsModuleType() public view {
         assertTrue(fallbackModule.isModuleType(3), "Should be MODULE_TYPE_FALLBACK (3)");
         assertFalse(fallbackModule.isModuleType(1), "Should not be validator");
-        assertFalse(fallbackModule.isModuleType(2), "Should not be executor");
+        assertTrue(fallbackModule.isModuleType(2), "Should be MODULE_TYPE_EXECUTOR (2)");
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -149,6 +163,7 @@ contract FlashLoanFallbackTest is Test {
         token.approve(address(flashLoanProvider), type(uint256).max);
 
         // Execute flash loan
+        _beginLoan();
         vm.prank(address(account));
         flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
 
@@ -188,6 +203,7 @@ contract FlashLoanFallbackTest is Test {
 
         // Register fallback handler for the callback
         account.registerFallbackHandler(address(fallbackModule), AAVE_EXECUTE_OPERATION);
+        account.registerExecutor(address(fallbackModule));
 
         address[] memory assets = new address[](1);
         assets[0] = address(token);
@@ -203,6 +219,7 @@ contract FlashLoanFallbackTest is Test {
         token.approve(address(flashLoanProvider), type(uint256).max);
 
         // Should work without whitelist
+        _beginLoan();
         vm.prank(address(account));
         flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
 
@@ -221,6 +238,7 @@ contract FlashLoanFallbackTest is Test {
         token.approve(address(flashLoanProvider), type(uint256).max);
 
         // Execute ERC-3156 flash loan
+        _beginLoan();
         vm.prank(address(account));
         flashLoanProvider.flashLoanERC3156(address(account), address(token), 500 ether, "");
 
@@ -231,6 +249,57 @@ contract FlashLoanFallbackTest is Test {
         assertEq(log.protocol, address(flashLoanProvider));
         assertEq(log.tokens[0], address(token));
         assertEq(log.amounts[0], 500 ether);
+    }
+
+    /* //////////////////////////////////////////////////////////////
+                        LOAN AUTHORIZATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_Callback_RevertsWithoutBeginFlashLoan() public {
+        _installModuleWithWhitelist();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(FlashLoanFallback.FlashLoanNotExpected.selector, address(flashLoanProvider))
+        );
+        _onFlashLoanFrom(address(flashLoanProvider));
+    }
+
+    function test_Callback_RevertsForUnannouncedLender() public {
+        _installModuleWithWhitelist();
+        MockFlashLoanProvider other = new MockFlashLoanProvider();
+        token.mint(address(other), 1000 ether);
+        vm.prank(address(account));
+        fallbackModule.addToWhitelist(address(other));
+
+        _beginLoan(); // announces flashLoanProvider, not `other`
+        vm.expectRevert(abi.encodeWithSelector(FlashLoanFallback.FlashLoanNotExpected.selector, address(other)));
+        _onFlashLoanFrom(address(other));
+    }
+
+    function test_BeginFlashLoan_CoversOneCallback() public {
+        _installModuleWithWhitelist();
+
+        _beginLoan();
+        vm.prank(address(account));
+        flashLoanProvider.flashLoanERC3156(address(account), address(token), 500 ether, "");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(FlashLoanFallback.FlashLoanNotExpected.selector, address(flashLoanProvider))
+        );
+        _onFlashLoanFrom(address(flashLoanProvider));
+    }
+
+    function test_OnFlashLoan_RepaysFromAccount() public {
+        _installModuleWithWhitelist();
+        uint256 fee = (500 ether * flashLoanProvider.FEE_BPS()) / 10_000;
+
+        // No allowance set up front: the module approves exactly the amount owed, as the account
+        _beginLoan();
+        vm.prank(address(account));
+        flashLoanProvider.flashLoanERC3156(address(account), address(token), 500 ether, "");
+
+        assertEq(token.balanceOf(address(account)), 10_000 ether - fee);
+        assertEq(token.allowance(address(account), address(flashLoanProvider)), 0);
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -317,6 +386,7 @@ contract FlashLoanFallbackTest is Test {
             uint256[] memory modes = new uint256[](1);
             modes[0] = 0;
 
+            _beginLoan();
             vm.prank(address(account));
             flashLoanProvider.flashLoan(address(account), assets, amounts, modes, address(account), "", 0);
         }
@@ -340,6 +410,28 @@ contract FlashLoanFallbackTest is Test {
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    /// @dev Delivers an ERC-3156 callback to the account as `lender` would (the mock lender hides custom errors)
+    function _onFlashLoanFrom(address lender) internal {
+        vm.prank(lender);
+        (bool success, bytes memory result) = address(account)
+            .call(
+                abi.encodeWithSelector(
+                    ERC3156_ON_FLASH_LOAN, address(account), address(token), 500 ether, uint256(0), bytes("")
+                )
+            );
+        if (!success) {
+            assembly {
+                revert(add(result, 0x20), mload(result))
+            }
+        }
+    }
+
+    /// @dev Announces a loan from flashLoanProvider, as the account would in its batch
+    function _beginLoan() internal {
+        vm.prank(address(account));
+        fallbackModule.beginFlashLoan(address(flashLoanProvider));
+    }
+
     function _installModule() internal {
         vm.prank(address(account));
         fallbackModule.onInstall("");
@@ -347,6 +439,7 @@ contract FlashLoanFallbackTest is Test {
         // Register fallback handlers for flash loan callbacks
         account.registerFallbackHandler(address(fallbackModule), AAVE_EXECUTE_OPERATION);
         account.registerFallbackHandler(address(fallbackModule), ERC3156_ON_FLASH_LOAN);
+        account.registerExecutor(address(fallbackModule));
     }
 
     function _installModuleWithWhitelist() internal {
@@ -356,6 +449,7 @@ contract FlashLoanFallbackTest is Test {
         // Register fallback handlers for flash loan callbacks
         account.registerFallbackHandler(address(fallbackModule), AAVE_EXECUTE_OPERATION);
         account.registerFallbackHandler(address(fallbackModule), ERC3156_ON_FLASH_LOAN);
+        account.registerExecutor(address(fallbackModule));
 
         // Whitelist the flash loan provider
         vm.prank(address(account));

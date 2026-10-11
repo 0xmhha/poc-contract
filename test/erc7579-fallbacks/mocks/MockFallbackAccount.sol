@@ -13,6 +13,31 @@ contract MockFallbackAccount {
     using SafeERC20 for IERC20;
 
     mapping(bytes4 => address) public fallbackHandlers;
+    mapping(address => bool) public executors;
+
+    /// @notice Register `module` as an executor allowed to call executeFromExecutor
+    function registerExecutor(address module) external {
+        executors[module] = true;
+    }
+
+    /// @notice Single-call executeFromExecutor; calldata is target (20) || value (32) || data
+    function executeFromExecutor(bytes32, bytes calldata executionCalldata)
+        external
+        payable
+        returns (bytes[] memory returnData)
+    {
+        require(executors[msg.sender], "Not executor");
+        address target = address(bytes20(executionCalldata[0:20]));
+        uint256 value = uint256(bytes32(executionCalldata[20:52]));
+        (bool success, bytes memory result) = target.call{ value: value }(executionCalldata[52:]);
+        if (!success) {
+            assembly {
+                revert(add(result, 0x20), mload(result))
+            }
+        }
+        returnData = new bytes[](1);
+        returnData[0] = result;
+    }
 
     function installFallback(address module, bytes4 selector, bytes calldata data) external {
         fallbackHandlers[selector] = module;
@@ -210,6 +235,45 @@ contract MockFlashLoanProvider {
         IERC20(token).safeTransferFrom(receiver, address(this), amount + fee);
 
         return true;
+    }
+
+    /// @notice Uniswap v3-style flash: calls back the caller, then checks the balance was repaid with fee
+    function uniswapFlash(address recipient, address token, uint256 amount, bytes calldata data) external {
+        uint256 fee = (amount * FEE_BPS) / 10_000;
+        uint256 balanceBefore = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransfer(recipient, amount);
+
+        bytes memory callData = abi.encodeWithSignature(
+            "uniswapV3FlashCallback(uint256,uint256,bytes)",
+            fee,
+            uint256(0),
+            abi.encode(token, address(0), amount, uint256(0), data)
+        );
+        (bool success, bytes memory result) = msg.sender.call(callData);
+        require(success, _getRevertMsg(result));
+
+        require(IERC20(token).balanceOf(address(this)) >= balanceBefore + fee, "Not repaid");
+    }
+
+    /// @notice Balancer-style flash loan: anyone may name any recipient; repayment is pushed and checked
+    function balancerFlashLoan(address recipient, address token, uint256 amount, bytes calldata userData) external {
+        uint256 fee = (amount * FEE_BPS) / 10_000;
+        uint256 balanceBefore = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransfer(recipient, amount);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = token;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+        uint256[] memory fees = new uint256[](1);
+        fees[0] = fee;
+        bytes memory callData = abi.encodeWithSignature(
+            "receiveFlashLoan(address[],uint256[],uint256[],bytes)", tokens, amounts, fees, userData
+        );
+        (bool success, bytes memory result) = recipient.call(callData);
+        require(success, _getRevertMsg(result));
+
+        require(IERC20(token).balanceOf(address(this)) >= balanceBefore + fee, "Not repaid");
     }
 
     function _getRevertMsg(bytes memory _returnData) internal pure returns (string memory) {
