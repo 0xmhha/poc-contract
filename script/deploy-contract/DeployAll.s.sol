@@ -263,6 +263,9 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_KERNEL_FACTORY, address(factory));
             console.log("  [NEW] KernelFactory:", address(factory));
         } else {
+            _requireFactoryStaker(
+                _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY), _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER)
+            );
             console.log("  [SKIP] KernelFactory:", _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY));
         }
 

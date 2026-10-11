@@ -73,6 +73,7 @@ contract DeployKernelScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_KERNEL_FACTORY, address(kernelFactory));
             console.log("KernelFactory deployed at:", address(kernelFactory));
         } else {
+            _requireFactoryStaker(existing, address(factoryStaker));
             kernelFactory = KernelFactory(existing);
             console.log("KernelFactory: Using existing at", existing);
         }

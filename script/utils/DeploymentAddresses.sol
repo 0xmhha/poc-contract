@@ -862,6 +862,21 @@ abstract contract DeploymentHelper is Script {
     }
 
     /**
+     * @notice Require a reused KernelFactory to trust the FactoryStaker in use
+     * @dev Uses a low-level staticcall so a factory without STAKER() (older two-argument
+     *      factory) or without code fails with a clear message instead of a bare revert.
+     * @param factory The existing KernelFactory address
+     * @param staker The FactoryStaker address the deployment uses
+     */
+    function _requireFactoryStaker(address factory, address staker) internal view {
+        (bool ok, bytes memory ret) = factory.staticcall(abi.encodeWithSignature("STAKER()"));
+        require(
+            ok && ret.length == 32 && abi.decode(ret, (address)) == staker,
+            "Existing KernelFactory STAKER() does not match the FactoryStaker in use. Redeploy KernelFactory."
+        );
+    }
+
+    /**
      * @notice Get address with fallback to environment variable
      * @param key The address key from DeploymentAddresses
      * @param envVar The environment variable name to use as fallback
