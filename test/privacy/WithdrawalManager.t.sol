@@ -77,6 +77,7 @@ contract WithdrawalManagerTest is Test {
     event WithdrawalCancelled(bytes32 indexed requestId, address indexed canceller);
     event CooldownUpdated(uint256 oldCooldown, uint256 newCooldown);
     event ThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
+    event TokenThresholdUpdated(address indexed token, uint256 oldThreshold, uint256 newThreshold);
 
     function setUp() public {
         admin = makeAddr("admin");
@@ -568,6 +569,31 @@ contract WithdrawalManagerTest is Test {
         manager.executeWithdrawal(third);
     }
 
+    /// @notice A raw default threshold sized for 18-decimal tokens never triggers for a 6-decimal
+    ///         token (1M units = 1e12 raw < 1e22). A per-token threshold must apply instead.
+    function test_ExecuteWithdrawal_TokenThresholdOverridesDefault() public {
+        address usd6 = makeAddr("usd6");
+        uint256 amount = 1_000_000e6;
+        assertEq(manager.approvalThresholdFor(usd6), APPROVAL_THRESHOLD);
+
+        vm.prank(admin);
+        manager.setTokenApprovalThreshold(usd6, 10_000e6);
+        assertEq(manager.approvalThresholdFor(usd6), 10_000e6);
+        assertEq(manager.approvalThresholdFor(address(token)), APPROVAL_THRESHOLD);
+
+        _setupValidDeposit(TEST_DEPOSIT_ID, requester, usd6, amount);
+        vm.prank(requester);
+        bytes32 requestId = manager.requestWithdrawal(TEST_DEPOSIT_ID, recipient, usd6, amount);
+
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        (bool executable, string memory reason) = manager.canExecute(requestId);
+        assertFalse(executable);
+        assertEq(reason, "Approval required");
+        vm.prank(executor);
+        vm.expectRevert(IWithdrawalManager.RequestNotPending.selector);
+        manager.executeWithdrawal(requestId);
+    }
+
     function test_ExecuteWithdrawal_UnapprovedTotalIsPerDeposit() public {
         bytes32 otherDeposit = keccak256("test-deposit-2");
         bytes32 first = _createValidRequest(TEST_DEPOSIT_ID, address(token), 6000 ether);
@@ -1054,6 +1080,29 @@ contract WithdrawalManagerTest is Test {
         manager.setApprovalThreshold(newThreshold);
 
         assertEq(manager.approvalThreshold(), newThreshold);
+    }
+
+    function test_SetTokenApprovalThreshold_SetsAndClears() public {
+        vm.prank(admin);
+        vm.expectEmit(true, false, false, true);
+        emit TokenThresholdUpdated(address(token), 0, 500 ether);
+        manager.setTokenApprovalThreshold(address(token), 500 ether);
+        assertEq(manager.approvalThresholdFor(address(token)), 500 ether);
+
+        // 0 removes the override
+        vm.prank(admin);
+        manager.setTokenApprovalThreshold(address(token), 0);
+        assertEq(manager.approvalThresholdFor(address(token)), APPROVAL_THRESHOLD);
+    }
+
+    function test_SetTokenApprovalThreshold_RevertsOnUnauthorized() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, unauthorized, manager.WITHDRAWAL_ADMIN_ROLE()
+            )
+        );
+        vm.prank(unauthorized);
+        manager.setTokenApprovalThreshold(address(token), 1);
     }
 
     function test_SetApprovalThreshold_RevertsOnUnauthorized() public {

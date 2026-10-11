@@ -179,7 +179,7 @@ indexer-go의 `perp_orderbook` venue가 `PerpetualEngine`과 `OrderManager`의 �
 | PrivateBank | stealth address 기반 네이티브·ERC-20 입출금, 건당·일일 입금 한도 |
 | `enterprise/StealthVault` | 기업용 stealth 입금 보관, 긴급 인출 |
 | `enterprise/StealthLedger` | stealth address별 잔액·거래 이력 원장 |
-| `enterprise/WithdrawalManager` | 승인 threshold와 cooldown이 있는 인출 요청·승인·실행. 인출 요청은 `REQUESTER_ROLE` 보유자만 가능 |
+| `enterprise/WithdrawalManager` | 승인 threshold(기본값과 토큰별 raw 단위 override)와 cooldown이 있는 인출 요청·승인·실행. 인출 요청은 `REQUESTER_ROLE` 보유자만 가능 |
 | `enterprise/RoleManager` | 만료 가능한 역할 할당을 지원하는 RBAC |
 
 ---
