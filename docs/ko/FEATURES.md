@@ -49,6 +49,8 @@ StableNet PoC 컨트랙트는 다음 일곱 영역으로 나뉩니다.
 | | KernelFactory, FactoryStaker | 계정 생성과 주소 사전 계산, factory의 EntryPoint stake 관리 |
 | `permit2` | Permit2 (AllowanceTransfer, SignatureTransfer) | Uniswap Permit2 이식. 서명 기반 approve와 transfer |
 
+**위임된 `execute` 권한.** root가 아닌 validator에 `execute` selector를 허용하면(`grantAccess` 또는 설치 시 `selectorData`) 그 validator는 계정의 관리 함수에도 닿을 수 있습니다. `execute`의 대상이 계정 자신일 수 있고 Kernel은 `onlyEntryPointOrSelfOrRoot`에서 self 호출을 허용하므로, `execute(self, changeRootValidator(...))`나 `execute(self, installModule(...))`가 성공합니다. 따라서 `execute` 허용은 root validator 교체를 포함한 계정 전체 권한을 주는 것과 같습니다. Kernel은 이를 막지 않습니다. 제한된 권한만 위임하려면 그 validator에 self 대상 실행을 거부하는 execution hook을 붙이거나(PolicyHook, SpendingLimitHook, AuditHook, HealthFactorHook이 `HookExecutionDataLib.checkExecutionTarget`으로 거부), 호출 대상을 제한하는 permission policy를 사용해야 합니다.
+
 ---
 
 ## 3. ERC-7579 모듈

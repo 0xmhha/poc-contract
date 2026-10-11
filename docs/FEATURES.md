@@ -49,6 +49,8 @@ The StableNet PoC contracts fall into seven areas.
 | | KernelFactory, FactoryStaker | Account creation and counterfactual address computation, factory stake management on the EntryPoint |
 | `permit2` | Permit2 (AllowanceTransfer, SignatureTransfer) | Port of Uniswap Permit2. Signature-based approvals and transfers |
 
+**Delegated `execute` access.** A non-root validator granted the `execute` selector (`grantAccess`, or `selectorData` at install) can also reach the account's admin functions: `execute` may target the account itself, and Kernel accepts self-calls in `onlyEntryPointOrSelfOrRoot`, so `execute(self, changeRootValidator(...))` or `execute(self, installModule(...))` succeeds. Granting `execute` therefore grants full control of the account, including replacing the root validator. Kernel does not block this. To delegate limited access, give that validator an execution hook that rejects self-targeted executions (PolicyHook, SpendingLimitHook, AuditHook and HealthFactorHook do, through `HookExecutionDataLib.checkExecutionTarget`), or a permission policy that restricts call targets.
+
 ---
 
 ## 3. ERC-7579 Modules

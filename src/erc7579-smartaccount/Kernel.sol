@@ -564,6 +564,11 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         }
     }
 
+    /// @notice Allow or revoke `selector` for a non-root validation
+    /// @dev Allowing `execute` grants full control: execute may target the account itself, and
+    ///      self-calls pass onlyEntryPointOrSelfOrRoot, so the validation can reach admin functions
+    ///      such as changeRootValidator. Pair it with a hook that rejects self-targeted executions
+    ///      or a policy that restricts targets to delegate limited access.
     function grantAccess(ValidationId vId, bytes4 selector, bool allow) external payable onlyEntryPointOrSelfOrRoot {
         _grantAccess(vId, selector, allow);
     }
