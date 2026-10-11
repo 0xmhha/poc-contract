@@ -7,6 +7,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ILendingPool, IFlashLoanReceiver } from "./interfaces/ILendingPool.sol";
 import { IPriceOracle } from "../erc4337-paymaster/interfaces/IPriceOracle.sol";
 
@@ -235,8 +236,9 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
 
         if (amount == 0 || amount > userBalance) revert InvalidAmount();
 
-        // Calculate shares to burn
-        uint256 sharesToBurn = (amount * userShares) / userBalance;
+        // Calculate shares to burn, rounding up in favor of the pool. Cannot exceed userShares
+        // because amount <= userBalance; a full withdrawal burns exactly userShares.
+        uint256 sharesToBurn = Math.mulDiv(amount, userShares, userBalance, Math.Rounding.Ceil);
 
         // Check liquidity
         if (amount > _getAvailableLiquidity(asset)) revert InsufficientLiquidity();

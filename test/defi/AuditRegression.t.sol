@@ -136,6 +136,31 @@ contract LendingPoolAuditRegressionTest is Test {
         assertApproxEqAbs(pool.getDepositBalance(address(usdc), carol), 1000e18, 1, "late lender gets principal");
     }
 
+    /// @dev With share price above 1, a withdrawal must burn shares rounded up so a 1 wei
+    ///      withdrawal is not free; a full withdrawal still clears the position.
+    function test_DEFI1_WithdrawRoundsSharesUp() public {
+        vm.prank(alice);
+        pool.deposit(address(usdc), 1000e18);
+        vm.startPrank(bob);
+        pool.deposit(address(weth), 10e18);
+        pool.borrow(address(usdc), 500e18);
+        vm.warp(1_000_000 + 365 days);
+        pool.repay(address(usdc), type(uint256).max);
+        vm.stopPrank();
+
+        uint256 sharesBefore = pool.depositShares(address(usdc), alice);
+        assertGt(pool.getDepositBalance(address(usdc), alice), sharesBefore, "share price above 1");
+
+        vm.prank(alice);
+        pool.withdraw(address(usdc), 1);
+        assertGe(sharesBefore - pool.depositShares(address(usdc), alice), 1, "1 wei withdrawal burns a share");
+
+        vm.prank(alice);
+        pool.withdraw(address(usdc), type(uint256).max);
+        assertEq(pool.depositShares(address(usdc), alice), 0, "position cleared");
+        assertEq(pool.getDepositBalance(address(usdc), alice), 0);
+    }
+
     // ---------------------------------------------------------------- DEFI-8
 
     /// @dev Delisting (ltv = 0) and relisting an asset must not add it to supportedAssets twice,
