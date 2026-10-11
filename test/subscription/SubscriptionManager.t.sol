@@ -7,6 +7,7 @@ import {
     ERC7715PermissionManager,
     IERC7715PermissionManager
 } from "../../src/subscription/ERC7715PermissionManager.sol";
+import { MerchantRegistry } from "../../src/subscription/MerchantRegistry.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
@@ -642,5 +643,82 @@ contract SubscriptionManagerTest is Test {
         vm.prank(owner);
         vm.expectRevert(ISubscriptionManager.SubscriptionNotFound.selector);
         subManager.emergencyCancelSubscription(fakeId);
+    }
+
+    // ============ Merchant Registry Tests ============
+
+    /// @dev Deploy a registry, verify the default merchant and wire it into the manager
+    function _wireRegistry() internal returns (MerchantRegistry registry) {
+        address verifier = makeAddr("verifier");
+        vm.startPrank(owner);
+        registry = new MerchantRegistry();
+        registry.addVerifier(verifier);
+        subManager.setMerchantRegistry(address(registry));
+        vm.stopPrank();
+        vm.prank(merchant);
+        registry.registerMerchant("m", "https://m.example", "m@example.com");
+        vm.prank(verifier);
+        registry.verifyMerchant(merchant);
+    }
+
+    function test_SetMerchantRegistry_OnlyOwner() public {
+        vm.prank(merchant);
+        vm.expectRevert();
+        subManager.setMerchantRegistry(address(1));
+
+        vm.prank(owner);
+        subManager.setMerchantRegistry(address(1));
+        assertEq(address(subManager.merchantRegistry()), address(1));
+    }
+
+    function test_MerchantRegistry_SuspendedMerchantIsNotPaid() public {
+        MerchantRegistry registry = _wireRegistry();
+        (bytes32 subscriptionId,) = _subscribeAs(subscriber);
+
+        vm.prank(owner);
+        registry.suspendMerchant(merchant);
+
+        vm.warp(1 + 7 days);
+        uint256 merchantBefore = token.balanceOf(merchant);
+        vm.prank(processor);
+        vm.expectRevert(ISubscriptionManager.UnauthorizedMerchant.selector);
+        subManager.processPayment(subscriptionId);
+
+        // The batch skips the suspended merchant's subscription instead of reverting
+        bytes32[] memory ids = new bytes32[](1);
+        ids[0] = subscriptionId;
+        vm.prank(processor);
+        subManager.batchProcessPayments(ids);
+        assertEq(token.balanceOf(merchant), merchantBefore);
+        assertEq(subManager.getSubscription(subscriptionId).paymentCount, 0);
+        assertFalse(subManager.getSubscription(subscriptionId).inGracePeriod);
+
+        // Reinstated merchant is paid again
+        vm.prank(owner);
+        registry.unsuspendMerchant(merchant);
+        vm.prank(processor);
+        subManager.processPayment(subscriptionId);
+        assertEq(subManager.getSubscription(subscriptionId).paymentCount, 1);
+    }
+
+    function test_MerchantRegistry_SuspendedMerchantCannotCreatePlanOrGainSubscribers() public {
+        MerchantRegistry registry = _wireRegistry();
+        vm.prank(owner);
+        registry.suspendMerchant(merchant);
+
+        vm.prank(merchant);
+        vm.expectRevert(ISubscriptionManager.UnauthorizedMerchant.selector);
+        subManager.createPlan(1 ether, 30 days, address(token), 0, 0, 0, "p2", "d2");
+
+        vm.prank(subscriber);
+        vm.expectRevert(ISubscriptionManager.UnauthorizedMerchant.selector);
+        subManager.subscribe(planId, permissionId);
+    }
+
+    function test_MerchantRegistry_UnverifiedMerchantCannotCreatePlan() public {
+        _wireRegistry();
+        vm.prank(makeAddr("unverified"));
+        vm.expectRevert(ISubscriptionManager.UnauthorizedMerchant.selector);
+        subManager.createPlan(1 ether, 30 days, address(token), 0, 0, 0, "p", "d");
     }
 }

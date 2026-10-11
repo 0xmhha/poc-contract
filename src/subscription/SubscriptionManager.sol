@@ -6,6 +6,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC7715PermissionManager } from "./ERC7715PermissionManager.sol";
+import { MerchantRegistry } from "./MerchantRegistry.sol";
 
 /**
  * @title ISubscriptionManager
@@ -57,6 +58,7 @@ interface ISubscriptionManager {
     event ProcessorUpdated(address indexed processor, bool authorized);
     event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
     event FeeRecipientUpdated(address oldRecipient, address newRecipient);
+    event MerchantRegistryUpdated(address oldRegistry, address newRegistry);
 
     /* //////////////////////////////////////////////////////////////
                                  STRUCTS
@@ -154,6 +156,10 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
     /// @notice Fee recipient
     address public feeRecipient;
 
+    /// @notice Optional merchant registry; when set, only merchants active in it can create plans,
+    ///         gain subscribers or be paid (address(0) disables the check)
+    MerchantRegistry public merchantRegistry;
+
     /// @notice Maximum protocol fee (10%)
     uint256 public constant MAX_FEE_BPS = 1000;
 
@@ -206,6 +212,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         if (amount == 0) revert InvalidAmount();
         if (token == address(0)) revert InvalidAmount(); // Native token not supported for subscriptions
         if (period < MIN_PERIOD || period > MAX_PERIOD) revert InvalidPeriod();
+        if (!_isMerchantActive(msg.sender)) revert UnauthorizedMerchant();
 
         planId = ++planCount;
 
@@ -267,6 +274,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         Plan storage plan = plans[planId];
         if (plan.merchant == address(0)) revert InvalidPlan();
         if (!plan.active) revert PlanNotActive();
+        if (!_isMerchantActive(plan.merchant)) revert UnauthorizedMerchant();
 
         // Verify permission is valid and belongs to subscriber
         if (!PERMISSION_MANAGER.isPermissionValid(permissionId)) {
@@ -343,7 +351,8 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
     /**
      * @notice Process a subscription payment
-     * @dev Reverts if the subscription does not exist, is inactive or is not yet due.
+     * @dev Reverts if the subscription does not exist, is inactive, is not yet due or its merchant
+     *      is not active in the merchant registry.
      *      A payment that cannot be collected (invalid permission, exhausted allowance or
      *      insufficient token balance/allowance) does not revert: the subscription enters its
      *      grace period, or is deactivated once the grace period has passed, and
@@ -359,8 +368,9 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
     /**
      * @notice Process multiple subscription payments (batch)
-     * @dev Entries that do not exist, are inactive or are not yet due are skipped, and a payment
-     *      that cannot be collected is recorded as failed, so one subscriber cannot block the batch.
+     * @dev Entries that do not exist, are inactive, are not yet due or belong to a merchant that is
+     *      not active in the merchant registry are skipped, and a payment that cannot be collected
+     *      is recorded as failed, so one subscriber cannot block the batch.
      * @param subscriptionIds Array of subscription IDs to process
      */
     function batchProcessPayments(bytes32[] calldata subscriptionIds) external nonReentrant {
@@ -371,6 +381,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < subscriptionIds.length; i++) {
             Subscription storage sub = subscriptions[subscriptionIds[i]];
             if (sub.startTime == 0 || !sub.active || block.timestamp < sub.nextPayment) continue;
+            if (!_isMerchantActive(plans[sub.planId].merchant)) continue;
             _processPayment(subscriptionIds[i]);
         }
     }
@@ -391,6 +402,9 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
         Plan storage plan = plans[sub.planId];
         SubscriptionTerms storage terms = subscriptionTerms[subscriptionId];
+
+        // A suspended merchant is not paid; the payment stays due until the merchant is reinstated
+        if (!_isMerchantActive(plan.merchant)) revert UnauthorizedMerchant();
 
         // Verify permission is still valid
         if (!PERMISSION_MANAGER.isPermissionValid(sub.permissionId)) {
@@ -448,6 +462,15 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
         emit PaymentProcessed(subscriptionId, sub.subscriber, plan.merchant, terms.amount, sub.paymentCount);
         return true;
+    }
+
+    /**
+     * @notice Whether a merchant may create plans, gain subscribers and be paid
+     * @dev Always true when no merchant registry is configured
+     */
+    function _isMerchantActive(address merchant) internal view returns (bool) {
+        MerchantRegistry registry = merchantRegistry;
+        return address(registry) == address(0) || registry.isMerchantActive(merchant);
     }
 
     /**
@@ -603,6 +626,16 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         address oldRecipient = feeRecipient;
         feeRecipient = recipient;
         emit FeeRecipientUpdated(oldRecipient, recipient);
+    }
+
+    /**
+     * @notice Set the merchant registry used to block inactive (unverified or suspended) merchants
+     * @param registry MerchantRegistry address, or address(0) to disable the check
+     */
+    function setMerchantRegistry(address registry) external onlyOwner {
+        address oldRegistry = address(merchantRegistry);
+        merchantRegistry = MerchantRegistry(registry);
+        emit MerchantRegistryUpdated(oldRegistry, registry);
     }
 
     /**
