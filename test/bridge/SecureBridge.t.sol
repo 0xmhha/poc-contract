@@ -173,6 +173,33 @@ contract SecureBridgeTest is Test {
         assertEq(transactionCount, 1);
     }
 
+    /// @notice The rate limiter auto-pause must persist through SecureBridge.
+    ///         Before the fix the limiter paused and returned false, SecureBridge reverted
+    ///         with RateLimitExceeded, and the revert rolled back the pause.
+    function test_InitiateBridge_AutoPausePersists() public {
+        vm.prank(owner);
+        rateLimiter.setGlobalLimits(1000 * PRECISION, 2000 * PRECISION, 100_000 * PRECISION);
+
+        address sender = makeAddr("sender");
+        uint256 amount = 1000 * 1e18;
+        token.mint(sender, amount * 3);
+        vm.startPrank(sender);
+        token.approve(address(bridge), amount * 3);
+
+        // 50% of the hourly limit
+        bridge.initiateBridge(address(token), amount, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours);
+        assertFalse(rateLimiter.paused());
+
+        // 100% of the hourly limit: crosses the 95% auto-pause threshold, still succeeds
+        bridge.initiateBridge(address(token), amount, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours);
+        assertTrue(rateLimiter.paused());
+
+        // Subsequent transfers are blocked by the persisted pause
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        bridge.initiateBridge(address(token), amount, makeAddr("recipient"), TARGET_CHAIN, block.timestamp + 1 hours);
+        vm.stopPrank();
+    }
+
     function test_InitiateBridge_ERC20() public {
         address sender = makeAddr("sender");
         address recipient = makeAddr("recipient");

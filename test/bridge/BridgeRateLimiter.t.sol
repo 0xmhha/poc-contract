@@ -195,17 +195,21 @@ contract BridgeRateLimiterTest is Test {
         (uint256 hourlyPct,) = limiter.getUsagePercentages();
         assertEq(hourlyPct, 76);
 
-        // Next transaction would push us to 47.5M = 95%
-        // This triggers auto-pause: the contract pauses and returns (false, usdValue)
-        // without reverting, so the pause state is persisted
+        // Next transaction pushes us to 47.5M = 95%, which triggers auto-pause.
+        // The crossing transaction is within the hard limits, so it is allowed and recorded;
+        // the pause blocks subsequent transactions. Returning false would make the caller
+        // revert and roll back the pause.
         vm.prank(bridge);
         (bool allowed,) = limiter.checkAndRecordTransaction(token, amount);
 
-        // Transaction was not allowed due to auto-pause threshold
-        assertFalse(allowed);
-
-        // The paused state IS persisted because we no longer revert
+        assertTrue(allowed);
         assertTrue(limiter.paused());
+        (hourlyPct,) = limiter.getUsagePercentages();
+        assertEq(hourlyPct, 95);
+
+        vm.prank(bridge);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        limiter.checkAndRecordTransaction(token, amount);
     }
 
     // ============ View Function Tests ============

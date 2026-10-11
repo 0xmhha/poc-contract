@@ -165,8 +165,8 @@ indexer-go의 `perp_orderbook` venue가 `PerpetualEngine`과 `OrderManager`의 �
 | BridgeValidator | 5-of-7 MPC 서명 검증, signer set 교체(`rotateSignerSet`), nonce 관리. nonce 소비는 `setAuthorizedBridge`로 지정한 bridge만 할 수 있음 |
 | OptimisticVerifier | challenge 기간이 있는 optimistic 검증, challenge bond와 보상 |
 | FraudProofVerifier | Merkle proof·state proof 기반 fraud proof 검증, state root 갱신 |
-| BridgeRateLimiter | 건당·시간당·일일 USD 기준 한도, 임계치 초과 시 auto-pause. 사용량은 SecureBridge가 아니라 실제 송신자에게 귀속 |
-| BridgeGuardian | 3-of-5 guardian 멀티시그로 긴급 정지, 제안 실행, blacklist |
+| BridgeRateLimiter | 건당·시간당·일일 USD 기준 한도, 사용량이 임계치를 넘으면 auto-pause(임계치를 넘긴 거래는 통과하고 이후 거래부터 차단). 사용량은 SecureBridge가 아니라 실제 송신자에게 귀속 |
+| BridgeGuardian | 3-of-5 guardian 멀티시그로 제안 실행(unpause 포함)과 blacklist. 긴급 정지는 guardian 1명이 cooldown 없이 언제든 실행 가능 |
 
 ---
 
