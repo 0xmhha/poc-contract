@@ -179,7 +179,7 @@ The `bridge` module is a defense-in-depth design that layers MPC signatures and 
 | PrivateBank | Native and ERC-20 deposits and withdrawals via stealth addresses, per-deposit and daily limits |
 | `enterprise/StealthVault` | Enterprise custody of stealth deposits, emergency withdrawal |
 | `enterprise/StealthLedger` | Balance and transaction history ledger per stealth address |
-| `enterprise/WithdrawalManager` | Withdrawal requests, approvals and execution with an approval threshold and cooldown. Only `REQUESTER_ROLE` holders may request withdrawals |
+| `enterprise/WithdrawalManager` | Withdrawal requests, approvals and execution with an approval threshold (default plus optional per-token override in raw token units) and cooldown. Only `REQUESTER_ROLE` holders may request withdrawals |
 | `enterprise/RoleManager` | RBAC with expiring role assignments |
 
 ---

@@ -73,6 +73,7 @@ interface IWithdrawalManager {
 
     event CooldownUpdated(uint256 oldCooldown, uint256 newCooldown);
     event ThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
+    event TokenThresholdUpdated(address indexed token, uint256 oldThreshold, uint256 newThreshold);
 
     /* //////////////////////////////////////////////////////////////
                                  ERRORS
@@ -149,11 +150,17 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
     /// @notice Cooldown period before withdrawal can be executed
     uint256 public cooldownPeriod;
 
-    /// @notice Amount threshold above which approval is required
+    /// @notice Default amount threshold above which approval is required
     /// @dev Compared against the cumulative amount withdrawn from a deposit without approval,
     ///      so splitting a withdrawal into small requests does not avoid approval. It is a raw
-    ///      token amount and is not adjusted for token decimals.
+    ///      token amount and is not adjusted for token decimals; it applies to tokens without a
+    ///      tokenApprovalThreshold entry.
     uint256 public approvalThreshold;
+
+    /// @notice Per-token approval threshold in the token's raw units; 0 means use approvalThreshold
+    /// @dev Set this for every token whose decimals or value differ from what approvalThreshold
+    ///      assumes (e.g. a 6-decimal stablecoin). Use 1 to require approval for any amount.
+    mapping(address token => uint256) public tokenApprovalThreshold;
 
     /// @notice Amount executed from each deposit without an approval
     mapping(bytes32 depositId => uint256) public unapprovedWithdrawn;
@@ -416,7 +423,15 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
      * @notice Whether an unapproved request would bring its deposit's unapproved total to the threshold
      */
     function _requiresApproval(WithdrawalRequest storage request) internal view returns (bool) {
-        return unapprovedWithdrawn[request.depositId] + request.amount >= approvalThreshold;
+        return unapprovedWithdrawn[request.depositId] + request.amount >= approvalThresholdFor(request.token);
+    }
+
+    /**
+     * @notice Approval threshold that applies to `token`, in the token's raw units
+     */
+    function approvalThresholdFor(address token) public view returns (uint256) {
+        uint256 tokenThreshold = tokenApprovalThreshold[token];
+        return tokenThreshold != 0 ? tokenThreshold : approvalThreshold;
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -445,6 +460,18 @@ contract WithdrawalManager is IWithdrawalManager, AccessControl, Pausable, Reent
         approvalThreshold = _approvalThreshold;
 
         emit ThresholdUpdated(oldThreshold, _approvalThreshold);
+    }
+
+    /**
+     * @notice Set the approval threshold for one token, in the token's raw units
+     * @param token The token address (NATIVE_TOKEN for the native coin)
+     * @param threshold The threshold; 0 removes the override and falls back to approvalThreshold
+     */
+    function setTokenApprovalThreshold(address token, uint256 threshold) external onlyRole(WITHDRAWAL_ADMIN_ROLE) {
+        uint256 oldThreshold = tokenApprovalThreshold[token];
+        tokenApprovalThreshold[token] = threshold;
+
+        emit TokenThresholdUpdated(token, oldThreshold, threshold);
     }
 
     /**
