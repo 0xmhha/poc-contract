@@ -90,6 +90,13 @@ interface ISubscriptionManager {
         bool active; // Whether subscription is active
         bool inGracePeriod; // Whether in grace period
     }
+
+    /// @notice Price terms a subscriber agreed to, fixed at subscribe time
+    /// @dev Kept outside Subscription so the existing struct and getter layout stay unchanged
+    struct SubscriptionTerms {
+        uint256 amount; // Payment amount per period
+        uint256 period; // Payment period in seconds
+    }
 }
 
 /**
@@ -128,6 +135,9 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
     /// @notice Mapping of subscription ID to subscription details
     mapping(bytes32 => Subscription) public subscriptions;
+
+    /// @notice Mapping of subscription ID to the amount and period agreed at subscribe time
+    mapping(bytes32 => SubscriptionTerms) public subscriptionTerms;
 
     /// @notice Mapping of subscriber address to their subscription IDs
     mapping(address => bytes32[]) public subscriberSubscriptions;
@@ -220,6 +230,8 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
     /**
      * @notice Update an existing plan
+     * @dev Amount and period changes apply only to subscriptions created afterwards;
+     *      existing subscriptions keep the terms recorded in subscriptionTerms.
      * @param planId Plan to update
      * @param amount New payment amount
      * @param period New payment period
@@ -289,6 +301,9 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
             active: true,
             inGracePeriod: false
         });
+
+        // Snapshot the price terms so later plan updates cannot change what this subscriber pays
+        subscriptionTerms[subscriptionId] = SubscriptionTerms({ amount: plan.amount, period: plan.period });
 
         subscriberSubscriptions[msg.sender].push(subscriptionId);
         plan.subscriberCount++;
@@ -365,6 +380,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         }
 
         Plan storage plan = plans[sub.planId];
+        SubscriptionTerms storage terms = subscriptionTerms[subscriptionId];
 
         // Verify permission is still valid
         if (!PERMISSION_MANAGER.isPermissionValid(sub.permissionId)) {
@@ -379,7 +395,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         }
 
         // Use permission
-        bool success = PERMISSION_MANAGER.usePermission(sub.permissionId, plan.amount);
+        bool success = PERMISSION_MANAGER.usePermission(sub.permissionId, terms.amount);
         if (!success) {
             if (block.timestamp > sub.nextPayment + plan.gracePeriod) {
                 sub.active = false;
@@ -391,8 +407,8 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         }
 
         // Calculate fee
-        uint256 fee = (plan.amount * protocolFeeBps) / 10_000;
-        uint256 merchantAmount = plan.amount - fee;
+        uint256 fee = (terms.amount * protocolFeeBps) / 10_000;
+        uint256 merchantAmount = terms.amount - fee;
 
         // Transfer tokens BEFORE state update to ensure atomicity
         // If either transfer fails, state remains unchanged
@@ -410,12 +426,12 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
         // Update subscription state AFTER successful transfers (atomic guarantee)
         sub.lastPayment = block.timestamp;
-        sub.nextPayment = block.timestamp + plan.period;
+        sub.nextPayment = block.timestamp + terms.period;
         sub.paymentCount++;
-        sub.totalPaid += plan.amount;
+        sub.totalPaid += terms.amount;
         sub.inGracePeriod = false;
 
-        emit PaymentProcessed(subscriptionId, sub.subscriber, plan.merchant, plan.amount, sub.paymentCount);
+        emit PaymentProcessed(subscriptionId, sub.subscriber, plan.merchant, terms.amount, sub.paymentCount);
     }
 
     /* //////////////////////////////////////////////////////////////

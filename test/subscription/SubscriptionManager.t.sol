@@ -167,6 +167,61 @@ contract SubscriptionManagerTest is Test {
         subManager.updatePlan(999, 15 ether, 60 days, true);
     }
 
+    function test_UpdatePlan_DoesNotChangeExistingSubscriptionPeriod() public {
+        vm.prank(subscriber);
+        token.approve(address(subManager), type(uint256).max);
+        vm.prank(subscriber);
+        bytes32 subscriptionId = subManager.subscribe(planId, permissionId);
+
+        // Merchant shrinks the period after the subscriber agreed to 30 days
+        vm.prank(merchant);
+        subManager.updatePlan(planId, 0, 1 hours, true);
+
+        // First charge after the 7-day trial
+        vm.warp(1 + 7 days);
+        vm.prank(processor);
+        subManager.processPayment(subscriptionId);
+
+        // One day later the subscription must not be due again
+        vm.warp(1 + 8 days);
+        vm.prank(processor);
+        vm.expectRevert(ISubscriptionManager.NotDueForPayment.selector);
+        subManager.processPayment(subscriptionId);
+
+        assertEq(subManager.getSubscription(subscriptionId).nextPayment, 1 + 7 days + 30 days);
+    }
+
+    function test_UpdatePlan_DoesNotChangeExistingSubscriptionAmount() public {
+        vm.prank(subscriber);
+        token.approve(address(subManager), type(uint256).max);
+        vm.prank(subscriber);
+        bytes32 subscriptionId = subManager.subscribe(planId, permissionId);
+
+        // Merchant raises the price 100x after the subscriber agreed to 10 ether
+        vm.prank(merchant);
+        subManager.updatePlan(planId, 1000 ether, 0, true);
+
+        uint256 balanceBefore = token.balanceOf(subscriber);
+        vm.warp(1 + 7 days);
+        vm.prank(processor);
+        subManager.processPayment(subscriptionId);
+
+        assertEq(balanceBefore - token.balanceOf(subscriber), 10 ether);
+        assertEq(subManager.getSubscription(subscriptionId).totalPaid, 10 ether);
+    }
+
+    function test_UpdatePlan_AppliesToNewSubscriptions() public {
+        vm.prank(merchant);
+        subManager.updatePlan(planId, 15 ether, 60 days, true);
+
+        vm.prank(subscriber);
+        bytes32 subscriptionId = subManager.subscribe(planId, permissionId);
+
+        (uint256 amount, uint256 period) = subManager.subscriptionTerms(subscriptionId);
+        assertEq(amount, 15 ether);
+        assertEq(period, 60 days);
+    }
+
     // ============ Subscribe Tests ============
 
     function test_Subscribe_Success() public {
