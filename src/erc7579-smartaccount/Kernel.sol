@@ -18,7 +18,7 @@ import {
 import { IValidator, IHook, IExecutor, IModule } from "./interfaces/IERC7579Modules.sol";
 import { ExecLib } from "./utils/ExecLib.sol";
 import { LibERC7579 } from "solady/accounts/LibERC7579.sol";
-import { ExecMode, CallType, ExecType, ExecModeSelector, ExecModePayload } from "./types/Types.sol";
+import { ExecMode } from "./types/Types.sol";
 import {
     CALLTYPE_SINGLE,
     CALLTYPE_DELEGATECALL,
@@ -35,10 +35,6 @@ import {
     HOOK_MODULE_NOT_INSTALLED,
     HOOK_MODULE_INSTALLED,
     HOOK_ONLY_ENTRYPOINT,
-    EXECTYPE_TRY,
-    EXECTYPE_DEFAULT,
-    EXEC_MODE_DEFAULT,
-    CALLTYPE_BATCH,
     EIP7702_PREFIX
 } from "./types/Constants.sol";
 
@@ -419,14 +415,20 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         onlyEntryPoint
     {
         bytes memory context;
+        // removed 4bytes selector
+        bytes calldata callData = userOp.callData[4:];
         IHook hook = executionHook[userOpHash];
         // address(0) is the root hook of an EIP-7702 account; validateUserOp treats it as "no hook"
         bool callHook = uint160(address(hook)) > uint160(HOOK_MODULE_INSTALLED);
-        if (callHook) {
-            // removed 4bytes selector
-            context = _doPreHook(hook, msg.value, userOp.callData[4:]);
+        // execute() runs the root validator hook itself; calling it here too would run it twice
+        if (bytes4(callData) == this.execute.selector) {
+            ValidationStorage storage vs = _validationStorage();
+            if (hook == vs.validationConfig[vs.rootValidator].hook) callHook = false;
         }
-        (bool success,) = ExecLib.executeDelegatecall(address(this), userOp.callData[4:]);
+        if (callHook) {
+            context = _doPreHook(hook, msg.value, callData);
+        }
+        (bool success,) = ExecLib.executeDelegatecall(address(this), callData);
         if (!success) {
             revert ExecutionReverted();
         }
@@ -821,14 +823,11 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
             // Hooks are paired with validators/executors/selectors, not independently tracked.
             // Check rootValidator's hook as the primary query path.
             // For specific validator hooks, pass ValidationId via additionalContext.
-            if (additionalContext.length >= 21) {
-                // additionalContext contains a ValidationId — check that specific validator's hook
-                ValidationId vId = ValidationId.wrap(bytes21(additionalContext[0:21]));
-                return address(_validationStorage().validationConfig[vId].hook) == module;
-            }
-            // Default: check rootValidator's hook
-            ValidationId rootVId = _validationStorage().rootValidator;
-            return address(_validationStorage().validationConfig[rootVId].hook) == module;
+            ValidationStorage storage vs = _validationStorage();
+            // additionalContext may name a specific validator (ValidationId); default to rootValidator
+            ValidationId vId =
+                additionalContext.length >= 21 ? ValidationId.wrap(bytes21(additionalContext[0:21])) : vs.rootValidator;
+            return address(vs.validationConfig[vId].hook) == module;
         } else {
             return false;
         }
@@ -849,27 +848,12 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     ///   branch. Reporting it as supported would cause clients/SDKs to submit STATIC-mode UserOps
     ///   that revert at runtime, breaking EIP-4337's simulation-execution equivalence guarantee.
     ///   To add STATIC mode support, a staticcall branch must be added to ExecLib.execute() first.
+    ///   Layout (ExecLib.decode): callType (byte 0), execType (byte 1), unused (bytes 2-5),
+    ///   mode selector (bytes 6-9), payload (bytes 10-31). Checked on the raw word to save bytecode.
     function supportsExecutionMode(ExecMode mode) external pure override returns (bool) {
-        (CallType callType, ExecType execType, ExecModeSelector selector, ExecModePayload payload) =
-            ExecLib.decode(mode);
-        if (callType != CALLTYPE_BATCH && callType != CALLTYPE_SINGLE && callType != CALLTYPE_DELEGATECALL) {
-            return false;
-        }
-
-        if (
-            ExecType.unwrap(execType) != ExecType.unwrap(EXECTYPE_TRY)
-                && ExecType.unwrap(execType) != ExecType.unwrap(EXECTYPE_DEFAULT)
-        ) {
-            return false;
-        }
-
-        if (ExecModeSelector.unwrap(selector) != ExecModeSelector.unwrap(EXEC_MODE_DEFAULT)) {
-            return false;
-        }
-
-        if (ExecModePayload.unwrap(payload) != bytes22(0)) {
-            return false;
-        }
-        return true;
+        uint256 m = uint256(ExecMode.unwrap(mode));
+        // callType SINGLE (0x00), BATCH (0x01) or DELEGATECALL (0xFF): (callType + 1) mod 256 < 3;
+        // execType DEFAULT (0x00) or TRY (0x01); default mode selector and empty payload (low 26 bytes zero)
+        return uint8((m >> 248) + 1) < 3 && uint8(m >> 240) < 2 && uint208(m) == 0;
     }
 }
