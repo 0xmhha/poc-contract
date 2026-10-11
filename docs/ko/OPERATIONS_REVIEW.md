@@ -26,7 +26,7 @@
 | # | 항목 | 심각도 | 근거 | 상태 |
 |---|---|---|---|---|
 | 1 | local과 CI의 Foundry 버전 불일치 | 높음 | PR #22는 local forge 1.5.1에서는 통과하고 CI v1.8.3에서는 실패했습니다. v1.8.3은 테스트의 최상위 호출 사이에 transient storage를 초기화합니다. `forge fmt --check`도 local에서만 `src/permit2` 파일 2개로 실패합니다. | 문서에 v1.8.3을 명시했습니다(`foundryup --install v1.8.3`). 각 개발자가 local 툴체인을 직접 바꿔야 합니다. |
-| 2 | Kernel의 EIP-170 여유가 31 bytes | 높음 | HOOK-4 수정 때 바이트코드를 손으로 줄여야 했습니다. `upgradeTo`는 공간이 없어 custom error 없이 revert합니다. | 미해결. 드물게 쓰는 관리 경로(`replaceModule`, `installValidations`, delegatecall whitelist)를 Kernel 바이트코드 밖으로 옮기는 설계가 필요합니다. |
+| 2 | Kernel의 EIP-170 여유가 31 bytes | 높음 | HOOK-4 수정 때 바이트코드를 손으로 줄여야 했습니다. `upgradeTo`는 공간이 없어 custom error 없이 revert합니다. | 일부 완료. ERC-721/1155 receiver callback을 `fallback()`으로 옮겨 여유를 347 bytes로 늘렸습니다. 추가 여유는 드물게 쓰는 관리 경로(`installValidations` 522 bytes, delegatecall whitelist setter 336, `replaceModule` 283)를 Kernel 바이트코드 밖으로 옮겨야 생깁니다. |
 | 3 | DeployAll 후 계정 생성 불가 | 높음 | DeployAll 직후 `FactoryStaker.approved(factory)`가 false여서, initCode로 계정을 만들면 `NotApprovedFactory`로 revert했습니다. | 완료. DeployAll과 DeployKernel이 factory를 승인합니다. 브로드캐스트 계정이 owner가 아니면 owner가 할 호출을 로그로 남깁니다. |
 | 4 | CI에 체인 위 E2E가 없음 | 높음 | 단위 테스트는 모두 통과했지만 실제 `handleOps` broadcast는 gas 설정 때문에 두 번 실패했습니다(`0xdeaddead`, `AA95 out of gas`). | 완료. 새 CI job `Anvil E2E`가 DeployAll과 `script/e2e/AnvilSmoke.s.sol`을 실행합니다. |
 | 5 | 배포 대상이 모호함 | 중간 | 문서는 anvil(31337)을 안내하는데 `.env` 기본값은 chain 8283(`127.0.0.1:8501`)입니다. 문서의 DeployAll 경로도 틀려 있었습니다. | 완료. 경로를 고치고, anvil용 환경변수 덮어쓰기 방법과 8283 manifest가 CI fixture라는 점을 문서화했습니다. |

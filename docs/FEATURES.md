@@ -45,7 +45,7 @@ The StableNet PoC contracts fall into seven areas.
 |---|---|---|
 | `erc4337-entrypoint` | EntryPoint, NonceManager, StakeManager, SenderCreator, EntryPointSimulations | ERC-4337 EntryPoint v0.9 (based on eth-infinitism). UserOperation validation and execution, nonce management, stake and deposit management, simulation. EIP-7702 delegate account initialization (`Eip7702Support`) |
 | | Create2Deployer | Deterministic deployment via CREATE2 (`deploy`, `computeAddress`) |
-| `erc7579-smartaccount` | Kernel | ERC-7579 modular smart account (based on ZeroDev Kernel). Root validator change, install and replace validators, executors, hooks and fallbacks (`installValidations`, `replaceModule`), ERC-1271 signature validation, ERC-721/1155 receiving, upgrades (`upgradeTo`), delegatecall whitelist, hook gas limit. The outer executor context is preserved across nested executor calls |
+| `erc7579-smartaccount` | Kernel | ERC-7579 modular smart account (based on ZeroDev Kernel). Root validator change, install and replace validators, executors, hooks and fallbacks (`installValidations`, `replaceModule`), ERC-1271 signature validation, ERC-721/1155 receiving (answered in `fallback()` before any module lookup, so installed modules cannot block reception), upgrades (`upgradeTo`), delegatecall whitelist, hook gas limit. The outer executor context is preserved across nested executor calls |
 | | KernelFactory, FactoryStaker | Account creation and counterfactual address computation, factory stake management on the EntryPoint |
 | `permit2` | Permit2 (AllowanceTransfer, SignatureTransfer) | Port of Uniswap Permit2. Signature-based approvals and transfers |
 

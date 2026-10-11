@@ -29,6 +29,18 @@ import { ValidatorLib } from "../../src/erc7579-smartaccount/utils/ValidationTyp
 import { ExecLib, ExecModePayload } from "../../src/erc7579-smartaccount/utils/ExecLib.sol";
 import { ECDSA } from "solady/utils/ECDSA.sol";
 
+/// @dev Receiver callbacks Kernel answers from its fallback (it has no dedicated functions for them)
+interface IERC721Receiver {
+    function onERC721Received(address, address, uint256, bytes calldata) external returns (bytes4);
+}
+
+interface IERC1155Receiver {
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata) external returns (bytes4);
+    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
+        external
+        returns (bytes4);
+}
+
 contract KernelTest is Test {
     EntryPoint public entryPoint;
     Kernel public kernelImpl;
@@ -525,15 +537,15 @@ contract KernelTest is Test {
     function test_OnERC721Received() public {
         address account = _createKernelAccount(owner);
 
-        bytes4 result = Kernel(payable(account)).onERC721Received(address(0), address(0), 0, hex"");
-        assertEq(result, Kernel.onERC721Received.selector, "Should return correct selector");
+        bytes4 result = IERC721Receiver(account).onERC721Received(address(0), address(0), 0, hex"");
+        assertEq(result, IERC721Receiver.onERC721Received.selector, "Should return correct selector");
     }
 
     function test_OnERC1155Received() public {
         address account = _createKernelAccount(owner);
 
-        bytes4 result = Kernel(payable(account)).onERC1155Received(address(0), address(0), 0, 0, hex"");
-        assertEq(result, Kernel.onERC1155Received.selector, "Should return correct selector");
+        bytes4 result = IERC1155Receiver(account).onERC1155Received(address(0), address(0), 0, 0, hex"");
+        assertEq(result, IERC1155Receiver.onERC1155Received.selector, "Should return correct selector");
     }
 
     function test_OnERC1155BatchReceived() public {
@@ -541,8 +553,8 @@ contract KernelTest is Test {
 
         uint256[] memory ids = new uint256[](0);
         uint256[] memory amounts = new uint256[](0);
-        bytes4 result = Kernel(payable(account)).onERC1155BatchReceived(address(0), address(0), ids, amounts, hex"");
-        assertEq(result, Kernel.onERC1155BatchReceived.selector, "Should return correct selector");
+        bytes4 result = IERC1155Receiver(account).onERC1155BatchReceived(address(0), address(0), ids, amounts, hex"");
+        assertEq(result, IERC1155Receiver.onERC1155BatchReceived.selector, "Should return correct selector");
     }
 
     /* //////////////////////////////////////////////////////////////
