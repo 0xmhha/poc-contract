@@ -439,9 +439,10 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         payable
         returns (bytes[] memory returnData)
     {
+        // Executors cannot delegatecall: code run in the account's context could rewrite any
+        // storage (e.g. the root validator) and bypass ExecutorCannotCallSelf
         if (ExecLib.getCallType(execMode) == CALLTYPE_DELEGATECALL) {
-            (address delegate,) = LibERC7579.decodeDelegate(executionCalldata);
-            _checkDelegatecallTarget(delegate);
+            revert InvalidCallType();
         }
         // no modifier needed, checking if msg.sender is registered executor will replace the modifier
         IHook hook = _executorConfig(IExecutor(msg.sender)).hook;
