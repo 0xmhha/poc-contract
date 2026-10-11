@@ -308,4 +308,51 @@ contract StakingVaultAuditRegressionTest is Test {
         v.claim();
         assertEq(rwd.balanceOf(bob), 100e18, "released rewards accrue to remaining staker");
     }
+
+    // ---------------------------------------------------------------- DEFI-6
+
+    /// @dev A staking-token penalty is not booked as reward-token funding when the tokens differ.
+    function test_DEFI6_PenaltyNotCreditedAsDifferentRewardToken() public {
+        vm.warp(1000);
+        SMock stk = new SMock("STK", "STK");
+        SMock rwd = new SMock("RWD", "RWD");
+        StakingVault v = _vault(address(stk), address(rwd), 7 days, 1000, 100e18);
+        _fundAndApprove(stk, v, alice, 1000e18);
+        _fundAndApprove(stk, v, bob, 10e18);
+
+        vm.startPrank(alice);
+        v.stake(1000e18);
+        v.unstake(1000e18); // 100 STK penalty
+        vm.stopPrank();
+        assertEq(v.getVaultState().rewardsRemaining, 100e18, "reward funding unchanged by STK penalty");
+
+        vm.warp(1001);
+        vm.prank(bob);
+        v.stake(10e18);
+        vm.warp(1301);
+        assertEq(v.pendingRewards(bob), 100e18, "promised only the funded 100 RWD");
+        vm.prank(bob);
+        v.claim();
+        assertEq(rwd.balanceOf(bob), 100e18);
+
+        // The STK penalty is not reserved for stakers and is recoverable by the owner
+        v.recoverTokens(address(stk), address(this), 100e18);
+        assertEq(stk.balanceOf(address(this)), 100e18);
+        assertEq(stk.balanceOf(address(v)), 10e18, "bob's stake stays protected");
+    }
+
+    /// @dev When staking and reward tokens are the same, the penalty still funds rewards.
+    function test_DEFI6_PenaltyCreditedWhenSameToken() public {
+        vm.warp(1000);
+        SMock token = new SMock("TKN", "TKN");
+        StakingVault v = _vault(address(token), address(token), 7 days, 1000, 100e18);
+        _fundAndApprove(token, v, alice, 1000e18);
+
+        vm.startPrank(alice);
+        v.stake(1000e18);
+        v.unstake(1000e18);
+        vm.stopPrank();
+        assertEq(v.getVaultState().rewardsRemaining, 200e18);
+        assertEq(token.balanceOf(address(v)), 200e18);
+    }
 }

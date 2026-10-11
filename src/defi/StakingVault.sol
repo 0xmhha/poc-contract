@@ -150,8 +150,10 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
         // Transfer tokens
         stakingToken.safeTransfer(msg.sender, amountAfterPenalty);
 
-        // Penalty goes to rewards pool
-        if (penalty > 0) {
+        // Penalty goes to rewards pool only when it is paid in the reward token. Otherwise it stays
+        // in the vault as unreserved staking tokens (not backing rewardsRemaining), which the owner
+        // can retrieve through recoverTokens.
+        if (penalty > 0 && address(stakingToken) == address(rewardToken)) {
             state.rewardsRemaining += penalty;
         }
 
