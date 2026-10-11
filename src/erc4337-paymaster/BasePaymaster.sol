@@ -51,9 +51,21 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
     /// @notice Minimum deposit required to use this paymaster
     uint256 public constant MIN_DEPOSIT = 0.01 ether;
 
+    /// @notice Maximum `paymasterPostOpGasLimit` accepted by paymasters that use postOp
+    /// @dev The user picks the postOp gas limit (paymasterAndData[36:52]) and the EntryPoint
+    ///      charges this paymaster's deposit 10% of the unused part of it (when more than
+    ///      40k gas is unused), on top of the postOp gas actually used. Neither amount is in
+    ///      the `actualGasCost` passed to postOp. The cap bounds that cost. Measured postOp
+    ///      usage is about 8k gas for the ERC20/Permit2 refund and about 45k gas for the
+    ///      SponsorPaymaster settlement (first spend of a campaign), so 150k leaves a wide margin
+    ///      and matches the postOp limit the paymaster proxy requests for the token paymasters.
+    ///      SponsorPaymaster needs the cap because its signature does not cover this field.
+    uint256 public constant MAX_POSTOP_GAS_LIMIT = 150_000;
+
     error OnlyEntryPoint();
     error InsufficientDeposit(uint256 required, uint256 available);
     error WithdrawFailed();
+    error PostOpGasLimitTooHigh(uint256 limit, uint256 maxLimit);
 
     /**
      * @notice Restricts function access to EntryPoint only
@@ -230,6 +242,17 @@ abstract contract BasePaymaster is IPaymaster, Ownable {
             return paymasterAndData[UserOperationLib.PAYMASTER_DATA_OFFSET:];
         }
         return paymasterAndData[0:0]; // empty
+    }
+
+    /**
+     * @notice Reject a UserOp whose paymasterPostOpGasLimit exceeds MAX_POSTOP_GAS_LIMIT
+     * @param userOp The user operation (the EntryPoint guarantees the static paymaster fields)
+     */
+    function _checkPostOpGasLimit(PackedUserOperation calldata userOp) internal pure {
+        uint256 postOpGasLimit = UserOperationLib.unpackPostOpGasLimit(userOp);
+        if (postOpGasLimit > MAX_POSTOP_GAS_LIMIT) {
+            revert PostOpGasLimitTooHigh(postOpGasLimit, MAX_POSTOP_GAS_LIMIT);
+        }
     }
 
     // ============ Envelope Helpers ============
