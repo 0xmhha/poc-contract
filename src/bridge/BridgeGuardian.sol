@@ -98,7 +98,8 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
      * @param target Target address for the action
      * @param data Encoded action data
      * @param dataHash Hash of the proposal data
-     * @param approvalCount Number of guardian approvals
+     * @param approvalCount Number of approvals cast (includes guardians removed since voting;
+     *        the threshold is checked against current guardians only)
      * @param createdAt Timestamp of creation
      * @param expiresAt Timestamp when proposal expires
      * @param status Current status
@@ -291,8 +292,8 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
 
         emit ProposalApproved(proposalId, msg.sender, proposal.approvalCount);
 
-        // Check if threshold met
-        if (proposal.approvalCount >= threshold) {
+        // Check if threshold met by current guardians
+        if (_countCurrentApprovals(proposalId) >= threshold) {
             proposal.status = ProposalStatus.Approved;
         }
     }
@@ -311,7 +312,7 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
             proposal.status = ProposalStatus.Expired;
             revert ProposalExpired();
         }
-        if (proposal.approvalCount < threshold) revert InsufficientApprovals();
+        if (_countCurrentApprovals(proposalId) < threshold) revert InsufficientApprovals();
 
         proposal.status = ProposalStatus.Executed;
 
@@ -532,7 +533,7 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
         if (proposal.status == ProposalStatus.Executed) return (false, "Already executed");
         if (proposal.status == ProposalStatus.Cancelled) return (false, "Cancelled");
         if (block.timestamp > proposal.expiresAt) return (false, "Expired");
-        if (proposal.approvalCount < threshold) return (false, "Insufficient approvals");
+        if (_countCurrentApprovals(proposalId) < threshold) return (false, "Insufficient approvals");
 
         return (true, "");
     }
@@ -671,6 +672,18 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
         threshold = newThreshold;
 
         emit ThresholdUpdated(oldThreshold, newThreshold);
+    }
+
+    /**
+     * @notice Count approvals of a proposal cast by current guardians
+     * @dev Approvals of removed guardians stay in hasApproved but must not count toward the threshold
+     * @param proposalId ID of the proposal
+     * @return count Number of current guardians that approved
+     */
+    function _countCurrentApprovals(uint256 proposalId) internal view returns (uint256 count) {
+        for (uint256 i = 0; i < guardians.length; i++) {
+            if (hasApproved[proposalId][guardians[i]]) count++;
+        }
     }
 
     /**
