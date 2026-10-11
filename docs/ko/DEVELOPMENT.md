@@ -197,8 +197,9 @@ forge test --match-contract KernelTest
 # Gas 리포트
 forge test --gas-report
 
-# 커버리지
-forge coverage
+# 커버리지 (--ir-minimum 필요, 최적화 빌드를 전제로 한 테스트 2개 제외. 이유는 스크립트 주석 참고)
+./script/coverage.sh
+./script/coverage.sh --report lcov
 ```
 
 ## 배포 스크립트 작성

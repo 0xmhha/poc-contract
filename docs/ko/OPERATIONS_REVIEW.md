@@ -33,7 +33,7 @@
 | 6 | 하드코딩된 slot 상수를 지키는 장치가 없음 | 중간 | 공식이 세 가지로 섞여 있습니다(`keccak`, `keccak - 1`, ERC-7201은 없음). literal 10개는 모두 맞았지만 이를 강제하는 장치가 없었습니다. | 완료. CI에서 `script/check-storage-slots.py`를 실행합니다. |
 | 7 | solc 0.8.28 고정 | 낮음 | `layout at`(0.8.29)과 `erc7201()`(0.8.35)을 쓸 수 없었습니다. | 완료. 0.8.28을 쓰던 profile을 0.8.35로 올렸고 테스트는 모두 통과합니다. 0.8.35가 Kernel 소스에 내는 deprecation 경고 13건(memory-safe NatSpec 주석, contract 타입 비교)을 고치면서 28 bytes가 늘어 Kernel은 24,257 bytes(여유 319 bytes)입니다. Universal Router(0.8.26)와 0.7.6 profile은 그대로입니다. |
 | 8 | FlashLoanFallback의 연동 방식 변경 | 낮음 | 이제 executor로도 설치해야 하고 `beginFlashLoan`을 먼저 호출해야 합니다(PR #22). | 미해결. SDK와 프론트엔드 연동을 함께 고쳐야 합니다. |
-| 9 | Kernel 테스트가 적음 | 낮음 | `FEATURES.md`에 이미 Kernel 테스트 37개로 적혀 있습니다. | 일부 완료. 테스트가 없던 `installValidations`, `uninstallValidation`, `revokeSelectors`, replayable(체인 무관) 서명을 실제 EntryPoint 경로로 검증합니다(`KernelValidationAdmin.t.sol`). coverage 측정은 막혀 있습니다. `forge coverage --ir-minimum`이 AuditHook에서 stack too deep으로 실패합니다. |
+| 9 | Kernel 테스트가 적음 | 낮음 | `FEATURES.md`에 이미 Kernel 테스트 37개로 적혀 있습니다. | 일부 완료. 테스트가 없던 `installValidations`, `uninstallValidation`, `revokeSelectors`, replayable(체인 무관) 서명을 실제 EntryPoint 경로로 검증합니다(`KernelValidationAdmin.t.sol`). AuditHook의 stack too deep을 고쳐 `./script/coverage.sh`로 coverage를 측정할 수 있습니다. 저장소 전체 line coverage는 56.7%입니다. 가장 큰 빈 곳은 `ValidationManager`(30.7%)로, permission validation, enable mode, policy·signer 경로입니다. |
 
 ---
 
