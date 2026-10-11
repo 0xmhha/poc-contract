@@ -70,6 +70,7 @@ import { StakingVault, IStakingVault } from "../../src/defi/StakingVault.sol";
 // ============ Subscription ============
 import { ERC7715PermissionManager } from "../../src/subscription/ERC7715PermissionManager.sol";
 import { SubscriptionManager } from "../../src/subscription/SubscriptionManager.sol";
+import { MerchantRegistry } from "../../src/subscription/MerchantRegistry.sol";
 
 // ============ Bridge ============
 import { FraudProofVerifier } from "../../src/bridge/FraudProofVerifier.sol";
@@ -79,6 +80,7 @@ import { BridgeGuardian } from "../../src/bridge/BridgeGuardian.sol";
 import { OptimisticVerifier } from "../../src/bridge/OptimisticVerifier.sol";
 import { SecureBridge } from "../../src/bridge/SecureBridge.sol";
 import { BridgeWiring } from "../utils/BridgeWiring.sol";
+import { SubscriptionWiring } from "../utils/SubscriptionWiring.sol";
 
 /**
  * @title DeployAllScript
@@ -113,7 +115,7 @@ import { BridgeWiring } from "../utils/BridgeWiring.sol";
  *     14. Plugins (AutoSwap, MicroLoan, OnRamp)
  *
  *   Phase 6 - Subscription & Bridge:
- *     15. Subscription (PermissionManager, SubscriptionManager)
+ *     15. Subscription (PermissionManager, SubscriptionManager, MerchantRegistry)
  *     16. Bridge (all bridge contracts)
  *
  * Environment Variables:
@@ -689,6 +691,20 @@ contract DeployAllScript is DeploymentHelper {
             console.log("    [SKIP] SubscriptionManager:", _getAddress(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER));
         }
 
+        // MerchantRegistry (independent)
+        if (_getAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY) == address(0)) {
+            MerchantRegistry registry = new MerchantRegistry();
+            _setAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY, address(registry));
+            console.log("    [NEW] MerchantRegistry:", address(registry));
+        } else {
+            console.log("    [SKIP] MerchantRegistry:", _getAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY));
+        }
+
+        SubscriptionWiring.wireFromEnv(
+            SubscriptionManager(payable(_getAddress(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER))),
+            MerchantRegistry(_getAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY))
+        );
+
         // --- Bridge ---
         console.log("  --- Bridge ---");
         _deployBridgeContracts();
@@ -865,6 +881,7 @@ contract DeployAllScript is DeploymentHelper {
         console.log("Phase 6 - Subscription & Bridge:");
         console.log("  ERC7715PermissionManager:", _getAddress(DeploymentAddresses.KEY_PERMISSION_MANAGER));
         console.log("  SubscriptionManager:", _getAddress(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER));
+        console.log("  MerchantRegistry:", _getAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY));
         console.log("  FraudProofVerifier:", _getAddress(DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER));
         console.log("  BridgeRateLimiter:", _getAddress(DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER));
         console.log("  BridgeValidator:", _getAddress(DeploymentAddresses.KEY_BRIDGE_VALIDATOR));

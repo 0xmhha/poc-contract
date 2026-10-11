@@ -7,6 +7,7 @@ import { DeploymentHelper, DeploymentAddresses } from "../utils/DeploymentAddres
 import { ERC7715PermissionManager } from "../../src/subscription/ERC7715PermissionManager.sol";
 import { SubscriptionManager } from "../../src/subscription/SubscriptionManager.sol";
 import { MerchantRegistry } from "../../src/subscription/MerchantRegistry.sol";
+import { SubscriptionWiring } from "../utils/SubscriptionWiring.sol";
 
 /**
  * @title DeploySubscriptionScript
@@ -24,6 +25,7 @@ import { MerchantRegistry } from "../../src/subscription/MerchantRegistry.sol";
  *
  * Post-Deployment Configuration:
  *   - Add SubscriptionManager as authorized executor in PermissionManager
+ *   - Link MerchantRegistry to SubscriptionManager when SUBSCRIPTION_ENFORCE_MERCHANT_REGISTRY=true
  *
  * Usage:
  *   FOUNDRY_PROFILE=subscription forge script script/deploy-contract/DeploySubscription.s.sol:DeploySubscriptionScript
@@ -84,6 +86,8 @@ contract DeploySubscriptionScript is DeploymentHelper {
             merchantRegistry = MerchantRegistry(existing);
             console.log("MerchantRegistry: Using existing at", existing);
         }
+
+        SubscriptionWiring.wireFromEnv(subscriptionManager, merchantRegistry);
 
         vm.stopBroadcast();
 
