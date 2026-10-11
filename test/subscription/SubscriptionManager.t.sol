@@ -659,6 +659,20 @@ contract SubscriptionManagerTest is Test {
         assertFalse(sub.active);
     }
 
+    /// @dev Cancelling an already inactive subscription must not decrement subscriberCount again
+    function test_EmergencyCancelSubscription_RevertsOnInactive() public {
+        (bytes32 subA,) = _subscribeAs(makeAddr("alice"));
+        _subscribeAs(makeAddr("bob"));
+        vm.prank(makeAddr("alice"));
+        subManager.cancelSubscription(subA);
+        assertEq(subManager.getPlan(planId).subscriberCount, 1);
+
+        vm.prank(owner);
+        vm.expectRevert(ISubscriptionManager.SubscriptionNotActive.selector);
+        subManager.emergencyCancelSubscription(subA);
+        assertEq(subManager.getPlan(planId).subscriberCount, 1);
+    }
+
     function test_EmergencyCancelSubscription_RevertsOnNotFound() public {
         bytes32 fakeId = keccak256("fake");
 

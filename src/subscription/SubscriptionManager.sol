@@ -645,6 +645,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
     function emergencyCancelSubscription(bytes32 subscriptionId) external onlyOwner {
         Subscription storage sub = subscriptions[subscriptionId];
         if (sub.startTime == 0) revert SubscriptionNotFound();
+        if (!sub.active) revert SubscriptionNotActive();
 
         sub.active = false;
         plans[sub.planId].subscriberCount--;
