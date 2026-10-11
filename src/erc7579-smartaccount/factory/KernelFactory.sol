@@ -12,10 +12,14 @@ contract KernelFactory {
 
     address public immutable IMPLEMENTATION;
     IEntryPoint public immutable ENTRYPOINT;
+    /// @notice FactoryStaker allowed to relay createAccount; it only relays calls from the
+    ///         SenderCreator itself. address(0) disables relaying.
+    address public immutable STAKER;
 
-    constructor(address _impl, IEntryPoint _entryPoint) {
+    constructor(address _impl, IEntryPoint _entryPoint, address _staker) {
         IMPLEMENTATION = _impl;
         ENTRYPOINT = _entryPoint;
+        STAKER = _staker;
         require(_impl.code.length > 0, ImplementationNotDeployed());
     }
 
@@ -23,7 +27,8 @@ contract KernelFactory {
         // Per ERC-4337 §4.2: factory should verify it is being called via the EntryPoint's
         // SenderCreator. This prevents direct calls from bypassing EntryPoint validation.
         // CREATE2 determinism means the practical risk is low, but this guard adds defense-in-depth.
-        if (msg.sender != address(ENTRYPOINT.senderCreator())) {
+        // The configured FactoryStaker may relay the call because it applies the same check.
+        if (msg.sender != address(ENTRYPOINT.senderCreator()) && msg.sender != STAKER) {
             revert NotCalledFromEntryPoint();
         }
         // forge-lint: disable-next-line(asm-keccak256)
