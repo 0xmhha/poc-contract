@@ -155,6 +155,58 @@ contract HookExecutionDataKernelTest is HookKernelBase {
         assertEq(token.balanceOf(attacker), 0);
     }
 
+    /// @dev Value limits apply to the sum sent to a target across a batch, not per execution
+    function test_PolicyValueLimit_SumsBatchValuePerTarget() public {
+        address account = _account(20);
+        ECDSAValidator v =
+            _installDelegateValidator(account, IHook(address(policy)), _policyData(PolicyHook.PolicyMode.BLOCKLIST));
+        vm.prank(account);
+        policy.setTargetValueLimit(attacker, 1 ether);
+
+        Execution[] memory execs = new Execution[](3);
+        execs[0] = Execution({ target: attacker, value: 0.5 ether, callData: "" });
+        execs[1] = Execution({ target: beneficiary, value: 0.5 ether, callData: "" });
+        execs[2] = Execution({ target: attacker, value: 0.6 ether, callData: "" });
+        _assertOpReverts(
+            account,
+            address(v),
+            _executeBatch(execs),
+            abi.encodeWithSelector(PolicyHook.ValueExceedsLimit.selector, attacker, 1.1 ether, 1 ether)
+        );
+        assertEq(attacker.balance, 0);
+
+        execs[2].value = 0.5 ether;
+        assertTrue(_sendOp(account, address(v), _executeBatch(execs)), "batch sum at the limit");
+        assertEq(attacker.balance, 1 ether);
+    }
+
+    /// @dev Each execution of a batch counts toward the transaction count limit
+    function test_PolicyTxCount_CountsEachBatchExecution() public {
+        address account = _account(21);
+        ECDSAValidator v =
+            _installDelegateValidator(account, IHook(address(policy)), _policyData(PolicyHook.PolicyMode.BLOCKLIST));
+        vm.prank(account);
+        policy.setTransactionCountLimit(2, 1 days);
+
+        Execution[] memory execs = new Execution[](3);
+        for (uint256 i; i < 3; i++) {
+            execs[i] = Execution({ target: attacker, value: 1 wei, callData: "" });
+        }
+        _assertOpReverts(
+            account,
+            address(v),
+            _executeBatch(execs),
+            abi.encodeWithSelector(PolicyHook.TransactionCountExceeded.selector)
+        );
+        assertEq(attacker.balance, 0);
+
+        Execution[] memory two = new Execution[](2);
+        two[0] = execs[0];
+        two[1] = execs[1];
+        assertTrue(_sendOp(account, address(v), _executeBatch(two)), "batch within the count limit");
+        assertEq(policy.getRemainingTransactionCount(account), 0);
+    }
+
     /// @dev Kernel calls the low 160 bits of a batch target word; the hook must check the same address
     function test_PolicyBlocklist_BlocksDirtyBatchTarget() public {
         address account = _account(6);

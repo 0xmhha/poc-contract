@@ -41,7 +41,7 @@ contract PolicyHook is IHook {
     struct TargetConfig {
         bool isAllowed; // For ALLOWLIST mode
         bool isBlocked; // For BLOCKLIST mode
-        uint256 valueLimit; // Max value per transaction (0 = no limit)
+        uint256 valueLimit; // Max value per transaction, summed per target across a batch (0 = no limit)
         bool strictSelectorMode; // If true, only allowed selectors can be called
         mapping(bytes4 => bool) allowedSelectors;
         mapping(bytes4 => bool) blockedSelectors;
@@ -184,10 +184,20 @@ contract PolicyHook is IHook {
         (bool isExecute, CallType callType, uint256 count) = HookExecutionDataLib.getExecutionCount(msgData);
         address target;
         uint256 execValue;
+        // Targets and values seen so far, so value limits apply to the per-target sum of a batch
+        address[] memory seenTargets = new address[](count);
+        uint256[] memory seenValues = new uint256[](count);
         for (uint256 i = 0; i < count; i++) {
             bytes calldata execCalldata;
             (target, execValue, execCalldata) = HookExecutionDataLib.getExecution(msgData, msgValue, i);
             if (isExecute) HookExecutionDataLib.checkExecutionTarget(target);
+
+            seenTargets[i] = target;
+            seenValues[i] = execValue;
+            uint256 targetValue = execValue;
+            for (uint256 j = 0; j < i; j++) {
+                if (seenTargets[j] == target) targetValue += seenValues[j];
+            }
 
             // A delegate runs arbitrary code as the account, so no target/selector/value rule can
             // bound it: only explicitly allowed delegates pass, in both modes (fail closed).
@@ -197,14 +207,14 @@ contract PolicyHook is IHook {
 
             // Check policy mode
             if (store.mode == PolicyMode.ALLOWLIST) {
-                _checkAllowlistPolicy(store, target, execValue, execCalldata);
+                _checkAllowlistPolicy(store, target, targetValue, execCalldata);
             } else {
-                _checkBlocklistPolicy(store, target, execValue, execCalldata);
+                _checkBlocklistPolicy(store, target, targetValue, execCalldata);
             }
         }
 
-        // Check and record transaction count
-        _checkAndRecordTxCount(store);
+        // Check and record transaction count: each execution of a batch counts as one transaction
+        _checkAndRecordTxCount(store, count);
 
         // Batches report no single target
         if (count != 1) (target, execValue) = (address(0), 0);
@@ -556,7 +566,7 @@ contract PolicyHook is IHook {
         }
     }
 
-    function _checkAndRecordTxCount(AccountStorage storage store) internal {
+    function _checkAndRecordTxCount(AccountStorage storage store, uint256 txCount) internal {
         TxCountLimit storage txLimit = store.txCountLimit;
 
         if (!txLimit.isEnabled) return;
@@ -569,12 +579,12 @@ contract PolicyHook is IHook {
         }
 
         // Check limit
-        if (txLimit.count >= txLimit.limit) {
+        if (txLimit.count + txCount > txLimit.limit) {
             revert TransactionCountExceeded();
         }
 
-        // Record transaction
-        txLimit.count++;
+        // Record transactions
+        txLimit.count += txCount;
         emit TransactionCounted(msg.sender, txLimit.count, txLimit.limit);
     }
 
