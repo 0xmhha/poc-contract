@@ -139,6 +139,16 @@ abstract contract RootHookBase is Test {
         internal
         returns (bool success)
     {
+        return _sendOpWithCallData(
+            account, validator, abi.encodePacked(Kernel.executeUserOp.selector, innerExecuteCalldata)
+        );
+    }
+
+    /// @dev Same as _sendOp with the UserOp callData given as is (e.g. execute(...) for a validator without a hook)
+    function _sendOpWithCallData(address account, address validator, bytes memory callData)
+        internal
+        returns (bool success)
+    {
         uint192 key = validator == address(0)
             ? uint192(0)
             : ValidatorLib.encodeAsNonceKey(bytes1(0x00), bytes1(0x01), bytes20(validator), 0);
@@ -147,7 +157,7 @@ abstract contract RootHookBase is Test {
             sender: account,
             nonce: nonce,
             initCode: hex"",
-            callData: abi.encodePacked(Kernel.executeUserOp.selector, innerExecuteCalldata),
+            callData: callData,
             accountGasLimits: bytes32(abi.encodePacked(uint128(2_000_000), uint128(3_000_000))),
             preVerificationGas: 100_000,
             gasFees: bytes32(abi.encodePacked(uint128(1 gwei), uint128(10 gwei))),
