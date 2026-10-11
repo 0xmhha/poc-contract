@@ -82,6 +82,10 @@ contract AnvilSmokeScript is Script {
 
     function _isAnvil() internal returns (bool) {
         try vm.rpc("web3_clientVersion", "[]") returns (bytes memory version) {
+            // Older forge returns the raw string bytes, newer forge an ABI-encoded string
+            if (version.length >= 64 && uint256(bytes32(version)) == 0x20) {
+                version = bytes(abi.decode(version, (string)));
+            }
             bytes memory prefix = bytes("anvil/");
             if (version.length < prefix.length) return false;
             for (uint256 i = 0; i < prefix.length; i++) {
