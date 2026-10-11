@@ -4,16 +4,25 @@ pragma solidity ^0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { FraudProofVerifier } from "../../src/bridge/FraudProofVerifier.sol";
 import { BridgeValidator } from "../../src/bridge/BridgeValidator.sol";
+import { OptimisticVerifier } from "../../src/bridge/OptimisticVerifier.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract FraudProofVerifierTest is Test {
     FraudProofVerifier public verifier;
     BridgeValidator public bridgeValidatorContract;
+    OptimisticVerifier public ov;
 
     address public owner;
     address public optimisticVerifier;
     address public bridgeValidator;
+
+    // Request data used by _openChallenge
+    address public requestToken;
+    uint256 public constant REQUEST_AMOUNT = 1000;
+    uint256 public constant SOURCE_CHAIN = 1;
+    uint256 public constant CHALLENGE_BOND = 1 ether;
+    uint256 public constant CHALLENGER_REWARD = 0.5 ether;
 
     // Test signers for BridgeValidator
     uint256 public signer1Key;
@@ -38,7 +47,13 @@ contract FraudProofVerifierTest is Test {
 
     function setUp() public {
         owner = makeAddr("owner");
-        optimisticVerifier = makeAddr("optimisticVerifier");
+        requestToken = makeAddr("token");
+
+        // Deploy a real OptimisticVerifier so challenges can be opened and resolved
+        vm.prank(owner);
+        ov = new OptimisticVerifier(1 hours, CHALLENGE_BOND, CHALLENGER_REWARD);
+        optimisticVerifier = address(ov);
+        vm.deal(optimisticVerifier, 10 ether);
 
         // Setup test signers with known private keys
         signer1Key = 0x1;
@@ -66,6 +81,53 @@ contract FraudProofVerifierTest is Test {
 
         vm.prank(owner);
         verifier.setBridgeValidator(bridgeValidator);
+
+        vm.prank(owner);
+        ov.setFraudProofVerifier(address(verifier));
+    }
+
+    /// @dev Receives challenger payouts when this contract is the challenger
+    receive() external payable { }
+
+    // ============ Helpers ============
+
+    /// @dev Submit a request to the OptimisticVerifier and challenge it as `challenger`
+    function _openChallenge(bytes32 requestId, address challenger) internal {
+        vm.prank(owner);
+        ov.submitRequest(
+            requestId, makeAddr("sender"), makeAddr("recipient"), requestToken, REQUEST_AMOUNT, SOURCE_CHAIN, 2
+        );
+        vm.deal(challenger, CHALLENGE_BOND);
+        vm.prank(challenger);
+        ov.challengeRequest{ value: CHALLENGE_BOND }(requestId, "fraud");
+    }
+
+    /// @dev Open a challenge with this test contract as the challenger
+    function _openChallenge(bytes32 requestId) internal {
+        _openChallenge(requestId, address(this));
+    }
+
+    /// @dev InvalidToken proof whose evidence matches the request opened by _openChallenge
+    function _invalidTokenProof(bytes32 requestId) internal view returns (FraudProofVerifier.FraudProof memory) {
+        return FraudProofVerifier.FraudProof({
+            requestId: requestId,
+            proofType: FraudProofVerifier.FraudProofType.InvalidToken,
+            merkleProof: new bytes32[](0),
+            stateProof: "",
+            evidence: abi.encode(requestToken, SOURCE_CHAIN)
+        });
+    }
+
+    /// @dev Root of a two-leaf tree built from `leaf` and a fixed sibling
+    function _rootWithSibling(bytes32 leaf) internal pure returns (bytes32 root, bytes32[] memory merkleProof) {
+        bytes32 sibling = keccak256("sibling");
+        if (uint256(leaf) <= uint256(sibling)) {
+            root = keccak256(abi.encodePacked(leaf, sibling));
+        } else {
+            root = keccak256(abi.encodePacked(sibling, leaf));
+        }
+        merkleProof = new bytes32[](1);
+        merkleProof[0] = sibling;
     }
 
     // ============ Constructor Tests ============
@@ -78,19 +140,21 @@ contract FraudProofVerifierTest is Test {
 
     function test_SubmitFraudProof() public {
         bytes32 requestId = keccak256("request1");
+        address submitter = makeAddr("submitter");
+        _openChallenge(requestId, submitter);
+
         bytes32[] memory merkleProof = new bytes32[](2);
         merkleProof[0] = keccak256("proof1");
         merkleProof[1] = keccak256("proof2");
 
         FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
             requestId: requestId,
-            proofType: FraudProofVerifier.FraudProofType.InvalidSignature,
+            proofType: FraudProofVerifier.FraudProofType.InvalidAmount,
             merkleProof: merkleProof,
             stateProof: "stateProof",
-            evidence: abi.encode(keccak256("messageHash"), new bytes[](1), new address[](1))
+            evidence: abi.encode(uint256(1000), uint256(900), uint256(1000))
         });
 
-        address submitter = makeAddr("submitter");
         vm.prank(submitter);
         bytes32 proofHash = verifier.submitFraudProof(proof);
 
@@ -99,12 +163,15 @@ contract FraudProofVerifierTest is Test {
 
         FraudProofVerifier.ProofRecord memory record = verifier.getProofRecord(requestId);
         assertEq(record.submitter, submitter);
-        assertEq(uint256(record.proofType), uint256(FraudProofVerifier.FraudProofType.InvalidSignature));
+        assertEq(uint256(record.proofType), uint256(FraudProofVerifier.FraudProofType.InvalidAmount));
         assertFalse(record.verified);
     }
 
     function test_SubmitFraudProof_EmitsEvent() public {
         bytes32 requestId = keccak256("request1");
+        address submitter = makeAddr("submitter");
+        _openChallenge(requestId, submitter);
+
         bytes32[] memory merkleProof = new bytes32[](1);
 
         FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
@@ -115,7 +182,6 @@ contract FraudProofVerifierTest is Test {
             evidence: abi.encode(bytes32(0), bytes32(0), bytes32(0))
         });
 
-        address submitter = makeAddr("submitter");
         vm.prank(submitter);
         vm.expectEmit(true, false, true, false);
         emit FraudProofSubmitted(requestId, FraudProofVerifier.FraudProofType.DoubleSpending, submitter, bytes32(0));
@@ -150,14 +216,9 @@ contract FraudProofVerifierTest is Test {
 
     function test_SubmitFraudProof_RevertsOnAlreadySubmitted() public {
         bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
 
-        FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
-            requestId: requestId,
-            proofType: FraudProofVerifier.FraudProofType.InvalidSignature,
-            merkleProof: new bytes32[](0),
-            stateProof: "",
-            evidence: ""
-        });
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
 
         verifier.submitFraudProof(proof);
 
@@ -165,104 +226,105 @@ contract FraudProofVerifierTest is Test {
         verifier.submitFraudProof(proof);
     }
 
-    // ============ Verify Fraud Proof Tests ============
-
-    function test_VerifyFraudProof_InvalidSignature() public {
+    /// @notice InvalidSignature and ReplayAttack evidence is chosen by the submitter and cannot be
+    ///         tied to the challenged request, so both proof types are rejected.
+    function test_SubmitFraudProof_RevertsOnUnboundProofTypes() public {
         bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
 
-        // Create BridgeMessage with the same requestId
-        BridgeValidator.BridgeMessage memory message = BridgeValidator.BridgeMessage({
-            requestId: requestId,
-            sender: makeAddr("sender"),
-            recipient: makeAddr("recipient"),
-            token: makeAddr("token"),
-            amount: 1000,
-            sourceChain: 1,
-            targetChain: 2,
-            nonce: 1,
-            deadline: block.timestamp + 1 hours
-        });
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
 
-        // Create invalid signatures (only 1 signature, but threshold is 2)
-        // This will cause verifySignaturesView to return false
-        bytes[] memory signatures = new bytes[](1);
-        // Sign with only one signer (threshold requires 2)
-        bytes32 messageHash = _hashBridgeMessage(message);
-        bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer1Key, ethSignedHash);
-        signatures[0] = abi.encodePacked(r, s, v);
-
-        // Encode evidence in the new format: BridgeMessage + signatures
-        bytes memory evidence = abi.encode(message, signatures);
-
-        FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
-            requestId: requestId,
-            proofType: FraudProofVerifier.FraudProofType.InvalidSignature,
-            merkleProof: new bytes32[](0),
-            stateProof: "",
-            evidence: evidence
-        });
-
+        proof.proofType = FraudProofVerifier.FraudProofType.InvalidSignature;
+        vm.expectRevert(FraudProofVerifier.InvalidProofType.selector);
         verifier.submitFraudProof(proof);
 
-        // Verify - should return true (fraud proven) because signatures are insufficient
-        bool isValid = verifier.verifyFraudProof(proof);
-        assertTrue(isValid);
-
-        FraudProofVerifier.ProofRecord memory record = verifier.getProofRecord(requestId);
-        assertTrue(record.verified);
-        assertTrue(record.isValid);
-        assertEq(verifier.totalFraudProven(), 1);
+        proof.proofType = FraudProofVerifier.FraudProofType.ReplayAttack;
+        vm.expectRevert(FraudProofVerifier.InvalidProofType.selector);
+        verifier.submitFraudProof(proof);
     }
 
-    // Helper function to hash BridgeMessage (matches BridgeValidator.hashBridgeMessage)
-    function _hashBridgeMessage(BridgeValidator.BridgeMessage memory message) internal view returns (bytes32) {
-        bytes32 structHash = keccak256(
-            abi.encode(
-                keccak256(
-                    "BridgeMessage(bytes32 requestId,address sender,address recipient,address token,uint256 amount,uint256 sourceChain,uint256 targetChain,uint256 nonce,uint256 deadline)"
-                ),
-                message.requestId,
-                message.sender,
-                message.recipient,
-                message.token,
-                message.amount,
-                message.sourceChain,
-                message.targetChain,
-                message.nonce,
-                message.deadline
-            )
+    /// @notice Only the active challenger (or the owner) may submit a proof for a request.
+    function test_SubmitFraudProof_RevertsForNonChallenger() public {
+        bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
+
+        address attacker = makeAddr("attacker");
+        vm.prank(attacker);
+        vm.expectRevert(FraudProofVerifier.UnauthorizedCaller.selector);
+        verifier.submitFraudProof(_invalidTokenProof(requestId));
+    }
+
+    /// @notice Proofs can only be submitted while the request is in the Challenged state.
+    function test_SubmitFraudProof_RevertsWhenNotChallenged() public {
+        bytes32 requestId = keccak256("request1");
+        vm.prank(owner);
+        ov.submitRequest(
+            requestId, makeAddr("sender"), makeAddr("recipient"), requestToken, REQUEST_AMOUNT, SOURCE_CHAIN, 2
         );
 
-        bytes32 domainSeparator = bridgeValidatorContract.DOMAIN_SEPARATOR();
-        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        vm.expectRevert(FraudProofVerifier.InvalidRequestId.selector);
+        verifier.submitFraudProof(_invalidTokenProof(requestId));
+
+        // Unknown request
+        vm.expectRevert(FraudProofVerifier.InvalidRequestId.selector);
+        verifier.submitFraudProof(_invalidTokenProof(keccak256("unknown")));
     }
+
+    function test_SubmitFraudProof_AllowsOwner() public {
+        bytes32 requestId = keccak256("request1");
+        address challenger = makeAddr("challenger");
+        _openChallenge(requestId, challenger);
+
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
+        vm.prank(owner);
+        verifier.submitFraudProof(proof);
+        vm.prank(owner);
+        assertTrue(verifier.verifyFraudProof(proof));
+
+        // The challenger, not the owner, receives the bond and reward
+        assertEq(challenger.balance, CHALLENGE_BOND + CHALLENGER_REWARD);
+        assertEq(uint256(ov.getRequestStatus(requestId)), uint256(OptimisticVerifier.RequestStatus.Refunded));
+    }
+
+    /// @notice A third party can no longer occupy the single proof slot of a request
+    ///         and block the honest challenger.
+    function test_SubmitFraudProof_ThirdPartyCannotBlockChallenger() public {
+        bytes32 requestId = keccak256("request1");
+        address challenger = makeAddr("challenger");
+        _openChallenge(requestId, challenger);
+
+        FraudProofVerifier.FraudProof memory junk;
+        junk.requestId = requestId;
+        junk.proofType = FraudProofVerifier.FraudProofType.InvalidAmount;
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert(FraudProofVerifier.UnauthorizedCaller.selector);
+        verifier.submitFraudProof(junk);
+
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
+        vm.prank(challenger);
+        verifier.submitFraudProof(proof);
+        vm.prank(challenger);
+        assertTrue(verifier.verifyFraudProof(proof));
+        assertEq(challenger.balance, CHALLENGE_BOND + CHALLENGER_REWARD);
+    }
+
+    // ============ Verify Fraud Proof Tests ============
 
     function test_VerifyFraudProof_DoubleSpending() public {
         bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
         bytes32 txHash1 = keccak256("tx1");
         bytes32 txHash2 = keccak256("tx2");
         bytes32 inputHash = keccak256("input");
 
-        // Compute the Merkle leaf that the contract will verify
-        bytes32 leaf = keccak256(abi.encodePacked(txHash1, txHash2, inputHash));
-
-        // Build a valid Merkle proof: one sibling node, root = hash(leaf, sibling) or hash(sibling, leaf)
-        bytes32 sibling = keccak256("sibling");
-        bytes32 root;
-        if (uint256(leaf) <= uint256(sibling)) {
-            root = keccak256(abi.encodePacked(leaf, sibling));
-        } else {
-            root = keccak256(abi.encodePacked(sibling, leaf));
-        }
+        // Compute the Merkle leaf that the contract will verify (bound to the request)
+        bytes32 leaf = keccak256(abi.encodePacked(requestId, txHash1, txHash2, inputHash));
+        (bytes32 root, bytes32[] memory merkleProof) = _rootWithSibling(leaf);
 
         // Set the state root for chain 1
         uint256 chainId = 1;
         vm.prank(owner);
         verifier.updateStateRoot(chainId, root, 100);
-
-        bytes32[] memory merkleProof = new bytes32[](1);
-        merkleProof[0] = sibling;
 
         FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
             requestId: requestId,
@@ -276,6 +338,7 @@ contract FraudProofVerifierTest is Test {
 
         bool isValid = verifier.verifyFraudProof(proof);
         assertTrue(isValid);
+        assertEq(uint256(ov.getRequestStatus(requestId)), uint256(OptimisticVerifier.RequestStatus.Refunded));
 
         // Check double spend evidence was recorded
         (bytes32 recordedTx1, bytes32 recordedTx2, bool sameInputs) = verifier.doubleSpendEvidence(requestId);
@@ -284,31 +347,48 @@ contract FraudProofVerifierTest is Test {
         assertTrue(sameInputs);
     }
 
+    /// @notice An attested double-spend leaf that does not commit to the request ID cannot be
+    ///         reused against an arbitrary challenged request.
+    function test_VerifyFraudProof_DoubleSpending_RejectsLeafNotBoundToRequest() public {
+        bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
+        bytes32 txHash1 = keccak256("tx1");
+        bytes32 txHash2 = keccak256("tx2");
+        bytes32 inputHash = keccak256("input");
+
+        bytes32 unboundLeaf = keccak256(abi.encodePacked(txHash1, txHash2, inputHash));
+        (bytes32 root, bytes32[] memory merkleProof) = _rootWithSibling(unboundLeaf);
+        vm.prank(owner);
+        verifier.updateStateRoot(1, root, 100);
+
+        FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
+            requestId: requestId,
+            proofType: FraudProofVerifier.FraudProofType.DoubleSpending,
+            merkleProof: merkleProof,
+            stateProof: abi.encode(uint256(1)),
+            evidence: abi.encode(txHash1, txHash2, inputHash)
+        });
+
+        verifier.submitFraudProof(proof);
+        assertFalse(verifier.verifyFraudProof(proof));
+        assertEq(uint256(ov.getRequestStatus(requestId)), uint256(OptimisticVerifier.RequestStatus.Challenged));
+    }
+
     function test_VerifyFraudProof_InvalidAmount() public {
         bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
         uint256 sourceAmount = 1000;
         uint256 targetAmount = 900;
-        uint256 expectedAmount = 1000;
+        uint256 expectedAmount = REQUEST_AMOUNT;
 
         // Compute the Merkle leaf that the contract will verify
         bytes32 leaf = keccak256(abi.encodePacked(requestId, sourceAmount, targetAmount));
-
-        // Build a valid Merkle proof: one sibling node
-        bytes32 sibling = keccak256("sibling");
-        bytes32 root;
-        if (uint256(leaf) <= uint256(sibling)) {
-            root = keccak256(abi.encodePacked(leaf, sibling));
-        } else {
-            root = keccak256(abi.encodePacked(sibling, leaf));
-        }
+        (bytes32 root, bytes32[] memory merkleProof) = _rootWithSibling(leaf);
 
         // Set the state root for chain 1
         uint256 chainId = 1;
         vm.prank(owner);
         verifier.updateStateRoot(chainId, root, 100);
-
-        bytes32[] memory merkleProof = new bytes32[](1);
-        merkleProof[0] = sibling;
 
         FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
             requestId: requestId,
@@ -324,55 +404,71 @@ contract FraudProofVerifierTest is Test {
         assertTrue(isValid);
     }
 
-    function test_VerifyFraudProof_InvalidToken() public {
+    /// @notice The expected amount must be the amount recorded for the request; a submitter-chosen
+    ///         value cannot turn a consistent attestation into fraud.
+    function test_VerifyFraudProof_InvalidAmount_RejectsUnboundExpectedAmount() public {
         bytes32 requestId = keccak256("request1");
-        address unauthorizedToken = makeAddr("unauthorizedToken");
-        uint256 chainId = 1;
+        _openChallenge(requestId);
 
-        // Make sure token is NOT authorized
-        assertFalse(verifier.isTokenAuthorized(chainId, unauthorizedToken));
+        // Attested amounts are consistent with the request
+        bytes32 leaf = keccak256(abi.encodePacked(requestId, REQUEST_AMOUNT, REQUEST_AMOUNT));
+        (bytes32 root, bytes32[] memory merkleProof) = _rootWithSibling(leaf);
+        vm.prank(owner);
+        verifier.updateStateRoot(1, root, 100);
 
         FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
             requestId: requestId,
-            proofType: FraudProofVerifier.FraudProofType.InvalidToken,
-            merkleProof: new bytes32[](0),
-            stateProof: "",
-            evidence: abi.encode(unauthorizedToken, chainId)
+            proofType: FraudProofVerifier.FraudProofType.InvalidAmount,
+            merkleProof: merkleProof,
+            stateProof: abi.encode(uint256(1)),
+            evidence: abi.encode(REQUEST_AMOUNT, REQUEST_AMOUNT, uint256(1))
         });
 
         verifier.submitFraudProof(proof);
-
-        bool isValid = verifier.verifyFraudProof(proof);
-        assertTrue(isValid);
+        assertFalse(verifier.verifyFraudProof(proof));
     }
 
-    function test_VerifyFraudProof_ReplayAttack() public {
+    function test_VerifyFraudProof_InvalidToken() public {
         bytes32 requestId = keccak256("request1");
-        address sender = makeAddr("sender");
-        uint256 nonce = 42;
-        bytes32 previousTxHash = keccak256("previousTx");
-        bytes32[] memory merkleProof = new bytes32[](1);
-        merkleProof[0] = keccak256("proof");
+        _openChallenge(requestId);
 
-        // Mark the nonce as used in BridgeValidator via consumeNonce (as the bridge would)
-        address bridge = makeAddr("bridge");
-        vm.prank(owner);
-        bridgeValidatorContract.setAuthorizedBridge(bridge);
-        vm.prank(bridge);
-        bridgeValidatorContract.consumeNonce(sender, nonce);
+        // Make sure the request token is NOT authorized
+        assertFalse(verifier.isTokenAuthorized(SOURCE_CHAIN, requestToken));
 
-        FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
-            requestId: requestId,
-            proofType: FraudProofVerifier.FraudProofType.ReplayAttack,
-            merkleProof: merkleProof,
-            stateProof: "",
-            evidence: abi.encode(sender, nonce, previousTxHash)
-        });
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
 
         verifier.submitFraudProof(proof);
 
+        uint256 balanceBefore = address(this).balance;
         bool isValid = verifier.verifyFraudProof(proof);
         assertTrue(isValid);
+        assertEq(uint256(ov.getRequestStatus(requestId)), uint256(OptimisticVerifier.RequestStatus.Refunded));
+        assertEq(address(this).balance, balanceBefore + CHALLENGE_BOND + CHALLENGER_REWARD);
+    }
+
+    /// @notice InvalidToken evidence must name the token and source chain of the challenged request.
+    function test_VerifyFraudProof_InvalidToken_RejectsTokenNotInRequest() public {
+        bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
+
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
+        proof.evidence = abi.encode(address(0xdead), SOURCE_CHAIN);
+
+        verifier.submitFraudProof(proof);
+        assertFalse(verifier.verifyFraudProof(proof));
+        assertEq(uint256(ov.getRequestStatus(requestId)), uint256(OptimisticVerifier.RequestStatus.Challenged));
+    }
+
+    function test_VerifyFraudProof_InvalidToken_RejectsAuthorizedRequestToken() public {
+        vm.prank(owner);
+        verifier.setAuthorizedToken(SOURCE_CHAIN, requestToken, true);
+
+        bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
+
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
+        verifier.submitFraudProof(proof);
+        assertFalse(verifier.verifyFraudProof(proof));
     }
 
     function test_VerifyFraudProof_RevertsOnNotSubmitted() public {
@@ -390,14 +486,9 @@ contract FraudProofVerifierTest is Test {
 
     function test_VerifyFraudProof_RevertsOnExpired() public {
         bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
 
-        FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
-            requestId: requestId,
-            proofType: FraudProofVerifier.FraudProofType.InvalidSignature,
-            merkleProof: new bytes32[](0),
-            stateProof: "",
-            evidence: ""
-        });
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
 
         verifier.submitFraudProof(proof);
 
@@ -408,38 +499,42 @@ contract FraudProofVerifierTest is Test {
         verifier.verifyFraudProof(proof);
     }
 
+    function test_VerifyFraudProof_RevertsForNonSubmitter() public {
+        bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
+
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
+        verifier.submitFraudProof(proof);
+
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert(FraudProofVerifier.UnauthorizedCaller.selector);
+        verifier.verifyFraudProof(proof);
+    }
+
+    /// @notice A failed OptimisticVerifier notification reverts instead of burning the proof.
+    function test_VerifyFraudProof_RevertsWhenNotificationFails() public {
+        bytes32 requestId = keccak256("request1");
+        _openChallenge(requestId);
+
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
+        verifier.submitFraudProof(proof);
+
+        // The challenge is resolved elsewhere before the proof is verified
+        vm.prank(owner);
+        ov.resolveChallenge(requestId, false);
+
+        vm.expectRevert(OptimisticVerifier.RequestNotChallenged.selector);
+        verifier.verifyFraudProof(proof);
+
+        assertFalse(verifier.getProofRecord(requestId).verified);
+        assertEq(verifier.totalFraudProven(), 0);
+    }
+
     function test_VerifyFraudProof_ReturnsCachedResult() public {
         bytes32 requestId = keccak256("request_cached");
+        _openChallenge(requestId);
 
-        // Create BridgeMessage with the same requestId
-        BridgeValidator.BridgeMessage memory message = BridgeValidator.BridgeMessage({
-            requestId: requestId,
-            sender: makeAddr("sender"),
-            recipient: makeAddr("recipient"),
-            token: makeAddr("token"),
-            amount: 1000,
-            sourceChain: 1,
-            targetChain: 2,
-            nonce: 2,
-            deadline: block.timestamp + 1 hours
-        });
-
-        // Create invalid signatures (only 1 signature, but threshold is 2)
-        bytes[] memory signatures = new bytes[](1);
-        bytes32 messageHash = _hashBridgeMessage(message);
-        bytes32 ethSignedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer1Key, ethSignedHash);
-        signatures[0] = abi.encodePacked(r, s, v);
-
-        bytes memory evidence = abi.encode(message, signatures);
-
-        FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
-            requestId: requestId,
-            proofType: FraudProofVerifier.FraudProofType.InvalidSignature,
-            merkleProof: new bytes32[](0),
-            stateProof: "",
-            evidence: evidence
-        });
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
 
         verifier.submitFraudProof(proof);
 
@@ -590,18 +685,9 @@ contract FraudProofVerifierTest is Test {
         vm.prank(owner);
         verifier.unpause();
 
-        bytes[] memory signatures = new bytes[](1);
-        signatures[0] = "sig";
-        address[] memory expectedSigners = new address[](1);
-        expectedSigners[0] = makeAddr("signer");
-
-        FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
-            requestId: keccak256("request"),
-            proofType: FraudProofVerifier.FraudProofType.InvalidSignature,
-            merkleProof: new bytes32[](0),
-            stateProof: "",
-            evidence: abi.encode(keccak256("messageHash"), signatures, expectedSigners)
-        });
+        bytes32 requestId = keccak256("request");
+        _openChallenge(requestId);
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
 
         // Should not revert
         verifier.submitFraudProof(proof);
@@ -611,16 +697,11 @@ contract FraudProofVerifierTest is Test {
 
     function test_GetProofRecord() public {
         bytes32 requestId = keccak256("request1");
-
-        FraudProofVerifier.FraudProof memory proof = FraudProofVerifier.FraudProof({
-            requestId: requestId,
-            proofType: FraudProofVerifier.FraudProofType.InvalidSignature,
-            merkleProof: new bytes32[](0),
-            stateProof: "",
-            evidence: ""
-        });
-
         address submitter = makeAddr("submitter");
+        _openChallenge(requestId, submitter);
+
+        FraudProofVerifier.FraudProof memory proof = _invalidTokenProof(requestId);
+
         vm.prank(submitter);
         verifier.submitFraudProof(proof);
 

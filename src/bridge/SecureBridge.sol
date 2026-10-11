@@ -338,7 +338,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         }
 
         // Consume nonce after all downstream logic succeeds
-        bridgeValidator.consumeNonce(sender, nonce);
+        bridgeValidator.consumeNonce(sender, sourceChain, nonce);
 
         emit BridgeCompleted(requestId, recipient, targetToken, amount);
     }
@@ -363,16 +363,21 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
 
         deposit.refunded = true;
 
-        // Refund full deposit amount (including fee)
+        // Refund full deposit amount (including fee, see below)
         uint256 fee = (deposit.amount * deposit.feeBps) / 10_000;
-        uint256 refundAmount = deposit.amount;
 
         // Reverse TVL and fee accounting
         uint256 amountAfterFee = deposit.amount - fee;
         if (totalValueLocked[deposit.token] >= amountAfterFee) {
             totalValueLocked[deposit.token] -= amountAfterFee;
         }
-        feesCollected[deposit.token] -= fee;
+
+        // The fee can only be returned from fees still held by the bridge. If the owner has
+        // already withdrawn it, refund the principal only instead of reverting or paying the
+        // fee out of other users' locked funds.
+        uint256 feeRefund = fee <= feesCollected[deposit.token] ? fee : feesCollected[deposit.token];
+        feesCollected[deposit.token] -= feeRefund;
+        uint256 refundAmount = amountAfterFee + feeRefund;
 
         // Refund tokens to original sender
         if (deposit.token == address(0)) {

@@ -371,6 +371,47 @@ contract BridgeGuardianTest is Test {
         guardian.executeProposal(proposalId);
     }
 
+    /// @notice Approvals from a guardian removed after voting no longer count toward the threshold.
+    function test_ExecuteProposal_IgnoresRemovedGuardianApprovals() public {
+        address victim = makeAddr("victim");
+        // Absolute timestamps: via_ir may reuse a cached block.timestamp across vm.warp
+        uint256 t0 = 1_000_000;
+        vm.warp(t0);
+
+        // guardians[4] proposes (auto-approves) and guardians[3] approves
+        vm.prank(guardians[4]);
+        uint256 proposalId =
+            guardian.createProposal(BridgeGuardian.ProposalType.Blacklist, victim, abi.encode("Suspicious"));
+        vm.prank(guardians[3]);
+        guardian.approveProposal(proposalId);
+
+        // guardians[4] is removed through the timelocked direct action
+        vm.prank(owner);
+        guardian.removeGuardianDirect(guardians[4]);
+        vm.warp(t0 + 2 days);
+        vm.prank(owner);
+        guardian.executeDirectAction(keccak256(abi.encode("removeGuardian", guardians[4], t0)));
+        assertFalse(guardian.isGuardian(guardians[4]));
+
+        // A third vote gives only two approvals from current guardians
+        vm.prank(guardians[2]);
+        guardian.approveProposal(proposalId);
+
+        (bool canExecute,) = guardian.canExecuteProposal(proposalId);
+        assertFalse(canExecute);
+        vm.prank(guardians[3]);
+        vm.expectRevert(BridgeGuardian.InsufficientApprovals.selector);
+        guardian.executeProposal(proposalId);
+        assertFalse(guardian.isBlacklisted(victim));
+
+        // One more current guardian approves; the proposal can now be executed
+        vm.prank(guardians[1]);
+        guardian.approveProposal(proposalId);
+        vm.prank(guardians[3]);
+        guardian.executeProposal(proposalId);
+        assertTrue(guardian.isBlacklisted(victim));
+    }
+
     function test_ExecuteProposal_RevertsOnAlreadyExecuted() public {
         // Create and fully approve proposal
         vm.prank(guardians[0]);
