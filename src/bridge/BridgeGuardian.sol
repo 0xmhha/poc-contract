@@ -31,7 +31,6 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
     error InvalidTarget();
     error ExecutionFailed();
     error ZeroAddress();
-    error CooldownActive();
     error AlreadyPaused();
     error NotPaused();
     error InvalidAction();
@@ -121,7 +120,6 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
     uint256 public constant MIN_GUARDIANS = 3;
     uint256 public constant MAX_GUARDIANS = 15;
     uint256 public constant PROPOSAL_DURATION = 7 days;
-    uint256 public constant EMERGENCY_COOLDOWN = 1 hours;
     uint256 public constant DIRECT_ACTION_DELAY = 2 days;
 
     // ============ State Variables ============
@@ -208,6 +206,9 @@ contract BridgeGuardian is Ownable, ReentrancyGuard {
 
     /**
      * @notice Emergency pause - any single guardian can trigger
+     * @dev There is no cooldown: a guardian may pause again immediately after a quorum
+     *      unpause. Blocking a re-pause would leave the bridge unprotected during that window;
+     *      a guardian who abuses the pause is removed through the guardian proposal flow.
      * @param reason Reason for the emergency pause
      */
     function emergencyPause(string calldata reason) external onlyGuardian {
