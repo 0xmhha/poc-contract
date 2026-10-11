@@ -271,6 +271,11 @@ contract DeployAllScript is DeploymentHelper {
             console.log("  [SKIP] KernelFactory:", _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY));
         }
 
+        // 4. Let the staker relay account creation for this factory
+        _approveFactoryOnStaker(
+            _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER), _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY)
+        );
+
         console.log("");
     }
 

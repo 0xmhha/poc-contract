@@ -32,6 +32,9 @@ jobs:
       - name: Run Forge fmt
         run: forge fmt --check src script test
 
+      - name: Check storage slot constants
+        run: python3 script/check-storage-slots.py
+
       - name: Run Forge build
         run: forge build
 
@@ -40,6 +43,46 @@ jobs:
 
       - name: Check indexer venue ABIs are current
         run: ./script/export-venue-abi.sh --check
+
+  anvil-e2e:
+    name: Anvil E2E
+    runs-on: ubuntu-latest
+    env:
+      RPC: http://127.0.0.1:8545
+      # anvil default account 0 (public test key): deployer, admin and bundler
+      DEPLOYER_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.3
+
+      - name: Start anvil
+        run: |
+          anvil --chain-id 31337 --hardfork prague --silent &
+          for i in $(seq 1 30); do cast chain-id --rpc-url "$RPC" >/dev/null 2>&1 && exit 0; sleep 1; done
+          echo "anvil did not start" && exit 1
+
+      - name: Deploy all contracts
+        run: |
+          forge script script/deploy-contract/DeployAll.s.sol:DeployAllScript \
+            --rpc-url "$RPC" --private-key "$DEPLOYER_KEY" --broadcast --slow
+
+      - name: Run ERC-4337 smoke test
+        # handleOps needs headroom over eth_estimateGas (EntryPoint inner-call gas checks)
+        # pipefail: forge exits non-zero when a broadcast transaction fails on chain, even after
+        # the simulation printed SMOKE OK
+        run: |
+          set -o pipefail
+          forge script script/e2e/AnvilSmoke.s.sol:AnvilSmokeScript \
+            --rpc-url "$RPC" --private-key "$DEPLOYER_KEY" --broadcast --slow --gas-estimate-multiplier 200 \
+            | tee smoke.log
+          grep -q "SMOKE OK" smoke.log
 
   platform-compatibility:
     name: Platform compatibility

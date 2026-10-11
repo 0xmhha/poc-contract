@@ -26,8 +26,8 @@ StableNet PoC 컨트랙트 배포에 대한 상세 가이드입니다.
 
 ```
 script/
-├── DeployAll.s.sol               # 통합 배포 (전체 44개 컨트랙트)
 ├── deploy-contract/
+│   ├── DeployAll.s.sol           # 통합 배포 (전체 44개 컨트랙트)
 │   ├── DeployTokens.s.sol        # USDC
 │   ├── DeployEntryPoint.s.sol    # EntryPoint
 │   ├── DeployKernel.s.sol        # Kernel + KernelFactory + FactoryStaker
@@ -277,15 +277,35 @@ anvil --chain-id 31337 --block-time 1 --hardfork prague
 
 ### 2. 전체 배포 (DeployAll)
 
-모든 컨트랙트를 의존성 순서대로 배포합니다 (6단계, 44개 컨트랙트).
+모든 컨트랙트를 의존성 순서대로 배포합니다 (6단계, 44개 컨트랙트). KernelFactory 배포 후 FactoryStaker에 factory 승인(`approveFactory`)까지 수행합니다. 브로드캐스트 계정이 FactoryStaker owner(`ADMIN_ADDRESS`)가 아니면 승인하지 않고 `[TODO]` 로그로 owner가 할 호출을 출력합니다.
+
+`.env`의 기본값(`CHAIN_ID=8283`, `RPC_URL`)이 anvil이 아닌 노드를 가리킬 수 있으므로, anvil에 배포할 때는 환경변수로 덮어씁니다. forge는 이미 설정된 환경변수를 `.env`로 덮어쓰지 않습니다.
 
 ```bash
-forge script script/DeployAll.s.sol:DeployAllScript \
-  --rpc-url http://127.0.0.1:8545 \
-  --broadcast
+# anvil 기본 계정 0 (공개된 테스트 키)
+ANVIL_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+ANVIL_ADDR=$(cast wallet address $ANVIL_KEY)
+
+CHAIN_ID=31337 ADMIN_ADDRESS=$ANVIL_ADDR VERIFYING_SIGNER=$ANVIL_ADDR \
+forge script script/deploy-contract/DeployAll.s.sol:DeployAllScript \
+  --rpc-url http://127.0.0.1:8545 --private-key $ANVIL_KEY --broadcast --slow
 ```
 
-### 3. 도메인별 배포
+배포 결과는 `deployments/31337/addresses.json`에 저장됩니다. `deployments/8283/addresses.json`은 StableNet 배포 manifest로, CI의 platform compatibility 검사 fixture로 git에 보관됩니다.
+
+### 3. E2E smoke 테스트
+
+배포된 컨트랙트로 ERC-4337 경로 전체를 확인합니다. initCode로 계정을 생성하는 UserOp와 일반 송금 UserOp를 `handleOps`로 실행합니다. CI의 `Anvil E2E` job이 같은 절차를 수행합니다.
+
+```bash
+forge script script/e2e/AnvilSmoke.s.sol:AnvilSmokeScript \
+  --rpc-url http://127.0.0.1:8545 --private-key $ANVIL_KEY \
+  --broadcast --slow --gas-estimate-multiplier 200
+```
+
+`--gas-estimate-multiplier`가 필요합니다. `eth_estimateGas`는 EntryPoint 내부 호출의 gas 검사를 반영하지 못해, 추정값 그대로 보내면 시뮬레이션은 통과해도 체인에서 `handleOps`가 실패합니다(`0xdeaddead`, `AA95 out of gas`).
+
+### 4. 도메인별 배포
 
 ```bash
 # 토큰
@@ -354,7 +374,7 @@ ETHERSCAN_API_KEY=YOUR_ETHERSCAN_KEY
 ### 2. 배포
 
 ```bash
-forge script script/DeployAll.s.sol:DeployAllScript \
+forge script script/deploy-contract/DeployAll.s.sol:DeployAllScript \
   --rpc-url $RPC_URL_SEPOLIA \
   --broadcast \
   --verify

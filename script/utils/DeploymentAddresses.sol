@@ -139,6 +139,13 @@ library DeploymentAddresses {
  * @notice Base contract for deployment scripts with address persistence
  * @dev Inherit from this contract to get automatic address saving/loading
  */
+/// @dev The FactoryStaker functions the deploy scripts call, without importing src contracts
+interface IFactoryStakerApproval {
+    function owner() external view returns (address);
+    function approved(address factory) external view returns (bool);
+    function approveFactory(address factory, bool approval) external payable;
+}
+
 abstract contract DeploymentHelper is Script {
     // Chain ID for deployment file naming
     uint256 public chainId;
@@ -881,6 +888,27 @@ abstract contract DeploymentHelper is Script {
             ok && ret.length == 32 && abi.decode(ret, (address)) != address(0),
             "Existing KernelFactory has no SENDER_CREATOR(). Redeploy KernelFactory."
         );
+    }
+
+    /**
+     * @notice Approve `factory` on `staker` so UserOperation initCode can deploy accounts through it
+     * @dev Without this, account creation via the staker reverts with NotApprovedFactory. Only the
+     *      staker owner can approve: when the broadcaster is not the owner (ADMIN_ADDRESS differs),
+     *      this logs the call the owner must make instead of reverting the deployment.
+     *      Call inside a broadcast.
+     * @param staker The FactoryStaker address
+     * @param factory The KernelFactory address
+     */
+    function _approveFactoryOnStaker(address staker, address factory) internal {
+        IFactoryStakerApproval s = IFactoryStakerApproval(staker);
+        if (s.approved(factory)) {
+            console.log("  [SKIP] FactoryStaker already approves KernelFactory");
+        } else if (s.owner() == msg.sender) {
+            s.approveFactory(factory, true);
+            console.log("  [NEW] FactoryStaker approved KernelFactory:", factory);
+        } else {
+            console.log("  [TODO] FactoryStaker owner must call approveFactory(factory, true):", s.owner());
+        }
     }
 
     /**

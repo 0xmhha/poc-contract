@@ -8,7 +8,7 @@ ERC-4337 Account Abstraction, ERC-7579 Modular Smart Account, 스텔스 주소 (
 
 | 도구 | 버전 | 설명 |
 |-----|------|------|
-| Foundry | ≥1.0.0 | Solidity 개발 툴킷 |
+| Foundry | v1.8.3 (CI와 동일) | Solidity 개발 툴킷. 다른 버전은 CI와 결과가 다를 수 있음(테스트 최상위 호출 간 transient storage 초기화, `forge fmt` 출력 차이) |
 | Solidity | 0.8.28 | 스마트 컨트랙트 언어 |
 | Anvil | ≥1.0.0 | 로컬 이더리움 노드 |
 
@@ -17,7 +17,7 @@ ERC-4337 Account Abstraction, ERC-7579 Modular Smart Account, 스텔스 주소 (
 ```bash
 # Foundry 설치
 curl -L https://foundry.paradigm.xyz | bash
-foundryup
+foundryup --install v1.8.3
 
 # 버전 확인
 forge --version
@@ -72,7 +72,7 @@ forge test --match-test testKernelDeployment
 anvil --chain-id 31337 --block-time 1 --hardfork prague
 
 # 터미널 2: 전체 컨트랙트 배포 (6단계, 44개 컨트랙트)
-forge script script/DeployAll.s.sol:DeployAllScript \
+forge script script/deploy-contract/DeployAll.s.sol:DeployAllScript \
   --rpc-url http://127.0.0.1:8545 \
   --private-key <ANVIL_PRIVATE_KEY> \
   --broadcast
@@ -106,7 +106,7 @@ src/
 통합 배포 스크립트로 모든 컨트랙트를 한 번에 배포합니다:
 
 ```bash
-forge script script/DeployAll.s.sol:DeployAllScript \
+forge script script/deploy-contract/DeployAll.s.sol:DeployAllScript \
   --rpc-url <RPC_URL> \
   --private-key <PRIVATE_KEY> \
   --broadcast

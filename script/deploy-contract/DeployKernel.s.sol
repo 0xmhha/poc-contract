@@ -78,6 +78,9 @@ contract DeployKernelScript is DeploymentHelper {
             console.log("KernelFactory: Using existing at", existing);
         }
 
+        // Let the staker relay account creation for this factory
+        _approveFactoryOnStaker(address(factoryStaker), address(kernelFactory));
+
         vm.stopBroadcast();
 
         _saveAddresses();

@@ -123,6 +123,31 @@ FraudProofVerifier.setBridgeValidator(BridgeValidator)
 
 See `.env.example` for the full list.
 
+## Local Deployment and E2E (anvil)
+
+Testing on a local node targets anvil (chain id 31337). `.env` defaults such as `CHAIN_ID=8283` and `RPC_URL` may point to a different node, so override them in the environment; forge does not let `.env` replace variables that are already set.
+
+```bash
+anvil --chain-id 31337 --hardfork prague
+
+# anvil default account 0 (public test key)
+ANVIL_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+ANVIL_ADDR=$(cast wallet address $ANVIL_KEY)
+
+CHAIN_ID=31337 ADMIN_ADDRESS=$ANVIL_ADDR VERIFYING_SIGNER=$ANVIL_ADDR \
+forge script script/deploy-contract/DeployAll.s.sol:DeployAllScript \
+  --rpc-url http://127.0.0.1:8545 --private-key $ANVIL_KEY --broadcast --slow
+
+forge script script/e2e/AnvilSmoke.s.sol:AnvilSmokeScript \
+  --rpc-url http://127.0.0.1:8545 --private-key $ANVIL_KEY \
+  --broadcast --slow --gas-estimate-multiplier 200
+```
+
+- DeployAll approves the KernelFactory on the FactoryStaker when the broadcaster is the staker owner (`ADMIN_ADDRESS`). Otherwise it logs a `[TODO]` with the call the owner must make; until then, account creation through initCode reverts with `NotApprovedFactory`.
+- The smoke script deploys an account through initCode and runs two transfers via `handleOps`. The CI job `Anvil E2E` runs the same steps.
+- `--gas-estimate-multiplier` is required: `eth_estimateGas` does not cover the EntryPoint inner-call gas checks, so `handleOps` sent with the raw estimate passes simulation but fails on chain (`0xdeaddead`, `AA95 out of gas`).
+- Addresses are written to `deployments/31337/addresses.json` (git-ignored). `deployments/8283/addresses.json` is the StableNet deployment manifest kept in git as the platform compatibility fixture.
+
 ## Troubleshooting
 
 ### CreateCollision Error
