@@ -199,6 +199,37 @@ contract LendingPoolAuditRegressionTest is Test {
         assertEq(pool.getDepositBalance(address(weth), bob), 8e18);
     }
 
+    /// @dev The LTV check applies only to collateral: a borrow-only deposit stays withdrawable
+    ///      for a position between LTV and the liquidation threshold.
+    function test_DEFI3_WithdrawNonCollateralBetweenLtvAndThreshold() public {
+        LMock dai = new LMock("DAI", "DAI", 18);
+        oracle.setPrice(address(dai), 1e18);
+        ILendingPool.AssetConfig memory daiCfg = cfg;
+        daiCfg.canCollateral = false;
+        pool.configureAsset(address(dai), daiCfg);
+        dai.mint(bob, 1000e18);
+
+        vm.prank(alice);
+        pool.deposit(address(usdc), 50_000e18);
+        vm.startPrank(bob);
+        dai.approve(address(pool), type(uint256).max);
+        pool.deposit(address(dai), 1000e18);
+        pool.deposit(address(weth), 10e18);
+        pool.borrow(address(usdc), 15_000e18);
+        vm.stopPrank();
+
+        oracle.setPrice(address(weth), 1900e18); // capacity $14,250 < debt < threshold $15,200
+
+        vm.startPrank(bob);
+        // Collateral withdrawal is still capped by LTV
+        vm.expectRevert(LendingPool.InsufficientCollateral.selector);
+        pool.withdraw(address(weth), 1);
+
+        pool.withdraw(address(dai), 1000e18);
+        vm.stopPrank();
+        assertEq(dai.balanceOf(bob), 1000e18);
+    }
+
     /// @dev Liquidation still uses the liquidation threshold: a price drop that breaks LTV but not
     ///      the threshold does not make the position liquidatable.
     function test_DEFI3_LiquidationStillUsesThreshold() public {

@@ -250,7 +250,10 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         if (borrowAmounts[asset][msg.sender] > 0 || _hasBorrows(msg.sender)) {
             uint256 healthFactor = calculateHealthFactor(msg.sender);
             if (healthFactor < HEALTH_FACTOR_THRESHOLD) revert InsufficientCollateral();
-            if (!_isWithinBorrowCapacity(msg.sender)) revert InsufficientCollateral();
+            // Only withdrawing collateral reduces borrow capacity
+            if (assetConfigs[asset].canCollateral && !_isWithinBorrowCapacity(msg.sender)) {
+                revert InsufficientCollateral();
+            }
         }
 
         // Transfer tokens
