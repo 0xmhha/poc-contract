@@ -241,22 +241,6 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
         emit Received(msg.sender, msg.value);
     }
 
-    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
-        return this.onERC721Received.selector;
-    }
-
-    function onERC1155Received(address, address, uint256, uint256, bytes calldata) external pure returns (bytes4) {
-        return this.onERC1155Received.selector;
-    }
-
-    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
-        external
-        pure
-        returns (bytes4)
-    {
-        return this.onERC1155BatchReceived.selector;
-    }
-
     /// @notice Fallback handler that routes unrecognized selectors to installed fallback modules.
     ///
     /// [EIP-4337 / ERC-7579 Spec Conflict — Fallback Sender Context]
@@ -269,6 +253,17 @@ contract Kernel is IAccount, IAccountExecute, IERC7579Account, ValidationManager
     ///   must not use msg.sender directly for authorization; they should read the appended sender.
     ///   CALLTYPE_DELEGATECALL fallbacks run in the account's context where msg.sender is preserved.
     fallback() external payable {
+        // ERC-721 / ERC-1155 receiver callbacks (onERC721Received, onERC1155Received,
+        // onERC1155BatchReceived) always return their own selector, before any module lookup, so
+        // token reception works regardless of installed modules. Handled here rather than as
+        // functions to save bytecode (EIP-170).
+        bytes4 sig = msg.sig;
+        if (sig == 0x150b7a02 || sig == 0xf23a6e61 || sig == 0xbc197c81) {
+            assembly ("memory-safe") {
+                mstore(0x00, sig)
+                return(0x00, 0x20)
+            }
+        }
         SelectorConfig memory config = _selectorConfig(msg.sig);
         bool success;
         bytes memory result;

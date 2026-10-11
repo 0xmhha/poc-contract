@@ -12,16 +12,16 @@ import { MODULE_TYPE_FALLBACK } from "../erc7579-smartaccount/types/Constants.so
  * Supported Interfaces:
  * - ERC-777: tokensReceived
  *
- * NOT supported (handled by Kernel built-in pure functions):
+ * NOT supported (answered by Kernel itself):
  * - ERC-721: onERC721Received — Kernel natively returns selector
  * - ERC-1155: onERC1155Received, onERC1155BatchReceived — Kernel natively returns selector
  *
  * Design Note:
- * Kernel (following ZeroDev upstream) declares onERC721Received/onERC1155Received/
- * onERC1155BatchReceived as explicit pure functions. Solidity dispatches explicit
- * functions before fallback(), so these selectors can never reach a fallback module.
- * This is intentional — it guarantees token reception safety regardless of module state.
- * See: https://github.com/zerodevapp/kernel (same pattern in all versions)
+ * Kernel answers onERC721Received/onERC1155Received/onERC1155BatchReceived at the top of
+ * its fallback(), before looking up installed modules, so these selectors can never reach a
+ * fallback module. This is intentional: token reception works regardless of module state.
+ * ZeroDev upstream gets the same behavior from explicit pure functions; this repository moved
+ * the check into fallback() to save Kernel bytecode (EIP-170).
  *
  * Features:
  * - Token whitelist/blacklist per account (for ERC-777)
@@ -119,10 +119,9 @@ contract TokenReceiverFallback is IFallback {
     // ============ ERC-777 Receiver ============
     //
     // NOTE: ERC-721 and ERC-1155 handlers are intentionally NOT implemented here.
-    // Kernel declares onERC721Received/onERC1155Received/onERC1155BatchReceived as
-    // explicit pure functions, so those selectors never reach fallback(). This is a
-    // deliberate design choice (matching ZeroDev upstream) that guarantees token
-    // reception safety regardless of module installation state.
+    // Kernel answers onERC721Received/onERC1155Received/onERC1155BatchReceived before its
+    // module lookup, so those selectors never reach a fallback module. This keeps token
+    // reception working regardless of module installation state (as in ZeroDev upstream).
 
     /**
      * @notice Handle ERC-777 tokens received

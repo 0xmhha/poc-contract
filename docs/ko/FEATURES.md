@@ -45,7 +45,7 @@ StableNet PoC 컨트랙트는 다음 일곱 영역으로 나뉩니다.
 |---|---|---|
 | `erc4337-entrypoint` | EntryPoint, NonceManager, StakeManager, SenderCreator, EntryPointSimulations | ERC-4337 EntryPoint v0.9(eth-infinitism 기반). UserOperation 검증·실행, nonce 관리, stake·deposit 관리, simulation. EIP-7702 delegate 계정 초기화 지원(`Eip7702Support`) |
 | | Create2Deployer | CREATE2로 결정적 주소에 배포(`deploy`, `computeAddress`) |
-| `erc7579-smartaccount` | Kernel | ERC-7579 모듈형 스마트 계정(ZeroDev Kernel 기반). root validator 변경, validator·executor·hook·fallback 설치와 교체(`installValidations`, `replaceModule`), ERC-1271 서명 검증, ERC-721/1155 수신, 업그레이드(`upgradeTo`), delegatecall whitelist, hook gas 한도 설정. 중첩된 executor 호출 뒤에도 바깥 executor context가 유지됨 |
+| `erc7579-smartaccount` | Kernel | ERC-7579 모듈형 스마트 계정(ZeroDev Kernel 기반). root validator 변경, validator·executor·hook·fallback 설치와 교체(`installValidations`, `replaceModule`), ERC-1271 서명 검증, ERC-721/1155 수신(`fallback()`에서 모듈 조회 전에 응답하므로 설치된 모듈이 수신을 막을 수 없음), 업그레이드(`upgradeTo`), delegatecall whitelist, hook gas 한도 설정. 중첩된 executor 호출 뒤에도 바깥 executor context가 유지됨 |
 | | KernelFactory, FactoryStaker | 계정 생성과 주소 사전 계산, factory의 EntryPoint stake 관리 |
 | `permit2` | Permit2 (AllowanceTransfer, SignatureTransfer) | Uniswap Permit2 이식. 서명 기반 approve와 transfer |
 
