@@ -92,7 +92,7 @@ import { BridgeWiring } from "../utils/BridgeWiring.sol";
  *
  *   Phase 1 - Core Smart Account:
  *     3. Kernel - Depends on EntryPoint
- *     4. KernelFactory - Depends on Kernel
+ *     4. KernelFactory - Depends on Kernel and FactoryStaker
  *
  *   Phase 2 - ERC-7579 Modules (no external dependencies):
  *     5. Validators (ECDSA, Weighted, MultiChain, MultiSig, WebAuthn)
@@ -245,23 +245,28 @@ contract DeployAllScript is DeploymentHelper {
             console.log("  [SKIP] Kernel:", _getAddress(DeploymentAddresses.KEY_KERNEL));
         }
 
-        // 2. KernelFactory (depends on Kernel)
-        address kernelAddr = _getAddress(DeploymentAddresses.KEY_KERNEL);
-        if (_getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY) == address(0)) {
-            KernelFactory factory = new KernelFactory(kernelAddr, IEntryPoint(entryPointAddr));
-            _setAddress(DeploymentAddresses.KEY_KERNEL_FACTORY, address(factory));
-            console.log("  [NEW] KernelFactory:", address(factory));
-        } else {
-            console.log("  [SKIP] KernelFactory:", _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY));
-        }
-
-        // 3. FactoryStaker
+        // 2. FactoryStaker
         if (_getAddress(DeploymentAddresses.KEY_FACTORY_STAKER) == address(0)) {
             FactoryStaker staker = new FactoryStaker(admin);
             _setAddress(DeploymentAddresses.KEY_FACTORY_STAKER, address(staker));
             console.log("  [NEW] FactoryStaker:", address(staker));
         } else {
             console.log("  [SKIP] FactoryStaker:", _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER));
+        }
+
+        // 3. KernelFactory (depends on Kernel and FactoryStaker)
+        address kernelAddr = _getAddress(DeploymentAddresses.KEY_KERNEL);
+        if (_getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY) == address(0)) {
+            KernelFactory factory = new KernelFactory(
+                kernelAddr, IEntryPoint(entryPointAddr), _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER)
+            );
+            _setAddress(DeploymentAddresses.KEY_KERNEL_FACTORY, address(factory));
+            console.log("  [NEW] KernelFactory:", address(factory));
+        } else {
+            _requireFactoryStaker(
+                _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY), _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER)
+            );
+            console.log("  [SKIP] KernelFactory:", _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY));
         }
 
         console.log("");

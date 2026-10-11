@@ -179,6 +179,8 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
 
     /**
      * @notice Create a new custom role
+     * @dev DEFAULT_ADMIN_ROLE and the system roles cannot be (re)created. The new role is
+     *      administered by ROLE_ADMIN, both in roleAdmins and in AccessControl's getRoleAdmin.
      * @param roleId The unique role identifier
      * @param name The role name
      * @param description The role description
@@ -188,7 +190,9 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
         onlyRole(ROLE_ADMIN)
         whenNotPaused
     {
-        if (roles[roleId].createdAt != 0) revert RoleAlreadyExists();
+        if (roleId == DEFAULT_ADMIN_ROLE || roles[roleId].createdAt != 0) {
+            revert RoleAlreadyExists();
+        }
         if (bytes(name).length == 0) revert InvalidRoleName();
 
         roles[roleId] = RoleInfo({
@@ -202,6 +206,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
 
         allRoles.push(roleId);
         roleAdmins[roleId] = ROLE_ADMIN;
+        _setRoleAdmin(roleId, ROLE_ADMIN);
         roleCount++;
 
         emit RoleCreated(roleId, name, msg.sender);
@@ -295,6 +300,9 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
 
     /**
      * @notice Assign a role to an account
+     * @dev The caller must also hold the role's admin role (getRoleAdmin), so a ROLE_ASSIGNER
+     *      cannot hand out roles above its own authority (e.g. ROLE_ADMIN, whose admin is
+     *      DEFAULT_ADMIN_ROLE).
      * @param roleId The role ID
      * @param account The account address
      * @param expiresAt The expiration timestamp (0 for no expiration)
@@ -307,6 +315,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
         if (roles[roleId].createdAt == 0) revert RoleNotFound();
         if (!roles[roleId].active) revert RoleNotActive();
         if (account == address(0)) revert InvalidAccount();
+        if (!hasRole(getRoleAdmin(roleId), msg.sender)) revert PermissionDenied();
 
         RoleAssignment storage assignment = assignments[account][roleId];
 
@@ -330,6 +339,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
 
     /**
      * @notice Revoke a role from an account
+     * @dev Like assignRole, the caller must also hold the role's admin role
      * @param roleId The role ID
      * @param account The account address
      */
@@ -337,6 +347,7 @@ contract RoleManager is IRoleManager, AccessControl, Pausable {
         RoleAssignment storage assignment = assignments[account][roleId];
 
         if (!assignment.active) revert NotAssigned();
+        if (!hasRole(getRoleAdmin(roleId), msg.sender)) revert PermissionDenied();
 
         assignment.active = false;
         roles[roleId].memberCount--;

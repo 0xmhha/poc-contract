@@ -13,6 +13,7 @@ import {
     MODULE_TYPE_EXECUTOR,
     HOOK_MODULE_INSTALLED,
     ERC1967_IMPLEMENTATION_SLOT,
+    VALIDATION_MANAGER_STORAGE_SLOT,
     CALLTYPE_SINGLE,
     CALLTYPE_DELEGATECALL,
     EXECTYPE_DEFAULT,
@@ -85,6 +86,17 @@ contract DelegateMarker {
     }
 }
 
+/// @notice Delegatecall target that overwrites the root validator slot of ValidationManager
+contract RootValidatorOverwriter {
+    function overwrite(address newValidator) external {
+        bytes32 slot = VALIDATION_MANAGER_STORAGE_SLOT;
+        bytes21 vId = bytes21(abi.encodePacked(bytes1(0x01), newValidator));
+        assembly ("memory-safe") {
+            sstore(slot, shr(88, vId))
+        }
+    }
+}
+
 /// @title Kernel admin function tests
 /// @notice Covers access control and state effects of the onlyEntryPointOrSelfOrRoot admin
 ///         functions: upgradeTo, changeRootValidator, grantAccess, setHookGasLimit and the
@@ -109,7 +121,7 @@ contract KernelAdminTest is Test {
 
         entryPoint = new EntryPoint();
         kernelImpl = new Kernel(IEntryPoint(address(entryPoint)));
-        kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)));
+        kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)), address(0));
         ecdsaValidator = new ECDSAValidator();
         marker = new DelegateMarker();
         senderCreator = address(entryPoint.senderCreator());
@@ -318,16 +330,55 @@ contract KernelAdminTest is Test {
         vm.stopPrank();
     }
 
-    function test_DelegatecallWhitelist_AppliesToExecutors() public {
+    /// @dev Executors cannot delegatecall at all, whatever the whitelist state: a delegatecall
+    ///      runs in the account's context and would bypass ExecutorCannotCallSelf
+    function test_ExecutorDelegatecall_RejectedByDefault() public {
+        AdminTestExecutor executor = _installExecutor(IHook(HOOK_MODULE_INSTALLED));
+
+        vm.expectRevert(Kernel.InvalidCallType.selector);
+        executor.delegatecallThrough(address(account), address(marker), abi.encodeCall(DelegateMarker.mark, ()));
+
+        assertEq(_marker(), 0);
+    }
+
+    function test_ExecutorDelegatecall_RejectedWhenWhitelistEnforced() public {
         AdminTestExecutor executor = _installExecutor(IHook(HOOK_MODULE_INSTALLED));
 
         vm.prank(address(entryPoint));
         account.setEnforceDelegatecallWhitelist(true);
 
-        vm.expectRevert(abi.encodeWithSelector(Kernel.DelegatecallTargetNotWhitelisted.selector, address(marker)));
+        vm.expectRevert(Kernel.InvalidCallType.selector);
         executor.delegatecallThrough(address(account), address(marker), abi.encodeCall(DelegateMarker.mark, ()));
 
         assertEq(_marker(), 0);
+    }
+
+    function test_ExecutorDelegatecall_RejectedForWhitelistedTarget() public {
+        AdminTestExecutor executor = _installExecutor(IHook(HOOK_MODULE_INSTALLED));
+
+        vm.startPrank(address(entryPoint));
+        account.setEnforceDelegatecallWhitelist(true);
+        account.setDelegatecallWhitelist(address(marker), true);
+        vm.stopPrank();
+
+        vm.expectRevert(Kernel.InvalidCallType.selector);
+        executor.delegatecallThrough(address(account), address(marker), abi.encodeCall(DelegateMarker.mark, ()));
+
+        assertEq(_marker(), 0);
+    }
+
+    /// @dev An executor delegatecall must not be able to replace the root validator
+    function test_ExecutorDelegatecall_CannotReplaceRootValidator() public {
+        AdminTestExecutor executor = _installExecutor(IHook(HOOK_MODULE_INSTALLED));
+        RootValidatorOverwriter overwriter = new RootValidatorOverwriter();
+        ValidationId rootBefore = account.rootValidator();
+
+        vm.expectRevert(Kernel.InvalidCallType.selector);
+        executor.delegatecallThrough(
+            address(account), address(overwriter), abi.encodeCall(RootValidatorOverwriter.overwrite, (stranger))
+        );
+
+        assertEq(ValidationId.unwrap(account.rootValidator()), ValidationId.unwrap(rootBefore));
     }
 
     /* //////////////////////////////////////////////////////////////

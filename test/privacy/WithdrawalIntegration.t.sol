@@ -6,6 +6,7 @@ import { Test } from "forge-std/Test.sol";
 import { StealthVault, IStealthVault } from "../../src/privacy/enterprise/StealthVault.sol";
 import { WithdrawalManager } from "../../src/privacy/enterprise/WithdrawalManager.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract WithdrawalToken is ERC20 {
     constructor() ERC20("Withdrawal", "W") {
@@ -79,6 +80,22 @@ contract WithdrawalIntegrationTest is Test {
         vm.expectRevert(IStealthVault.InvalidAmount.selector);
         vault.transferToWithdrawalManager(id, address(0), 0);
         assertFalse(vault.getDeposit(id).withdrawn);
+    }
+
+    function test_pausedVaultBlocksManagerWithdrawal() public {
+        bytes32 id = vault.depositETH{ value: 10 ether }(keccak256("stealth"));
+        bytes32 request = manager.requestWithdrawal(id, recipient, address(0), 4 ether);
+        vm.warp(vm.getBlockTimestamp() + 1 hours);
+
+        vault.pause();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        manager.executeWithdrawal(request);
+        assertEq(address(vault).balance, 10 ether);
+
+        // The request stays executable once the vault is unpaused
+        vault.unpause();
+        manager.executeWithdrawal(request);
+        assertEq(recipient.balance, 4 ether);
     }
 
     function test_deploymentWiringIsIdempotent() public {

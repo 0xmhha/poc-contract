@@ -77,12 +77,12 @@ StableNet PoC 컨트랙트는 다음 일곱 영역으로 나뉩니다.
 
 | 컨트랙트 | 기능 |
 |---|---|
-| SpendingLimitHook | 실행 전후 잔액을 비교해 토큰별·기간별 지출 한도 적용 |
+| SpendingLimitHook | 실행 전후 잔액을 비교해 토큰별·기간별 지출 한도 적용. 한도가 걸린 토큰에 대한 0이 아닌 allowance 부여(approve, increaseAllowance, permit)를 거부하므로, approve 후 실행하는 SwapExecutor·LendingExecutor는 이 토큰에 대해 함께 쓸 수 없음. Permit2, 비표준 permit, off-chain ERC-1271 서명을 통한 allowance 부여는 감지하지 못함 |
 | PolicyHook | allowlist·blocklist 모드, target·selector 제한, target별 value 한도, 기간당 트랜잭션 수 제한, 긴급 정지 |
 | AuditHook | 트랜잭션 감사 로그, blocklist, 의심 트랜잭션 큐잉 |
 | HealthFactorHook | lending 대상 호출 뒤 health factor가 임계값 아래로 떨어지면 revert |
 
-`HookExecutionDataLib`는 wrapping된 calldata에서 실행 데이터를 추출하는 공용 라이브러리로, PolicyHook·SpendingLimitHook·AuditHook이 함께 사용합니다.
+`HookExecutionDataLib`는 Kernel이 hook에 넘기는 calldata에서 실행(single·batch·delegatecall)을 디코딩하는 공용 라이브러리로, PolicyHook·SpendingLimitHook·AuditHook·HealthFactorHook이 함께 사용합니다.
 
 ### Fallbacks (`erc7579-fallbacks`)
 
@@ -201,7 +201,7 @@ indexer-go의 `perp_orderbook` venue가 `PerpetualEngine`과 `OrderManager`의 �
 |---|---|
 | SubscriptionManager | 상점 플랜 생성·수정, 구독·해지, 결제 처리(일괄 포함), 프로토콜 수수료 |
 | MerchantRegistry | 상점 등록·검증·정지, 상점별 수수료, verifier 관리 |
-| ERC7715PermissionManager | ERC-7715 권한 부여(서명 기반 포함)·조정·사용·폐기, 권한 유형 등록. 서명된 권한 부여에는 rule 목록까지 포함되며, 서명할 digest는 `hashPermissionGrant`로 계산 |
+| ERC7715PermissionManager | ERC-7715 권한 부여(서명 기반 포함)·조정·사용·폐기, 권한 유형 등록. 서명된 권한 부여에는 rule 목록과 `isAdjustmentAllowed`까지 포함되고, 일시정지 중에는 `usePermission`이 차단되며, 서명할 digest는 `hashPermissionGrant`로 계산 |
 
 ---
 

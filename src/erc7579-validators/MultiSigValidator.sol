@@ -352,7 +352,7 @@ contract MultiSigValidator is IValidator {
         uint8 threshold = store.threshold;
 
         // Check signature length (65 bytes per signature)
-        if (signatures.length < threshold * 65) {
+        if (signatures.length < uint256(threshold) * 65) {
             return false;
         }
 

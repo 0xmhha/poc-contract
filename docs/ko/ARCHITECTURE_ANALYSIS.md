@@ -619,6 +619,8 @@ function executeOrdersBatch(
 
 FraudProofVerifier의 `_verifyInvalidSignatureProof` 함수는 브릿지 요청의 서명 유효성을 검증하여 사기 증명을 판단합니다.
 
+> **제거됨**: 이 증거는 제출자가 고른 서명이라 이의 제기된 요청에 묶을 수 없고, 아무 무효 서명으로도 사기가 "증명"되었습니다. 현재 `submitFraudProof`는 `InvalidSignature`와 `ReplayAttack` 유형을 `InvalidProofType`으로 거부하며, 아래 내용은 제거된 구현의 기록입니다.
+
 **파일 위치**: `src/bridge/FraudProofVerifier.sol`
 
 ### 4.2 구현 상세

@@ -196,11 +196,12 @@ function verifyContracts(chainId: string, deployerAddress: string): void {
     ? addresses.entryPoint.toLowerCase().replace("0x", "").padStart(64, "0")
     : undefined;
 
-  // KernelFactory: constructor(address _impl, IEntryPoint _entryPoint)
+  // KernelFactory: constructor(address _impl, IEntryPoint _entryPoint, address _staker)
   const kernelFactoryConstructorArgs =
-    addresses.kernel && addresses.entryPoint
+    addresses.kernel && addresses.entryPoint && addresses.factoryStaker
       ? addresses.kernel.toLowerCase().replace("0x", "").padStart(64, "0") +
-        addresses.entryPoint.toLowerCase().replace("0x", "").padStart(64, "0")
+        addresses.entryPoint.toLowerCase().replace("0x", "").padStart(64, "0") +
+        addresses.factoryStaker.toLowerCase().replace("0x", "").padStart(64, "0")
       : undefined;
 
   // FactoryStaker: constructor(address _owner) — owner = ADMIN_ADDRESS (deployer/admin)

@@ -87,10 +87,12 @@ contract SponsorRegressionTest is SponsorPaymasterTest {
     function test_zeroCampaignAccumulatesAndEnforcesLimit() public {
         bytes memory context = validate(signedOp("", bytes32(0), 0, address(0), bytes4(0)), 1 ether);
         settle(context, 0.6 ether);
-        assertEq(paymaster.userCampaignSpending(bytes32(0), user), 0.6 ether);
+        // settle() passes a fee of 1 wei per gas, so the postOp overhead adds POSTOP_GAS_OVERHEAD wei
+        uint256 spent = 0.6 ether + paymaster.POSTOP_GAS_OVERHEAD();
+        assertEq(paymaster.userCampaignSpending(bytes32(0), user), spent);
         assertEq(paymaster.userCampaignReserved(bytes32(0), user), 0);
         PackedUserOperation memory op = signedOp("", bytes32(0), 1, address(0), bytes4(0));
-        vm.expectRevert(abi.encodeWithSelector(SponsorPaymaster.UserLimitExceeded.selector, user, 0.6 ether, 1 ether));
+        vm.expectRevert(abi.encodeWithSelector(SponsorPaymaster.UserLimitExceeded.selector, user, spent, 1 ether));
         vm.prank(address(entryPoint));
         paymaster.validatePaymasterUserOp(op, bytes32(0), 0.5 ether);
     }
@@ -105,7 +107,7 @@ contract SponsorRegressionTest is SponsorPaymasterTest {
         settle(context, 0.2 ether);
         validate(op, 0.4 ether);
         assertEq(paymaster.userCampaignReserved(campaign, user), 0.4 ether);
-        assertEq(paymaster.userCampaignSpending(campaign, user), 0.2 ether);
+        assertEq(paymaster.userCampaignSpending(campaign, user), 0.2 ether + paymaster.POSTOP_GAS_OVERHEAD());
     }
 
     function test_verifyingStubAllowsCostSimulationButNeverAuthorizesPayment() public {

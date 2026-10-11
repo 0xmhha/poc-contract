@@ -55,6 +55,9 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
     /// @notice Whether vault is paused
     bool public paused;
 
+    /// @notice Rewards already accrued to stakers but not yet claimed (reserved out of rewardsRemaining)
+    uint256 public rewardsAllocated;
+
     // ============ Errors ============
 
     error VaultPaused();
@@ -147,8 +150,10 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
         // Transfer tokens
         stakingToken.safeTransfer(msg.sender, amountAfterPenalty);
 
-        // Penalty goes to rewards pool
-        if (penalty > 0) {
+        // Penalty goes to rewards pool only when it is paid in the reward token. Otherwise it stays
+        // in the vault as unreserved staking tokens (not backing rewardsRemaining), which the owner
+        // can retrieve through recoverTokens.
+        if (penalty > 0 && address(stakingToken) == address(rewardToken)) {
             state.rewardsRemaining += penalty;
         }
 
@@ -171,6 +176,7 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
         userStake.pendingRewards = 0;
         state.rewardsRemaining -= rewards;
         state.totalRewardsDistributed += rewards;
+        _releaseAllocated(rewards);
 
         rewardToken.safeTransfer(msg.sender, rewards);
 
@@ -197,6 +203,7 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
         userStake.pendingRewards = 0;
         state.rewardsRemaining -= rewards;
         state.totalRewardsDistributed += rewards;
+        _releaseAllocated(rewards);
 
         // Add to stake
         userStake.amount += rewards;
@@ -216,6 +223,11 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
         uint256 amount = userStake.amount;
 
         if (amount == 0) revert NoStake();
+
+        // Return forfeited rewards (credited and not yet credited) to the unallocated pool
+        _releaseAllocated(
+            userStake.pendingRewards + (amount * state.accRewardPerShare) / ACC_REWARD_PRECISION - userStake.rewardDebt
+        );
 
         // Reset user state (forfeit all rewards)
         userStake.amount = 0;
@@ -402,13 +414,24 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
 
         uint256 rewards = timeElapsed * config.rewardRate;
 
-        // Cap rewards to available
-        if (rewards > state.rewardsRemaining) {
-            rewards = state.rewardsRemaining;
+        // Cap rewards to funded rewards not already allocated to stakers
+        uint256 available = _unallocatedRewards();
+        if (rewards > available) {
+            rewards = available;
         }
 
+        rewardsAllocated += rewards;
         state.accRewardPerShare += (rewards * ACC_REWARD_PRECISION) / state.totalStaked;
         state.lastRewardTime = block.timestamp;
+    }
+
+    function _unallocatedRewards() internal view returns (uint256) {
+        return state.rewardsRemaining > rewardsAllocated ? state.rewardsRemaining - rewardsAllocated : 0;
+    }
+
+    /// @dev Saturating: per-user rounding can let claims exceed the allocation by a few wei
+    function _releaseAllocated(uint256 amount) internal {
+        rewardsAllocated = amount > rewardsAllocated ? 0 : rewardsAllocated - amount;
     }
 
     function _updateUserRewards(address user) internal {
@@ -427,8 +450,9 @@ contract StakingVault is IStakingVault, Ownable, ReentrancyGuard {
         if (timeElapsed == 0) return state.accRewardPerShare;
 
         uint256 rewards = timeElapsed * config.rewardRate;
-        if (rewards > state.rewardsRemaining) {
-            rewards = state.rewardsRemaining;
+        uint256 available = _unallocatedRewards();
+        if (rewards > available) {
+            rewards = available;
         }
 
         return state.accRewardPerShare + (rewards * ACC_REWARD_PRECISION) / state.totalStaked;

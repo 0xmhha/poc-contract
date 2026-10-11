@@ -488,9 +488,10 @@ contract StakingExecutor is IExecutor {
 
     /**
      * @notice Execute a call from the smart account
+     * @dev Single-execution calldata is packed: target (20 bytes) || value (32 bytes) || callData
      */
     function _executeFromAccount(address account, address target, uint256 value, bytes memory data) internal {
-        bytes memory executionCalldata = abi.encode(target, value, data);
+        bytes memory executionCalldata = abi.encodePacked(target, value, data);
         ExecMode execMode = _encodeExecMode();
 
         IERC7579Account(account).executeFromExecutor(execMode, executionCalldata);

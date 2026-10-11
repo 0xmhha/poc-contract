@@ -53,17 +53,6 @@ contract DeployKernelScript is DeploymentHelper {
             console.log("Kernel: Using existing at", existing);
         }
 
-        // Deploy KernelFactory
-        existing = _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY);
-        if (existing == address(0)) {
-            kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(entryPointAddress));
-            _setAddress(DeploymentAddresses.KEY_KERNEL_FACTORY, address(kernelFactory));
-            console.log("KernelFactory deployed at:", address(kernelFactory));
-        } else {
-            kernelFactory = KernelFactory(existing);
-            console.log("KernelFactory: Using existing at", existing);
-        }
-
         // Deploy FactoryStaker (infra contract — owned by deployer/admin, not paymaster)
         address owner = vm.envOr("ADMIN_ADDRESS", msg.sender);
         existing = _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER);
@@ -74,6 +63,19 @@ contract DeployKernelScript is DeploymentHelper {
         } else {
             factoryStaker = FactoryStaker(existing);
             console.log("FactoryStaker: Using existing at", existing);
+        }
+
+        // Deploy KernelFactory (trusts FactoryStaker to relay createAccount)
+        existing = _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY);
+        if (existing == address(0)) {
+            kernelFactory =
+                new KernelFactory(address(kernelImpl), IEntryPoint(entryPointAddress), address(factoryStaker));
+            _setAddress(DeploymentAddresses.KEY_KERNEL_FACTORY, address(kernelFactory));
+            console.log("KernelFactory deployed at:", address(kernelFactory));
+        } else {
+            _requireFactoryStaker(existing, address(factoryStaker));
+            kernelFactory = KernelFactory(existing);
+            console.log("KernelFactory: Using existing at", existing);
         }
 
         vm.stopBroadcast();

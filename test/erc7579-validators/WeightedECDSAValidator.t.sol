@@ -355,6 +355,67 @@ contract WeightedECDSAValidatorTest is Test {
         assertEq(result, ERC1271_INVALID);
     }
 
+    /// @dev One guardian below threshold must not pass by repeating its own signature
+    function test_isValidSignatureWithSender_rejectsDuplicateSignature() public {
+        _installValidator();
+
+        bytes32 hash = keccak256("message");
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(guardian1PrivateKey, hash);
+        bytes memory sig = abi.encodePacked(r, s, v);
+
+        vm.startPrank(smartAccount);
+        assertEq(validator.isValidSignatureWithSender(address(0), hash, sig), ERC1271_INVALID);
+        assertEq(validator.isValidSignatureWithSender(address(0), hash, abi.encodePacked(sig, sig)), ERC1271_INVALID);
+        assertEq(
+            validator.isValidSignatureWithSender(address(0), hash, abi.encodePacked(sig, sig, sig)), ERC1271_INVALID
+        );
+        vm.stopPrank();
+    }
+
+    /// @dev The signature that crosses the threshold must still be in descending signer order
+    function test_isValidSignatureWithSender_rejectsWrongOrderOnLastSignature() public {
+        _installValidator();
+
+        bytes32 hash = keccak256("message");
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(guardian1PrivateKey, hash);
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(guardian2PrivateKey, hash);
+
+        // Ascending order (wrong): smaller address first
+        bytes memory signatures =
+            guardian1 < guardian2 ? abi.encodePacked(r1, s1, v1, r2, s2, v2) : abi.encodePacked(r2, s2, v2, r1, s1, v1);
+
+        vm.prank(smartAccount);
+        assertEq(validator.isValidSignatureWithSender(address(0), hash, signatures), ERC1271_INVALID);
+    }
+
+    /// @dev A signature from a non-guardian (zero weight) invalidates the set, even when the
+    ///      guardians in it reach the threshold
+    function test_isValidSignatureWithSender_rejectsNonGuardianSigner() public {
+        _installValidator();
+
+        bytes32 hash = keccak256("message");
+        (address outsider, uint256 outsiderKey) = makeAddrAndKey("outsider");
+        address[3] memory signers = [guardian1, guardian2, outsider];
+        uint256[3] memory keys = [guardian1PrivateKey, guardian2PrivateKey, outsiderKey];
+        // Sort descending by address, as the validator requires
+        for (uint256 i = 0; i < 3; i++) {
+            for (uint256 j = i + 1; j < 3; j++) {
+                if (signers[j] > signers[i]) {
+                    (signers[i], signers[j]) = (signers[j], signers[i]);
+                    (keys[i], keys[j]) = (keys[j], keys[i]);
+                }
+            }
+        }
+        bytes memory signatures;
+        for (uint256 i = 0; i < 3; i++) {
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(keys[i], hash);
+            signatures = abi.encodePacked(signatures, r, s, v);
+        }
+
+        vm.prank(smartAccount);
+        assertEq(validator.isValidSignatureWithSender(address(0), hash, signatures), ERC1271_INVALID);
+    }
+
     // ============ getApproval Tests ============
 
     function test_getApproval_noVotes() public {

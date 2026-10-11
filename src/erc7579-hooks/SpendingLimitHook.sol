@@ -2,18 +2,34 @@
 pragma solidity ^0.8.28;
 
 import { IHook } from "../erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import { MODULE_TYPE_HOOK } from "../erc7579-smartaccount/types/Constants.sol";
+import { MODULE_TYPE_HOOK, CALLTYPE_DELEGATECALL } from "../erc7579-smartaccount/types/Constants.sol";
+import { CallType } from "../erc7579-smartaccount/types/Types.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { HookExecutionDataLib } from "./HookExecutionDataLib.sol";
 
 /**
  * @title SpendingLimitHook
  * @notice ERC-7579 Hook module that enforces spending limits on smart accounts
  * @dev Uses a balance-based approach (pre/post balance comparison) instead of calldata
- *      parsing. This design reliably catches ALL spending paths including:
+ *      parsing. This design catches spending that happens inside the monitored execution:
  *      - direct transfer()
  *      - transferFrom() by approved spenders
- *      - approve() + subsequent spending (tracked via actual balance change)
  *      - any custom transfer mechanisms
+ *
+ *      An allowance granted inside the execution can be spent later, outside it, where no balance
+ *      diff is taken. preCheck therefore rejects approve / increaseAllowance / permit calls to a
+ *      configured token, and rejects delegatecall (the delegate could grant allowances or change
+ *      this hook's configuration as the account). Calls to this hook or to the account itself are
+ *      rejected too, so a monitored execution cannot raise its own limit. approve(spender, 0)
+ *      (revoking an allowance) is allowed.
+ *
+ *      Known limitations:
+ *      - Executors that grant a temporary allowance before acting (SwapExecutor, LendingExecutor:
+ *        approve -> swap/supply -> approve(0)) cannot run under this hook for a limited token;
+ *        their nonzero approve is rejected by design.
+ *      - Allowance grants outside the token contract are not detected: Permit2 approve, non-
+ *        standard permits (e.g. DAI-style), approveAndCall, and off-chain ERC-1271 permit
+ *        signatures submitted by a third party.
  *
  *      Inspired by kernel-7579-plugins SpendingLimit.sol (ZeroDev, MIT).
  *
@@ -69,6 +85,14 @@ contract SpendingLimitHook is IHook {
     error AccountIsPaused();
     error InvalidLimit();
     error LimitNotConfigured();
+    error AllowanceChangeNotAllowed(address token, bytes4 selector);
+    error DelegatecallNotAllowed();
+
+    /// @dev ERC-20 / EIP-2612 selectors that grant an allowance on a configured token
+    bytes4 internal constant APPROVE_SELECTOR = IERC20.approve.selector;
+    bytes4 internal constant INCREASE_ALLOWANCE_SELECTOR = bytes4(keccak256("increaseAllowance(address,uint256)"));
+    bytes4 internal constant PERMIT_SELECTOR =
+        bytes4(keccak256("permit(address,address,uint256,uint256,uint8,bytes32,bytes32)"));
 
     // ============ IModule Implementation ============
 
@@ -112,14 +136,23 @@ contract SpendingLimitHook is IHook {
 
     /**
      * @notice Pre-execution check - snapshots balances for all configured tokens
-     * @dev Balance-based approach: record balances before execution, compare after
-     *      This catches ALL spending paths (transfer, transferFrom, approve+spend, etc.)
+     * @dev Balance-based approach: record balances before execution, compare after.
+     *      Executions the balance diff cannot bound are rejected first (see contract NatSpec).
+     * @param msgValue ETH value passed by Kernel
+     * @param msgData The calldata Kernel passed to the hook (see HookExecutionDataLib)
      * @return hookData Encoded pre-execution balances
      */
-    function preCheck(address, uint256, bytes calldata) external payable override returns (bytes memory hookData) {
+    function preCheck(address, uint256 msgValue, bytes calldata msgData)
+        external
+        payable
+        override
+        returns (bytes memory hookData)
+    {
         AccountStorage storage store = accountStorage[msg.sender];
 
         if (store.isPaused) revert AccountIsPaused();
+
+        _checkExecutions(store, msgValue, msgData);
 
         uint256 length = store.configuredTokens.length;
         uint256[] memory balances = new uint256[](length);
@@ -310,6 +343,28 @@ contract SpendingLimitHook is IHook {
     }
 
     // ============ Internal Functions ============
+
+    /// @dev Rejects executions that could spend configured tokens outside the balance-diff window
+    ///      or change this hook's configuration.
+    function _checkExecutions(AccountStorage storage store, uint256 msgValue, bytes calldata msgData) internal view {
+        (bool isExecute, CallType callType, uint256 count) = HookExecutionDataLib.getExecutionCount(msgData);
+        if (!isExecute) return;
+        if (callType == CALLTYPE_DELEGATECALL) revert DelegatecallNotAllowed();
+
+        for (uint256 i = 0; i < count; i++) {
+            (address target,, bytes calldata data) = HookExecutionDataLib.getExecution(msgData, msgValue, i);
+            HookExecutionDataLib.checkExecutionTarget(target);
+
+            if (target == address(0) || !store.limits[target].isEnabled || data.length < 4) continue;
+            bytes4 selector = bytes4(data[0:4]);
+            // approve(spender, 0) only revokes an allowance, so it stays allowed
+            if (selector == APPROVE_SELECTOR && data.length >= 68 && uint256(bytes32(data[36:68])) == 0) continue;
+            if (selector == APPROVE_SELECTOR || selector == INCREASE_ALLOWANCE_SELECTOR || selector == PERMIT_SELECTOR)
+            {
+                revert AllowanceChangeNotAllowed(target, selector);
+            }
+        }
+    }
 
     function _setSpendingLimit(address account, address token, uint256 limit, uint256 periodLength) internal {
         if (limit == 0) revert InvalidLimit();

@@ -77,12 +77,12 @@ The StableNet PoC contracts fall into seven areas.
 
 | Contract | Features |
 |---|---|
-| SpendingLimitHook | Per-token, per-period spending limits by comparing balances before and after execution |
+| SpendingLimitHook | Per-token, per-period spending limits by comparing balances before and after execution. Rejects nonzero allowance grants (approve, increaseAllowance, permit) on limited tokens, so approve-then-act executors such as SwapExecutor and LendingExecutor cannot run under it for those tokens. Allowance grants through Permit2, non-standard permits or off-chain ERC-1271 signatures are not detected |
 | PolicyHook | Allowlist and blocklist modes, target and selector restrictions, per-target value limits, transaction count limits per period, emergency pause |
 | AuditHook | Transaction audit log, blocklist, queueing of flagged transactions |
 | HealthFactorHook | Reverts when a call to a lending target drops the health factor below the threshold |
 
-`HookExecutionDataLib` is a shared library that extracts execution data from wrapped calldata. PolicyHook, SpendingLimitHook and AuditHook use it.
+`HookExecutionDataLib` is a shared library that decodes the executions (single, batch or delegatecall) behind the calldata Kernel passes to hooks. PolicyHook, SpendingLimitHook, AuditHook and HealthFactorHook use it.
 
 ### Fallbacks (`erc7579-fallbacks`)
 
@@ -201,7 +201,7 @@ The `bridge` module is a defense-in-depth design that layers MPC signatures and 
 |---|---|
 | SubscriptionManager | Merchant plan creation and updates, subscribe and cancel, payment processing (including batch), protocol fee |
 | MerchantRegistry | Merchant registration, verification and suspension, per-merchant fee, verifier management |
-| ERC7715PermissionManager | ERC-7715 permission grant (including signature-based), adjust, use and revoke; permission type registry. Signed grants cover the rule list, and `hashPermissionGrant` computes the digest to sign |
+| ERC7715PermissionManager | ERC-7715 permission grant (including signature-based), adjust, use and revoke; permission type registry. Signed grants cover the rule list and `isAdjustmentAllowed`, `usePermission` is blocked while paused, and `hashPermissionGrant` computes the digest to sign |
 
 ---
 

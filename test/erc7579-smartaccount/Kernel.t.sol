@@ -8,7 +8,10 @@ import { IStakeManager } from "../../src/erc4337-entrypoint/interfaces/IStakeMan
 import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/PackedUserOperation.sol";
 import { Kernel } from "../../src/erc7579-smartaccount/Kernel.sol";
 import { KernelFactory } from "../../src/erc7579-smartaccount/factory/KernelFactory.sol";
+import { FactoryStaker } from "../../src/erc7579-smartaccount/factory/FactoryStaker.sol";
 import { ECDSAValidator } from "../../src/erc7579-validators/ECDSAValidator.sol";
+import { MultiSigValidator } from "../../src/erc7579-validators/MultiSigValidator.sol";
+import { WeightedECDSAValidator } from "../../src/erc7579-validators/WeightedECDSAValidator.sol";
 import { IValidator, IHook } from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import { ValidationId, ExecMode } from "../../src/erc7579-smartaccount/types/Types.sol";
 import {
@@ -17,7 +20,10 @@ import {
     HOOK_MODULE_INSTALLED,
     CALLTYPE_SINGLE,
     EXECTYPE_DEFAULT,
-    EXEC_MODE_DEFAULT
+    EXEC_MODE_DEFAULT,
+    ERC1271_MAGICVALUE,
+    ERC1271_INVALID,
+    KERNEL_WRAPPER_TYPE_HASH
 } from "../../src/erc7579-smartaccount/types/Constants.sol";
 import { ValidatorLib } from "../../src/erc7579-smartaccount/utils/ValidationTypeLib.sol";
 import { ExecLib, ExecModePayload } from "../../src/erc7579-smartaccount/utils/ExecLib.sol";
@@ -27,6 +33,7 @@ contract KernelTest is Test {
     EntryPoint public entryPoint;
     Kernel public kernelImpl;
     KernelFactory public kernelFactory;
+    FactoryStaker public factoryStaker;
     ECDSAValidator public ecdsaValidator;
 
     address public owner;
@@ -54,8 +61,10 @@ contract KernelTest is Test {
         // Deploy Kernel implementation
         kernelImpl = new Kernel(IEntryPoint(address(entryPoint)));
 
-        // Deploy KernelFactory
-        kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)));
+        // Deploy FactoryStaker and a KernelFactory that trusts it
+        factoryStaker = new FactoryStaker(address(this));
+        kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)), address(factoryStaker));
+        factoryStaker.approveFactory(kernelFactory, true);
 
         // Deploy ECDSAValidator
         ecdsaValidator = new ECDSAValidator();
@@ -198,6 +207,73 @@ contract KernelTest is Test {
         assertTrue(Kernel(payable(account)).supportsExecutionMode(mode), "Should support default execution mode");
     }
 
+    /// @dev SenderCreator can deploy through the approved FactoryStaker
+    function test_FactoryStaker_DeploysWhenCalledBySenderCreator() public {
+        bytes memory initData = _ecdsaInitData(owner);
+        address predicted = kernelFactory.getAddress(initData, bytes32(0));
+
+        vm.prank(senderCreator);
+        address deployed = factoryStaker.deployWithFactory(kernelFactory, initData, bytes32(0));
+
+        assertEq(deployed, predicted, "staker deploys the counterfactual address");
+        assertEq(Kernel(payable(deployed)).accountId(), "kernel.advanced.0.3.3");
+    }
+
+    /// @dev The staker keeps the "only via EntryPoint" rule: other callers are rejected
+    function test_FactoryStaker_RejectsCallerOtherThanSenderCreator() public {
+        vm.expectRevert(FactoryStaker.NotCalledFromEntryPoint.selector);
+        factoryStaker.deployWithFactory(kernelFactory, _ecdsaInitData(owner), bytes32(0));
+    }
+
+    function test_FactoryStaker_RejectsUnapprovedFactory() public {
+        factoryStaker.approveFactory(kernelFactory, false);
+
+        vm.prank(senderCreator);
+        vm.expectRevert(FactoryStaker.NotApprovedFactory.selector);
+        factoryStaker.deployWithFactory(kernelFactory, _ecdsaInitData(owner), bytes32(0));
+    }
+
+    /// @dev A KernelFactory that does not name this staker still rejects it
+    function test_KernelFactory_RejectsUntrustedStaker() public {
+        KernelFactory otherFactory =
+            new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)), address(0));
+        factoryStaker.approveFactory(otherFactory, true);
+
+        vm.prank(senderCreator);
+        vm.expectRevert(KernelFactory.NotCalledFromEntryPoint.selector);
+        factoryStaker.deployWithFactory(otherFactory, _ecdsaInitData(owner), bytes32(0));
+    }
+
+    function test_KernelFactory_RejectsDirectCallFromStranger() public {
+        vm.expectRevert(KernelFactory.NotCalledFromEntryPoint.selector);
+        kernelFactory.createAccount(_ecdsaInitData(owner), bytes32(0));
+    }
+
+    /// @dev Full ERC-4337 path: initCode names the FactoryStaker, the EntryPoint deploys and runs the op
+    function test_HandleOps_DeploysThroughFactoryStaker() public {
+        bytes memory initData = _ecdsaInitData(owner);
+        address account = kernelFactory.getAddress(initData, bytes32(0));
+        vm.deal(account, 10 ether);
+
+        address target = makeAddr("target");
+        PackedUserOperation memory userOp = _createUserOp(account, 0, target, 1 ether, hex"");
+        userOp.initCode = abi.encodePacked(
+            address(factoryStaker),
+            abi.encodeCall(FactoryStaker.deployWithFactory, (kernelFactory, initData, bytes32(0)))
+        );
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(ownerKey, ECDSA.toEthSignedMessageHash(entryPoint.getUserOpHash(userOp)));
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
+        ops[0] = userOp;
+        vm.prank(beneficiary, beneficiary);
+        entryPoint.handleOps(ops, payable(beneficiary));
+
+        assertGt(account.code.length, 0, "account deployed through the staker");
+        assertEq(target.balance, 1 ether, "deployment op executed");
+    }
+
     /* //////////////////////////////////////////////////////////////
                         USER OPERATION TESTS
     //////////////////////////////////////////////////////////////*/
@@ -271,6 +347,139 @@ contract KernelTest is Test {
         entryPoint.handleOps(ops, payable(beneficiary));
     }
 
+    /// @dev A 4-of-5 MultiSig root validator must accept a correctly signed UserOp
+    ///      (threshold * 65 previously overflowed uint8 and froze the account)
+    function test_HandleOps_MultiSigRootThreshold4() public {
+        MultiSigValidator multisig = new MultiSigValidator();
+        address[] memory signers = new address[](5);
+        uint256[] memory keys = new uint256[](5);
+        for (uint256 i = 0; i < 5; i++) {
+            (signers[i], keys[i]) = makeAddrAndKey(string(abi.encodePacked("multisig-signer-", vm.toString(i))));
+        }
+        for (uint256 i = 0; i < 5; i++) {
+            for (uint256 j = i + 1; j < 5; j++) {
+                if (signers[j] < signers[i]) {
+                    (signers[i], signers[j]) = (signers[j], signers[i]);
+                    (keys[i], keys[j]) = (keys[j], keys[i]);
+                }
+            }
+        }
+
+        bytes memory initData = abi.encodeCall(
+            Kernel.initialize,
+            (
+                ValidatorLib.validatorToIdentifier(IValidator(address(multisig))),
+                IHook(HOOK_MODULE_INSTALLED),
+                abi.encode(signers, uint8(4)),
+                hex"",
+                new bytes[](0)
+            )
+        );
+        vm.prank(senderCreator);
+        address account = kernelFactory.createAccount(initData, bytes32(uint256(4)));
+        vm.deal(account, 10 ether);
+        entryPoint.depositTo{ value: 5 ether }(account);
+
+        address target = makeAddr("target");
+        PackedUserOperation memory userOp = _createUserOp(account, 0, target, 1 ether, hex"");
+        bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
+        for (uint256 i = 0; i < 4; i++) {
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(keys[i], userOpHash);
+            userOp.signature = abi.encodePacked(userOp.signature, r, s, v);
+        }
+
+        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
+        ops[0] = userOp;
+        vm.prank(beneficiary, beneficiary);
+        entryPoint.handleOps(ops, payable(beneficiary));
+
+        assertEq(target.balance, 1 ether, "4-of-5 multisig account should execute");
+    }
+
+    /// @dev With a weighted root validator, one guardian below the threshold must not
+    ///      produce a valid ERC-1271 signature by repeating its own signature
+    function test_IsValidSignature_WeightedRootRejectsDuplicateGuardian() public {
+        WeightedECDSAValidator weighted = new WeightedECDSAValidator();
+        (address high, uint256 highKey) = makeAddrAndKey("weighted-guardian-a");
+        (address low, uint256 lowKey) = makeAddrAndKey("weighted-guardian-b");
+        if (high < low) {
+            (high, low) = (low, high);
+            (highKey, lowKey) = (lowKey, highKey);
+        }
+        address[] memory guardians = new address[](2);
+        guardians[0] = high;
+        guardians[1] = low;
+        uint24[] memory weights = new uint24[](2);
+        weights[0] = 100;
+        weights[1] = 100;
+
+        bytes memory initData = abi.encodeCall(
+            Kernel.initialize,
+            (
+                ValidatorLib.validatorToIdentifier(IValidator(address(weighted))),
+                IHook(HOOK_MODULE_INSTALLED),
+                abi.encode(guardians, weights, uint24(150), uint48(0)),
+                hex"",
+                new bytes[](0)
+            )
+        );
+        vm.prank(senderCreator);
+        Kernel account = Kernel(payable(kernelFactory.createAccount(initData, bytes32(uint256(150)))));
+
+        bytes32 hash = keccak256("permit");
+        bytes32 wrapped = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                keccak256(
+                    abi.encode(
+                        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                        keccak256("Kernel"),
+                        keccak256("0.3.3"),
+                        block.chainid,
+                        address(account)
+                    )
+                ),
+                keccak256(abi.encode(KERNEL_WRAPPER_TYPE_HASH, hash))
+            )
+        );
+        (uint8 vh, bytes32 rh, bytes32 sh) = vm.sign(highKey, wrapped);
+        (uint8 vl, bytes32 rl, bytes32 sl) = vm.sign(lowKey, wrapped);
+        bytes memory sigHigh = abi.encodePacked(rh, sh, vh);
+
+        assertEq(
+            account.isValidSignature(hash, abi.encodePacked(bytes1(0x00), sigHigh, rl, sl, vl)),
+            ERC1271_MAGICVALUE,
+            "two guardians reach the threshold"
+        );
+        assertEq(
+            account.isValidSignature(hash, abi.encodePacked(bytes1(0x00), sigHigh, sigHigh)),
+            ERC1271_INVALID,
+            "duplicated guardian signature must be rejected"
+        );
+    }
+
+    /// @dev An EIP-7702 delegated EOA has no root hook stored (address(0)); executeUserOp must
+    ///      treat that as "no hook" instead of calling preCheck on address(0)
+    function test_HandleOps_ExecuteUserOpOn7702Account() public {
+        (address eoa, uint256 eoaKey) = makeAddrAndKey("eoa7702");
+        vm.signAndAttachDelegation(address(kernelImpl), eoaKey);
+        vm.deal(eoa, 10 ether);
+
+        address target = makeAddr("target");
+        PackedUserOperation memory userOp = _createUserOp(eoa, 0, target, 1 ether, hex"");
+        userOp.callData = abi.encodePacked(Kernel.executeUserOp.selector, userOp.callData);
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(eoaKey, ECDSA.toEthSignedMessageHash(entryPoint.getUserOpHash(userOp)));
+        userOp.signature = abi.encodePacked(r, s, v);
+
+        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
+        ops[0] = userOp;
+        vm.prank(beneficiary, beneficiary);
+        entryPoint.handleOps(ops, payable(beneficiary));
+
+        assertEq(target.balance, 1 ether, "executeUserOp should run on a 7702 account");
+    }
+
     /* //////////////////////////////////////////////////////////////
                         RECEIVE ETH TESTS
     //////////////////////////////////////////////////////////////*/
@@ -317,6 +526,19 @@ contract KernelTest is Test {
     /* //////////////////////////////////////////////////////////////
                             HELPER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    function _ecdsaInitData(address accountOwner) internal view returns (bytes memory) {
+        return abi.encodeCall(
+            Kernel.initialize,
+            (
+                ValidatorLib.validatorToIdentifier(IValidator(address(ecdsaValidator))),
+                IHook(HOOK_MODULE_INSTALLED),
+                abi.encodePacked(accountOwner),
+                hex"",
+                new bytes[](0)
+            )
+        );
+    }
 
     function _createKernelAccount(address accountOwner) internal returns (address) {
         ValidationId rootValidator = ValidatorLib.validatorToIdentifier(IValidator(address(ecdsaValidator)));

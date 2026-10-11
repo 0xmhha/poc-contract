@@ -52,8 +52,9 @@ library ExecLib {
             //   modify the account's storage arbitrarily, potentially corrupting state.
             //   EIP-4337 bundlers trace the full execution; unexpected storage writes from
             //   delegatecall targets may violate simulation rules.
-            //   Resolution: Delegatecall is supported but callers (Kernel.execute,
-            //   executeFromExecutor, fallback) must ensure the delegate target is trusted.
+            //   Resolution: Delegatecall is supported but callers (Kernel.execute, fallback)
+            //   must ensure the delegate target is trusted. Kernel.executeFromExecutor rejects
+            //   delegatecall outright, since it would bypass the executor self-call guard.
             //   Kernel checks the target against its on-chain delegatecall whitelist before
             //   calling here (Kernel._checkDelegatecallTarget), but the whitelist is only
             //   enforced after setEnforceDelegatecallWhitelist(true); by default any target

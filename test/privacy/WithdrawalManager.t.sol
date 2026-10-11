@@ -532,6 +532,55 @@ contract WithdrawalManagerTest is Test {
         manager.executeWithdrawal(requestId);
     }
 
+    /// @notice Splitting a large withdrawal into requests below the threshold must not avoid approval
+    function test_ExecuteWithdrawal_SplitRequestsCountTowardThreshold() public {
+        _setupValidDeposit(TEST_DEPOSIT_ID, requester, address(token), 3 * 6000 ether);
+        uint256 t0 = block.timestamp;
+
+        vm.startPrank(requester);
+        bytes32 first = manager.requestWithdrawal(TEST_DEPOSIT_ID, recipient, address(token), 6000 ether);
+        bytes32 second = manager.requestWithdrawal(TEST_DEPOSIT_ID, recipient, address(token), 6000 ether);
+        bytes32 third = manager.requestWithdrawal(TEST_DEPOSIT_ID, recipient, address(token), 6000 ether);
+        vm.stopPrank();
+
+        vm.warp(t0 + COOLDOWN_PERIOD + 1);
+        vm.prank(executor);
+        manager.executeWithdrawal(first);
+        assertEq(manager.unapprovedWithdrawn(TEST_DEPOSIT_ID), 6000 ether);
+
+        // 6000 + 6000 reaches the 10_000 threshold: approval is now required
+        (bool executable, string memory reason) = manager.canExecute(second);
+        assertFalse(executable);
+        assertEq(reason, "Approval required");
+        vm.prank(executor);
+        vm.expectRevert(IWithdrawalManager.RequestNotPending.selector);
+        manager.executeWithdrawal(second);
+
+        // Approved requests execute and do not consume the unapproved allowance
+        vm.prank(approver);
+        manager.approveWithdrawal(second);
+        vm.prank(executor);
+        manager.executeWithdrawal(second);
+        assertEq(manager.unapprovedWithdrawn(TEST_DEPOSIT_ID), 6000 ether);
+
+        vm.prank(executor);
+        vm.expectRevert(IWithdrawalManager.RequestNotPending.selector);
+        manager.executeWithdrawal(third);
+    }
+
+    function test_ExecuteWithdrawal_UnapprovedTotalIsPerDeposit() public {
+        bytes32 otherDeposit = keccak256("test-deposit-2");
+        bytes32 first = _createValidRequest(TEST_DEPOSIT_ID, address(token), 6000 ether);
+        bytes32 second = _createValidRequest(otherDeposit, address(token), 6000 ether);
+
+        vm.warp(block.timestamp + COOLDOWN_PERIOD + 1);
+        vm.startPrank(executor);
+        manager.executeWithdrawal(first);
+        manager.executeWithdrawal(second);
+        vm.stopPrank();
+        assertEq(manager.unapprovedWithdrawn(otherDeposit), 6000 ether);
+    }
+
     function test_ExecuteWithdrawal_NativeETH() public {
         uint256 amount = 5 ether;
 

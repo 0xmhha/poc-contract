@@ -6,6 +6,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC7715PermissionManager } from "./ERC7715PermissionManager.sol";
+import { MerchantRegistry } from "./MerchantRegistry.sol";
 
 /**
  * @title ISubscriptionManager
@@ -57,6 +58,7 @@ interface ISubscriptionManager {
     event ProcessorUpdated(address indexed processor, bool authorized);
     event ProtocolFeeUpdated(uint256 oldFee, uint256 newFee);
     event FeeRecipientUpdated(address oldRecipient, address newRecipient);
+    event MerchantRegistryUpdated(address oldRegistry, address newRegistry);
 
     /* //////////////////////////////////////////////////////////////
                                  STRUCTS
@@ -89,6 +91,13 @@ interface ISubscriptionManager {
         uint256 totalPaid; // Total amount paid
         bool active; // Whether subscription is active
         bool inGracePeriod; // Whether in grace period
+    }
+
+    /// @notice Price terms a subscriber agreed to, fixed at subscribe time
+    /// @dev Kept outside Subscription so the existing struct and getter layout stay unchanged
+    struct SubscriptionTerms {
+        uint256 amount; // Payment amount per period
+        uint256 period; // Payment period in seconds
     }
 }
 
@@ -129,6 +138,9 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
     /// @notice Mapping of subscription ID to subscription details
     mapping(bytes32 => Subscription) public subscriptions;
 
+    /// @notice Mapping of subscription ID to the amount and period agreed at subscribe time
+    mapping(bytes32 => SubscriptionTerms) public subscriptionTerms;
+
     /// @notice Mapping of subscriber address to their subscription IDs
     mapping(address => bytes32[]) public subscriberSubscriptions;
 
@@ -143,6 +155,10 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
     /// @notice Fee recipient
     address public feeRecipient;
+
+    /// @notice Optional merchant registry; when set, only merchants active in it can create plans,
+    ///         gain subscribers or be paid (address(0) disables the check)
+    MerchantRegistry public merchantRegistry;
 
     /// @notice Maximum protocol fee (10%)
     uint256 public constant MAX_FEE_BPS = 1000;
@@ -196,6 +212,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         if (amount == 0) revert InvalidAmount();
         if (token == address(0)) revert InvalidAmount(); // Native token not supported for subscriptions
         if (period < MIN_PERIOD || period > MAX_PERIOD) revert InvalidPeriod();
+        if (!_isMerchantActive(msg.sender)) revert UnauthorizedMerchant();
 
         planId = ++planCount;
 
@@ -220,6 +237,8 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
     /**
      * @notice Update an existing plan
+     * @dev Amount and period changes apply only to subscriptions created afterwards;
+     *      existing subscriptions keep the terms recorded in subscriptionTerms.
      * @param planId Plan to update
      * @param amount New payment amount
      * @param period New payment period
@@ -255,6 +274,7 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         Plan storage plan = plans[planId];
         if (plan.merchant == address(0)) revert InvalidPlan();
         if (!plan.active) revert PlanNotActive();
+        if (!_isMerchantActive(plan.merchant)) revert UnauthorizedMerchant();
 
         // Verify permission is valid and belongs to subscriber
         if (!PERMISSION_MANAGER.isPermissionValid(permissionId)) {
@@ -290,14 +310,17 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
             inGracePeriod: false
         });
 
+        // Snapshot the price terms so later plan updates cannot change what this subscriber pays
+        subscriptionTerms[subscriptionId] = SubscriptionTerms({ amount: plan.amount, period: plan.period });
+
         subscriberSubscriptions[msg.sender].push(subscriptionId);
         plan.subscriberCount++;
 
         emit SubscriptionCreated(subscriptionId, planId, msg.sender, block.timestamp);
 
-        // Process first payment if no trial period
+        // Process first payment if no trial period; a failed first payment aborts the subscription
         if (plan.trialPeriod == 0) {
-            _processPayment(subscriptionId);
+            if (!_processPayment(subscriptionId)) revert PaymentFailed();
         }
     }
 
@@ -328,6 +351,12 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
     /**
      * @notice Process a subscription payment
+     * @dev Reverts if the subscription does not exist, is inactive, is not yet due or its merchant
+     *      is not active in the merchant registry.
+     *      A payment that cannot be collected (invalid permission, exhausted allowance or
+     *      insufficient token balance/allowance) does not revert: the subscription enters its
+     *      grace period, or is deactivated once the grace period has passed, and
+     *      PaymentFailedLog is emitted.
      * @param subscriptionId Subscription to process
      */
     function processPayment(bytes32 subscriptionId) external nonReentrant {
@@ -339,6 +368,9 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
     /**
      * @notice Process multiple subscription payments (batch)
+     * @dev Entries that do not exist, are inactive, are not yet due or belong to a merchant that is
+     *      not active in the merchant registry are skipped, and a payment that cannot be collected
+     *      is recorded as failed, so one subscriber cannot block the batch.
      * @param subscriptionIds Array of subscription IDs to process
      */
     function batchProcessPayments(bytes32[] calldata subscriptionIds) external nonReentrant {
@@ -347,14 +379,18 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         }
 
         for (uint256 i = 0; i < subscriptionIds.length; i++) {
+            Subscription storage sub = subscriptions[subscriptionIds[i]];
+            if (sub.startTime == 0 || !sub.active || block.timestamp < sub.nextPayment) continue;
+            if (!_isMerchantActive(plans[sub.planId].merchant)) continue;
             _processPayment(subscriptionIds[i]);
         }
     }
 
     /**
      * @notice Internal function to process payment
+     * @return paid True if the payment was collected, false if it was recorded as failed
      */
-    function _processPayment(bytes32 subscriptionId) internal {
+    function _processPayment(bytes32 subscriptionId) internal returns (bool paid) {
         Subscription storage sub = subscriptions[subscriptionId];
         if (sub.startTime == 0) revert SubscriptionNotFound();
         if (!sub.active) revert SubscriptionNotActive();
@@ -365,34 +401,43 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
         }
 
         Plan storage plan = plans[sub.planId];
+        SubscriptionTerms storage terms = subscriptionTerms[subscriptionId];
+
+        // A suspended merchant is not paid; the payment stays due until the merchant is reinstated
+        if (!_isMerchantActive(plan.merchant)) revert UnauthorizedMerchant();
 
         // Verify permission is still valid
         if (!PERMISSION_MANAGER.isPermissionValid(sub.permissionId)) {
-            // Check grace period
-            if (block.timestamp > sub.nextPayment + plan.gracePeriod) {
-                sub.active = false;
-                plan.subscriberCount--;
-                revert SubscriptionExpired();
-            }
-            sub.inGracePeriod = true;
-            revert PaymentFailed();
+            return _recordPaymentFailure(subscriptionId, sub, plan, "Permission invalid");
         }
 
-        // Use permission
-        bool success = PERMISSION_MANAGER.usePermission(sub.permissionId, plan.amount);
-        if (!success) {
-            if (block.timestamp > sub.nextPayment + plan.gracePeriod) {
-                sub.active = false;
-                plan.subscriberCount--;
-                revert SubscriptionExpired();
+        // Verify the subscriber can cover the charge, so the transfers below cannot revert
+        if (
+            IERC20(plan.token).balanceOf(sub.subscriber) < terms.amount
+                || IERC20(plan.token).allowance(sub.subscriber, address(this)) < terms.amount
+        ) {
+            return _recordPaymentFailure(subscriptionId, sub, plan, "Insufficient funds");
+        }
+
+        // Use permission (an exhausted allowance reverts in the permission manager)
+        try PERMISSION_MANAGER.usePermission(sub.permissionId, terms.amount) returns (bool success) {
+            if (!success) {
+                return _recordPaymentFailure(subscriptionId, sub, plan, "Permission use failed");
             }
-            sub.inGracePeriod = true;
-            revert PaymentFailed();
+        } catch (bytes memory reason) {
+            // A paused permission manager is an operator action, not a subscriber failure:
+            // bubble it up instead of moving the subscription towards expiry.
+            if (reason.length >= 4 && bytes4(reason) == IERC7715PermissionManager.PermissionPaused.selector) {
+                assembly ("memory-safe") {
+                    revert(add(reason, 32), mload(reason))
+                }
+            }
+            return _recordPaymentFailure(subscriptionId, sub, plan, "Permission use failed");
         }
 
         // Calculate fee
-        uint256 fee = (plan.amount * protocolFeeBps) / 10_000;
-        uint256 merchantAmount = plan.amount - fee;
+        uint256 fee = (terms.amount * protocolFeeBps) / 10_000;
+        uint256 merchantAmount = terms.amount - fee;
 
         // Transfer tokens BEFORE state update to ensure atomicity
         // If either transfer fails, state remains unchanged
@@ -410,12 +455,46 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
 
         // Update subscription state AFTER successful transfers (atomic guarantee)
         sub.lastPayment = block.timestamp;
-        sub.nextPayment = block.timestamp + plan.period;
+        sub.nextPayment = block.timestamp + terms.period;
         sub.paymentCount++;
-        sub.totalPaid += plan.amount;
+        sub.totalPaid += terms.amount;
         sub.inGracePeriod = false;
 
-        emit PaymentProcessed(subscriptionId, sub.subscriber, plan.merchant, plan.amount, sub.paymentCount);
+        emit PaymentProcessed(subscriptionId, sub.subscriber, plan.merchant, terms.amount, sub.paymentCount);
+        return true;
+    }
+
+    /**
+     * @notice Whether a merchant may create plans, gain subscribers and be paid
+     * @dev Always true when no merchant registry is configured
+     */
+    function _isMerchantActive(address merchant) internal view returns (bool) {
+        MerchantRegistry registry = merchantRegistry;
+        return address(registry) == address(0) || registry.isMerchantActive(merchant);
+    }
+
+    /**
+     * @notice Record a payment that could not be collected
+     * @dev Persists the grace-period flag, or deactivates the subscription once the grace period
+     *      has passed, instead of reverting (a revert would roll these writes back).
+     * @return paid Always false
+     */
+    function _recordPaymentFailure(
+        bytes32 subscriptionId,
+        Subscription storage sub,
+        Plan storage plan,
+        string memory reason
+    ) internal returns (bool paid) {
+        if (block.timestamp > sub.nextPayment + plan.gracePeriod) {
+            sub.active = false;
+            sub.inGracePeriod = false;
+            plan.subscriberCount--;
+            emit PaymentFailedLog(subscriptionId, sub.subscriber, "Subscription expired");
+        } else {
+            sub.inGracePeriod = true;
+            emit PaymentFailedLog(subscriptionId, sub.subscriber, reason);
+        }
+        return false;
     }
 
     /* //////////////////////////////////////////////////////////////
@@ -550,12 +629,23 @@ contract SubscriptionManager is ISubscriptionManager, Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Set the merchant registry used to block inactive (unverified or suspended) merchants
+     * @param registry MerchantRegistry address, or address(0) to disable the check
+     */
+    function setMerchantRegistry(address registry) external onlyOwner {
+        address oldRegistry = address(merchantRegistry);
+        merchantRegistry = MerchantRegistry(registry);
+        emit MerchantRegistryUpdated(oldRegistry, registry);
+    }
+
+    /**
      * @notice Emergency cancel subscription (admin only)
      * @param subscriptionId Subscription to cancel
      */
     function emergencyCancelSubscription(bytes32 subscriptionId) external onlyOwner {
         Subscription storage sub = subscriptions[subscriptionId];
         if (sub.startTime == 0) revert SubscriptionNotFound();
+        if (!sub.active) revert SubscriptionNotActive();
 
         sub.active = false;
         plans[sub.planId].subscriberCount--;
