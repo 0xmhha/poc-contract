@@ -245,14 +245,14 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
                 state.currentNonce++;
             }
         }
-        if (config.hook == IHook(address(0))) {
+        if (address(config.hook) == address(0)) {
             config.hook = IHook(address(1));
         }
         if (state.currentNonce != config.nonce || state.validationConfig[vId].nonce >= config.nonce) {
             revert InvalidNonce();
         }
         state.validationConfig[vId] = config;
-        if (config.hook != IHook(address(1))) {
+        if (address(config.hook) != address(1)) {
             _installHook(config.hook, hookData);
         }
         ValidationType vType = ValidatorLib.getType(vId);
@@ -671,8 +671,7 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
         (string memory name, string memory version) = _domainNameAndVersion();
         separator = keccak256(bytes(name));
         versionHash = keccak256(bytes(version));
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             let m := mload(0x40) // Load the free memory pointer.
             mstore(m, _DOMAIN_TYPEHASH)
             mstore(add(m, 0x20), separator) // Name hash.
@@ -686,8 +685,7 @@ abstract contract ValidationManager is EIP712, SelectorManager, HookManager, Exe
     function _chainAgnosticHashTypedData(bytes32 structHash) internal view returns (bytes32 digest) {
         // we don't do cache stuff here
         digest = _buildChainAgnosticDomainSeparator();
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             // Compute the digest.
             mstore(0x00, 0x1901000000000000) // Store "\x19\x01".
             mstore(0x1a, digest) // Store the domain separator.

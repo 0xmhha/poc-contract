@@ -31,7 +31,7 @@
 | 4 | CI에 체인 위 E2E가 없음 | 높음 | 단위 테스트는 모두 통과했지만 실제 `handleOps` broadcast는 gas 설정 때문에 두 번 실패했습니다(`0xdeaddead`, `AA95 out of gas`). | 완료. 새 CI job `Anvil E2E`가 DeployAll과 `script/e2e/AnvilSmoke.s.sol`을 실행합니다. |
 | 5 | 배포 대상이 모호함 | 중간 | 문서는 anvil(31337)을 안내하는데 `.env` 기본값은 chain 8283(`127.0.0.1:8501`)입니다. 문서의 DeployAll 경로도 틀려 있었습니다. | 완료. 경로를 고치고, anvil용 환경변수 덮어쓰기 방법과 8283 manifest가 CI fixture라는 점을 문서화했습니다. |
 | 6 | 하드코딩된 slot 상수를 지키는 장치가 없음 | 중간 | 공식이 세 가지로 섞여 있습니다(`keccak`, `keccak - 1`, ERC-7201은 없음). literal 10개는 모두 맞았지만 이를 강제하는 장치가 없었습니다. | 완료. CI에서 `script/check-storage-slots.py`를 실행합니다. |
-| 7 | solc 0.8.28 고정 | 낮음 | `layout at`(0.8.29)과 `erc7201()`(0.8.35)을 쓸 수 없었습니다. | 완료. 0.8.28을 쓰던 profile을 0.8.35로 올렸습니다. Kernel 크기는 그대로(24,229 bytes)이고 테스트는 모두 통과합니다. Universal Router(0.8.26)와 0.7.6 profile은 그대로입니다. |
+| 7 | solc 0.8.28 고정 | 낮음 | `layout at`(0.8.29)과 `erc7201()`(0.8.35)을 쓸 수 없었습니다. | 완료. 0.8.28을 쓰던 profile을 0.8.35로 올렸고 테스트는 모두 통과합니다. 0.8.35가 Kernel 소스에 내는 deprecation 경고 13건(memory-safe NatSpec 주석, contract 타입 비교)을 고치면서 28 bytes가 늘어 Kernel은 24,257 bytes(여유 319 bytes)입니다. Universal Router(0.8.26)와 0.7.6 profile은 그대로입니다. |
 | 8 | FlashLoanFallback의 연동 방식 변경 | 낮음 | 이제 executor로도 설치해야 하고 `beginFlashLoan`을 먼저 호출해야 합니다(PR #22). | 미해결. SDK와 프론트엔드 연동을 함께 고쳐야 합니다. |
 | 9 | Kernel 테스트가 적음 | 낮음 | `FEATURES.md`에 이미 Kernel 테스트 37개로 적혀 있습니다. | 미해결. 실제 Kernel 위에서 도는 통합 테스트 형식을 늘려 갑니다. |
 
