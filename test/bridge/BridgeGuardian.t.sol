@@ -298,6 +298,20 @@ contract BridgeGuardianTest is Test {
         assertFalse(guardian.guardianPaused());
     }
 
+    /// @notice A guardian may pause again immediately after a quorum unpause.
+    ///         There is intentionally no emergency cooldown (see emergencyPause NatSpec).
+    function test_EmergencyPause_AllowedImmediatelyAfterUnpause() public {
+        test_ExecuteProposal_Unpause();
+
+        vm.prank(guardians[3]);
+        guardian.emergencyPause("Re-pause");
+
+        assertTrue(guardian.guardianPaused());
+        (, address pauser, uint256 pausedAt) = guardian.getPauseStatus();
+        assertEq(pauser, guardians[3]);
+        assertEq(pausedAt, block.timestamp);
+    }
+
     function test_ExecuteProposal_AddGuardian() public {
         address newGuardian = makeAddr("newGuardian");
 

@@ -235,11 +235,11 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
             revert ExceedsDailyLimit();
         }
 
-        // Check thresholds and potentially trigger alerts/pause
-        bool autoPaused = _checkThresholds(newHourlyVolume, newDailyVolume, limits);
-        if (autoPaused) {
-            return (false, usdValue);
-        }
+        // Check thresholds and potentially trigger alerts/pause.
+        // The crossing transaction is still allowed (it is within the hard limits checked
+        // above); the pause blocks subsequent ones. Returning false would make the caller
+        // revert, which would also roll back the pause.
+        _checkThresholds(newHourlyVolume, newDailyVolume, limits);
 
         // Record the transaction
         hourlyWindow.volume = newHourlyVolume;
@@ -634,17 +634,14 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
      * @param newDailyVolume New daily volume after transaction
      * @param limits Applicable limits
      */
-    function _checkThresholds(uint256 newHourlyVolume, uint256 newDailyVolume, RateLimitConfig memory limits)
-        internal
-        returns (bool paused)
-    {
+    function _checkThresholds(uint256 newHourlyVolume, uint256 newDailyVolume, RateLimitConfig memory limits) internal {
         // Check hourly thresholds
         uint256 hourlyPct = (newHourlyVolume * 100) / limits.hourlyLimit;
 
         if (hourlyPct >= autoPauseThreshold) {
             _pause();
             emit AutoPauseActivated("hourly_limit", newHourlyVolume, limits.hourlyLimit);
-            return true;
+            return;
         }
 
         if (hourlyPct >= alertThreshold) {
@@ -657,13 +654,11 @@ contract BridgeRateLimiter is Ownable, Pausable, ReentrancyGuard {
         if (dailyPct >= autoPauseThreshold) {
             _pause();
             emit AutoPauseActivated("daily_limit", newDailyVolume, limits.dailyLimit);
-            return true;
+            return;
         }
 
         if (dailyPct >= alertThreshold) {
             emit AlertTriggered("daily", newDailyVolume, limits.dailyLimit, dailyPct);
         }
-
-        return false;
     }
 }

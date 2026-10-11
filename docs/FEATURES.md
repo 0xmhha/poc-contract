@@ -165,8 +165,8 @@ The `bridge` module is a defense-in-depth design that layers MPC signatures and 
 | BridgeValidator | 5-of-7 MPC signature verification, signer set rotation (`rotateSignerSet`), nonce management. Only the bridge set via `setAuthorizedBridge` may consume nonces |
 | OptimisticVerifier | Optimistic verification with a challenge period, challenge bond and reward |
 | FraudProofVerifier | Fraud proof verification using Merkle and state proofs, state root updates |
-| BridgeRateLimiter | Per-transaction, hourly and daily USD limits; auto-pause when thresholds are exceeded. Volume is attributed to the actual sender, not to SecureBridge |
-| BridgeGuardian | 3-of-5 guardian multisig for emergency pause, proposal execution and blacklist |
+| BridgeRateLimiter | Per-transaction, hourly and daily USD limits; auto-pause when usage crosses the threshold (the crossing transaction goes through; later ones are blocked). Volume is attributed to the actual sender, not to SecureBridge |
+| BridgeGuardian | 3-of-5 guardian multisig for proposal execution (including unpause) and blacklist. Any single guardian can emergency-pause at any time, with no cooldown |
 
 ---
 
