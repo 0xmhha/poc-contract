@@ -110,8 +110,9 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
     /// @notice Mapping to check if address is a signer in current set
     mapping(address => bool) public isSigner;
 
-    /// @notice Mapping of used nonces per sender
-    mapping(address => mapping(uint256 => bool)) public usedNonces;
+    /// @notice Mapping of used nonces per sender and source chain (sender => sourceChain => nonce => used)
+    /// @dev Nonces are assigned per sender on each source chain, so the source chain is part of the key
+    mapping(address => mapping(uint256 => mapping(uint256 => bool))) public usedNonces;
 
     /// @notice Last rotation timestamp
     uint256 public lastRotationTime;
@@ -180,7 +181,7 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
         if (block.timestamp > message.deadline) revert ExpiredMessage();
 
         // Check nonce
-        if (usedNonces[message.sender][message.nonce]) revert NonceAlreadyUsed();
+        if (usedNonces[message.sender][message.sourceChain][message.nonce]) revert NonceAlreadyUsed();
 
         // Get current signer set
         SignerSet storage currentSet = signerSets[signerSetVersion];
@@ -234,7 +235,7 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
         if (block.timestamp > message.deadline) return (false, 0);
 
         // Check nonce
-        if (usedNonces[message.sender][message.nonce]) return (false, 0);
+        if (usedNonces[message.sender][message.sourceChain][message.nonce]) return (false, 0);
 
         // Get current signer set
         SignerSet storage currentSet = signerSets[signerSetVersion];
@@ -274,23 +275,25 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
      * @dev Only the authorized bridge may consume nonces. An open consumeNonce would let
      *      anyone front-run a pending release and make it revert with NonceAlreadyUsed.
      * @param sender The sender whose nonce to consume
+     * @param sourceChain The source chain the nonce was issued on
      * @param nonce The nonce to mark as used
      */
-    function consumeNonce(address sender, uint256 nonce) external {
+    function consumeNonce(address sender, uint256 sourceChain, uint256 nonce) external {
         if (msg.sender != authorizedBridge) revert UnauthorizedNonceConsumer();
-        if (usedNonces[sender][nonce]) revert NonceAlreadyUsed();
+        if (usedNonces[sender][sourceChain][nonce]) revert NonceAlreadyUsed();
 
-        usedNonces[sender][nonce] = true;
+        usedNonces[sender][sourceChain][nonce] = true;
     }
 
     /**
      * @notice Invalidate a nonce (can only be done by the nonce owner)
+     * @param sourceChain The source chain the nonce was issued on
      * @param nonce The nonce to invalidate
      */
-    function invalidateNonce(uint256 nonce) external {
-        if (usedNonces[msg.sender][nonce]) revert NonceAlreadyUsed();
+    function invalidateNonce(uint256 sourceChain, uint256 nonce) external {
+        if (usedNonces[msg.sender][sourceChain][nonce]) revert NonceAlreadyUsed();
 
-        usedNonces[msg.sender][nonce] = true;
+        usedNonces[msg.sender][sourceChain][nonce] = true;
 
         emit NonceInvalidated(nonce, msg.sender);
     }
@@ -300,12 +303,13 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
      * @dev Only callable by owner. Allows re-use of nonces that were consumed by
      *      verifyMpcSignatures but whose corresponding bridge operation failed to execute.
      * @param sender The sender whose nonce to recover
+     * @param sourceChain The source chain the nonce was issued on
      * @param nonce The nonce to mark as unused
      */
-    function recoverNonce(address sender, uint256 nonce) external onlyOwner {
-        if (!usedNonces[sender][nonce]) revert NonceNotUsed();
+    function recoverNonce(address sender, uint256 sourceChain, uint256 nonce) external onlyOwner {
+        if (!usedNonces[sender][sourceChain][nonce]) revert NonceNotUsed();
 
-        usedNonces[sender][nonce] = false;
+        usedNonces[sender][sourceChain][nonce] = false;
 
         emit NonceRecovered(nonce, sender, msg.sender);
     }
@@ -497,11 +501,12 @@ contract BridgeValidator is Ownable, Pausable, ReentrancyGuard {
     /**
      * @notice Check if a nonce has been used
      * @param sender Address of the sender
+     * @param sourceChain Source chain the nonce was issued on
      * @param nonce Nonce to check
      * @return used True if nonce has been used
      */
-    function isNonceUsed(address sender, uint256 nonce) external view returns (bool used) {
-        return usedNonces[sender][nonce];
+    function isNonceUsed(address sender, uint256 sourceChain, uint256 nonce) external view returns (bool used) {
+        return usedNonces[sender][sourceChain][nonce];
     }
 
     /**

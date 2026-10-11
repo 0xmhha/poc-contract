@@ -338,7 +338,7 @@ contract SecureBridge is Ownable, Pausable, ReentrancyGuard {
         }
 
         // Consume nonce after all downstream logic succeeds
-        bridgeValidator.consumeNonce(sender, nonce);
+        bridgeValidator.consumeNonce(sender, sourceChain, nonce);
 
         emit BridgeCompleted(requestId, recipient, targetToken, amount);
     }

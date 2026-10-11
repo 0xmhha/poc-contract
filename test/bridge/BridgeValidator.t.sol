@@ -161,7 +161,7 @@ contract BridgeValidatorTest is Test {
         vm.prank(owner);
         validator.setAuthorizedBridge(bridge);
         vm.prank(bridge);
-        validator.consumeNonce(message.sender, message.nonce);
+        validator.consumeNonce(message.sender, message.sourceChain, message.nonce);
 
         // Second verification with same nonce should fail
         vm.expectRevert(BridgeValidator.NonceAlreadyUsed.selector);
@@ -220,7 +220,7 @@ contract BridgeValidatorTest is Test {
         validator.verifySignaturesView(message, signatures);
 
         // Nonce should still be unused
-        assertFalse(validator.isNonceUsed(message.sender, message.nonce));
+        assertFalse(validator.isNonceUsed(message.sender, message.sourceChain, message.nonce));
     }
 
     // ============ Nonce Management Tests ============
@@ -229,14 +229,15 @@ contract BridgeValidatorTest is Test {
         address user = makeAddr("user");
         uint256 nonce = 42;
 
-        assertFalse(validator.isNonceUsed(user, nonce));
+        assertFalse(validator.isNonceUsed(user, 1, nonce));
 
         vm.prank(user);
         vm.expectEmit(true, true, false, false);
         emit NonceInvalidated(nonce, user);
-        validator.invalidateNonce(nonce);
+        validator.invalidateNonce(1, nonce);
 
-        assertTrue(validator.isNonceUsed(user, nonce));
+        assertTrue(validator.isNonceUsed(user, 1, nonce));
+        assertFalse(validator.isNonceUsed(user, 10, nonce));
     }
 
     function test_InvalidateNonce_RevertsOnAlreadyUsed() public {
@@ -244,10 +245,10 @@ contract BridgeValidatorTest is Test {
         uint256 nonce = 42;
 
         vm.startPrank(user);
-        validator.invalidateNonce(nonce);
+        validator.invalidateNonce(1, nonce);
 
         vm.expectRevert(BridgeValidator.NonceAlreadyUsed.selector);
-        validator.invalidateNonce(nonce);
+        validator.invalidateNonce(1, nonce);
         vm.stopPrank();
     }
 
@@ -257,12 +258,12 @@ contract BridgeValidatorTest is Test {
 
         vm.prank(makeAddr("attacker"));
         vm.expectRevert(BridgeValidator.UnauthorizedNonceConsumer.selector);
-        validator.consumeNonce(makeAddr("sender"), 1);
+        validator.consumeNonce(makeAddr("sender"), 1, 1);
     }
 
     function test_ConsumeNonce_RevertsWhenBridgeUnset() public {
         vm.expectRevert(BridgeValidator.UnauthorizedNonceConsumer.selector);
-        validator.consumeNonce(makeAddr("sender"), 1);
+        validator.consumeNonce(makeAddr("sender"), 1, 1);
     }
 
     function test_ConsumeNonce_ByAuthorizedBridge() public {
@@ -272,12 +273,31 @@ contract BridgeValidatorTest is Test {
         validator.setAuthorizedBridge(bridge);
 
         vm.prank(bridge);
-        validator.consumeNonce(sender, 1);
-        assertTrue(validator.usedNonces(sender, 1));
+        validator.consumeNonce(sender, 1, 1);
+        assertTrue(validator.usedNonces(sender, 1, 1));
 
         vm.prank(bridge);
         vm.expectRevert(BridgeValidator.NonceAlreadyUsed.selector);
-        validator.consumeNonce(sender, 1);
+        validator.consumeNonce(sender, 1, 1);
+    }
+
+    /// @notice The same sender nonce issued on two source chains is tracked independently.
+    function test_ConsumeNonce_IsScopedBySourceChain() public {
+        address bridge = makeAddr("bridge");
+        vm.prank(owner);
+        validator.setAuthorizedBridge(bridge);
+
+        BridgeValidator.BridgeMessage memory message = _createTestMessage();
+        vm.prank(bridge);
+        validator.consumeNonce(message.sender, message.sourceChain, message.nonce);
+
+        // Same sender and nonce from another source chain is still accepted
+        message.sourceChain = message.sourceChain + 1;
+        bytes[] memory signatures = _signMessage(message, THRESHOLD);
+        assertTrue(validator.verifyMpcSignatures(message, signatures));
+        vm.prank(bridge);
+        validator.consumeNonce(message.sender, message.sourceChain, message.nonce);
+        assertTrue(validator.isNonceUsed(message.sender, message.sourceChain, message.nonce));
     }
 
     function test_SetAuthorizedBridge_EmitsEvent() public {
@@ -552,7 +572,7 @@ contract BridgeValidatorTest is Test {
     }
 
     function test_IsNonceUsed() public {
-        assertFalse(validator.isNonceUsed(makeAddr("user"), 0));
+        assertFalse(validator.isNonceUsed(makeAddr("user"), 1, 0));
     }
 
     function test_HashBridgeMessage() public {

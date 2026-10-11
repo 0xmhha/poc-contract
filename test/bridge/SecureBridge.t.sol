@@ -383,14 +383,39 @@ contract SecureBridgeTest is Test {
         address attacker = makeAddr("attacker");
         vm.prank(attacker);
         vm.expectRevert();
-        validator.consumeNonce(sender, nonce);
+        validator.consumeNonce(sender, block.chainid, nonce);
 
         bridge.completeBridge(
             requestId, sender, recipient, address(token), amount, block.chainid, nonce, deadline, signatures
         );
 
         assertEq(token.balanceOf(recipient), amount);
-        assertTrue(validator.usedNonces(sender, nonce));
+        assertTrue(validator.usedNonces(sender, block.chainid, nonce));
+    }
+
+    /// @notice Nonces are per source chain: the same sender may use nonce 0 on two source chains.
+    ///         Before the fix the nonce key ignored the source chain, so the second legitimate
+    ///         release reverted with NonceAlreadyUsed.
+    function test_CompleteBridge_SameNonceFromDifferentSourceChains() public {
+        address user = makeAddr("bridgeUser");
+        uint256 t0 = block.timestamp;
+        uint256 deadline = t0 + 1 days;
+
+        bytes32 fromChainA = _relayInbound(user, 100e18, 1, 0, deadline);
+        bytes32 fromChainB = _relayInbound(user, 50e18, 10, 0, deadline);
+        token.mint(address(bridge), 150e18);
+
+        vm.warp(t0 + 7 hours);
+        optimisticVerifier.approveRequest(fromChainA);
+        optimisticVerifier.approveRequest(fromChainB);
+
+        _completeInbound(fromChainA, user, 100e18, 1, 0, deadline);
+        _completeInbound(fromChainB, user, 50e18, 10, 0, deadline);
+
+        assertEq(token.balanceOf(user), 150e18);
+        assertTrue(validator.isNonceUsed(user, 1, 0));
+        assertTrue(validator.isNonceUsed(user, 10, 0));
+        assertFalse(validator.isNonceUsed(user, 137, 0));
     }
 
     function test_CompleteBridge_RevertsOnInvalidSignatures() public {
@@ -712,6 +737,43 @@ contract SecureBridgeTest is Test {
 
         vm.prank(sender);
         requestId = bridge.initiateBridge(address(token), amount, recipient, TARGET_CHAIN, block.timestamp + 1 hours);
+    }
+
+    /// @dev Relay an inbound request from `sourceChain` to this chain (sender == recipient)
+    function _relayInbound(address user, uint256 amount, uint256 sourceChain, uint256 nonce, uint256 deadline)
+        internal
+        returns (bytes32 requestId)
+    {
+        requestId = keccak256(
+            abi.encode(user, user, address(token), amount, sourceChain, block.chainid, nonce, deadline)
+        );
+        vm.prank(address(bridge));
+        optimisticVerifier.submitRequest(requestId, user, user, address(token), amount, sourceChain, block.chainid);
+    }
+
+    /// @dev Complete an inbound request created by _relayInbound
+    function _completeInbound(
+        bytes32 requestId,
+        address user,
+        uint256 amount,
+        uint256 sourceChain,
+        uint256 nonce,
+        uint256 deadline
+    ) internal {
+        BridgeValidator.BridgeMessage memory message = BridgeValidator.BridgeMessage({
+            requestId: requestId,
+            sender: user,
+            recipient: user,
+            token: address(token),
+            amount: amount,
+            sourceChain: sourceChain,
+            targetChain: block.chainid,
+            nonce: nonce,
+            deadline: deadline
+        });
+        bridge.completeBridge(
+            requestId, user, user, address(token), amount, sourceChain, nonce, deadline, _signMessage(message)
+        );
     }
 
     function _signMessage(BridgeValidator.BridgeMessage memory message) internal view returns (bytes[] memory) {
