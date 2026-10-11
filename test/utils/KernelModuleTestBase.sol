@@ -34,7 +34,7 @@ abstract contract KernelModuleTestBase is Test {
         owner = makeAddr("kernelOwner");
         entryPoint = new EntryPoint();
         kernelImpl = new Kernel(IEntryPoint(address(entryPoint)));
-        kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)));
+        kernelFactory = new KernelFactory(address(kernelImpl), IEntryPoint(address(entryPoint)), address(0));
         rootValidator = new ECDSAValidator();
     }
 
