@@ -167,6 +167,20 @@ contract KernelAdminTest is Test {
         assertEq(_implementation(address(account)), address(newImpl));
     }
 
+    function test_UpgradeTo_RejectsImplementationWithoutCode() public {
+        address before = _implementation(address(account));
+        address[2] memory targets = [address(0), makeAddr("eoa")];
+
+        for (uint256 i = 0; i < targets.length; i++) {
+            vm.prank(address(entryPoint));
+            // Kernel reverts without data here; it has no bytecode headroom for a custom error
+            vm.expectRevert(bytes(""));
+            account.upgradeTo(targets[i]);
+        }
+
+        assertEq(_implementation(address(account)), before);
+    }
+
     function test_UpgradeTo_StrangerCannotChangeImplementation() public {
         address before = _implementation(address(account));
 
