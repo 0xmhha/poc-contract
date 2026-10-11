@@ -77,7 +77,7 @@ StableNet PoC 컨트랙트는 다음 일곱 영역으로 나뉩니다.
 
 | 컨트랙트 | 기능 |
 |---|---|
-| SpendingLimitHook | 실행 전후 잔액을 비교해 토큰별·기간별 지출 한도 적용 |
+| SpendingLimitHook | 실행 전후 잔액을 비교해 토큰별·기간별 지출 한도 적용. 한도가 걸린 토큰에 대한 0이 아닌 allowance 부여(approve, increaseAllowance, permit)를 거부하므로, approve 후 실행하는 SwapExecutor·LendingExecutor는 이 토큰에 대해 함께 쓸 수 없음. Permit2, 비표준 permit, off-chain ERC-1271 서명을 통한 allowance 부여는 감지하지 못함 |
 | PolicyHook | allowlist·blocklist 모드, target·selector 제한, target별 value 한도, 기간당 트랜잭션 수 제한, 긴급 정지 |
 | AuditHook | 트랜잭션 감사 로그, blocklist, 의심 트랜잭션 큐잉 |
 | HealthFactorHook | lending 대상 호출 뒤 health factor가 임계값 아래로 떨어지면 revert |

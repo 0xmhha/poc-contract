@@ -20,7 +20,16 @@ import { HookExecutionDataLib } from "./HookExecutionDataLib.sol";
  *      diff is taken. preCheck therefore rejects approve / increaseAllowance / permit calls to a
  *      configured token, and rejects delegatecall (the delegate could grant allowances or change
  *      this hook's configuration as the account). Calls to this hook or to the account itself are
- *      rejected too, so a monitored execution cannot raise its own limit.
+ *      rejected too, so a monitored execution cannot raise its own limit. approve(spender, 0)
+ *      (revoking an allowance) is allowed.
+ *
+ *      Known limitations:
+ *      - Executors that grant a temporary allowance before acting (SwapExecutor, LendingExecutor:
+ *        approve -> swap/supply -> approve(0)) cannot run under this hook for a limited token;
+ *        their nonzero approve is rejected by design.
+ *      - Allowance grants outside the token contract are not detected: Permit2 approve, non-
+ *        standard permits (e.g. DAI-style), approveAndCall, and off-chain ERC-1271 permit
+ *        signatures submitted by a third party.
  *
  *      Inspired by kernel-7579-plugins SpendingLimit.sol (ZeroDev, MIT).
  *
