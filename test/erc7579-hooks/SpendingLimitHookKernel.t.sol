@@ -78,6 +78,22 @@ contract SpendingLimitHookKernelTest is HookKernelBase {
         assertEq(token.allowance(account, attacker), 0);
     }
 
+    /// @dev Revoking an allowance with approve(spender, 0) cannot spend the token and stays allowed
+    function test_ApproveZeroRevokeOnLimitedTokenPasses() public {
+        (address account, ECDSAValidator v) = _limitedAccount(6);
+        vm.prank(account);
+        token.approve(attacker, 50 ether);
+
+        assertTrue(
+            _sendOp(
+                account, address(v), _executeSingle(address(token), 0, abi.encodeCall(IERC20.approve, (attacker, 0)))
+            ),
+            "revoke passes"
+        );
+        assertEq(token.allowance(account, attacker), 0);
+        assertEq(slh.getRemainingAllowance(account, address(token)), 100 ether);
+    }
+
     /// @dev A delegate runs as the account and could approve (or reconfigure the hook) unseen
     function test_RejectsDelegatecall() public {
         (address account, ECDSAValidator v) = _limitedAccount(4);

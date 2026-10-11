@@ -348,6 +348,8 @@ contract SpendingLimitHook is IHook {
 
             if (target == address(0) || !store.limits[target].isEnabled || data.length < 4) continue;
             bytes4 selector = bytes4(data[0:4]);
+            // approve(spender, 0) only revokes an allowance, so it stays allowed
+            if (selector == APPROVE_SELECTOR && data.length >= 68 && uint256(bytes32(data[36:68])) == 0) continue;
             if (selector == APPROVE_SELECTOR || selector == INCREASE_ALLOWANCE_SELECTOR || selector == PERMIT_SELECTOR)
             {
                 revert AllowanceChangeNotAllowed(target, selector);
