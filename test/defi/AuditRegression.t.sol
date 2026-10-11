@@ -159,4 +159,57 @@ contract LendingPoolAuditRegressionTest is Test {
         pool.borrow(address(usdc), 10_000e18);
         assertEq(pool.calculateHealthFactor(bob), 1.6e18);
     }
+
+    // ---------------------------------------------------------------- DEFI-3
+
+    /// @dev Borrowing is capped by LTV (75%), not by the liquidation threshold (80%).
+    function test_DEFI3_BorrowCappedByLtv() public {
+        vm.prank(alice);
+        pool.deposit(address(usdc), 50_000e18);
+        vm.startPrank(bob);
+        pool.deposit(address(weth), 10e18); // $20,000 collateral -> $15,000 capacity at 75% LTV
+
+        vm.expectRevert(LendingPool.InsufficientCollateral.selector);
+        pool.borrow(address(usdc), 16_000e18); // within 80% threshold, above 75% LTV
+
+        pool.borrow(address(usdc), 15_000e18); // exactly at LTV
+        vm.stopPrank();
+        assertGt(pool.calculateHealthFactor(bob), 1e18, "position at LTV is not liquidatable");
+    }
+
+    /// @dev Withdrawing collateral may not push debt above LTV-based capacity.
+    function test_DEFI3_WithdrawCappedByLtv() public {
+        vm.prank(alice);
+        pool.deposit(address(usdc), 50_000e18);
+        vm.startPrank(bob);
+        pool.deposit(address(weth), 10e18); // $20,000
+        pool.borrow(address(usdc), 12_000e18); // needs $16,000 collateral at 75% LTV
+
+        // Leaving 7.6 WETH ($15,200): above the 80% threshold ($15,000) but below LTV ($16,000)
+        vm.expectRevert(LendingPool.InsufficientCollateral.selector);
+        pool.withdraw(address(weth), 2.4e18);
+
+        pool.withdraw(address(weth), 2e18); // leaves exactly $16,000
+        vm.stopPrank();
+        assertEq(pool.getDepositBalance(address(weth), bob), 8e18);
+    }
+
+    /// @dev Liquidation still uses the liquidation threshold: a price drop that breaks LTV but not
+    ///      the threshold does not make the position liquidatable.
+    function test_DEFI3_LiquidationStillUsesThreshold() public {
+        vm.prank(alice);
+        pool.deposit(address(usdc), 50_000e18);
+        vm.startPrank(bob);
+        pool.deposit(address(weth), 10e18);
+        pool.borrow(address(usdc), 15_000e18);
+        vm.stopPrank();
+
+        oracle.setPrice(address(weth), 1900e18); // capacity $14,250 < debt, threshold $15,200 > debt
+        assertGe(pool.calculateHealthFactor(bob), 1e18);
+
+        usdc.mint(address(this), 1000e18);
+        usdc.approve(address(pool), type(uint256).max);
+        vm.expectRevert(LendingPool.HealthFactorOk.selector);
+        pool.liquidate(address(weth), address(usdc), bob, 1000e18);
+    }
 }

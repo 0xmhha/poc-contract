@@ -246,10 +246,11 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         reserve.totalShares -= sharesToBurn;
         reserve.totalDeposits -= amount;
 
-        // Check health factor after withdrawal
+        // Check health factor and LTV-based borrow capacity after withdrawal
         if (borrowAmounts[asset][msg.sender] > 0 || _hasBorrows(msg.sender)) {
             uint256 healthFactor = calculateHealthFactor(msg.sender);
             if (healthFactor < HEALTH_FACTOR_THRESHOLD) revert InsufficientCollateral();
+            if (!_isWithinBorrowCapacity(msg.sender)) revert InsufficientCollateral();
         }
 
         // Transfer tokens
@@ -279,9 +280,10 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
         borrowAmounts[asset][msg.sender] += amount;
         reserve.totalBorrows += amount;
 
-        // Check health factor
+        // Check health factor and LTV-based borrow capacity
         uint256 healthFactor = calculateHealthFactor(msg.sender);
         if (healthFactor < HEALTH_FACTOR_THRESHOLD) revert InsufficientCollateral();
+        if (!_isWithinBorrowCapacity(msg.sender)) revert InsufficientCollateral();
 
         // Transfer tokens
         IERC20(asset).safeTransfer(msg.sender, amount);
@@ -672,6 +674,33 @@ contract LendingPool is ILendingPool, Ownable, Pausable, ReentrancyGuard {
             if (borrowAmounts[supportedAssets[i]][user] > 0) return true;
         }
         return false;
+    }
+
+    /// @dev New borrows and withdrawals are limited by LTV (sum of collateral value * ltv), while
+    ///      liquidation remains governed by the liquidation threshold via calculateHealthFactor.
+    function _isWithinBorrowCapacity(address user) internal view returns (bool) {
+        uint256 borrowCapacity;
+        uint256 totalDebtValue;
+
+        for (uint256 i = 0; i < supportedAssets.length; i++) {
+            address asset = supportedAssets[i];
+            AssetConfig memory config = assetConfigs[asset];
+
+            if (config.canCollateral) {
+                uint256 depositBalance = getDepositBalance(asset, user);
+                if (depositBalance > 0) {
+                    uint256 value = _getAssetValue(asset, depositBalance);
+                    borrowCapacity += (value * config.ltv) / BASIS_POINTS;
+                }
+            }
+
+            uint256 borrowBalance = getBorrowBalance(asset, user);
+            if (borrowBalance > 0) {
+                totalDebtValue += _getAssetValue(asset, borrowBalance);
+            }
+        }
+
+        return totalDebtValue <= borrowCapacity;
     }
 
     function _getWeightedLiquidationThreshold(address user, uint256 totalCollateralValue)
