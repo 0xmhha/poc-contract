@@ -9,6 +9,7 @@ import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/Pac
 import { Kernel } from "../../src/erc7579-smartaccount/Kernel.sol";
 import { KernelFactory } from "../../src/erc7579-smartaccount/factory/KernelFactory.sol";
 import { ECDSAValidator } from "../../src/erc7579-validators/ECDSAValidator.sol";
+import { MultiSigValidator } from "../../src/erc7579-validators/MultiSigValidator.sol";
 import { IValidator, IHook } from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import { ValidationId, ExecMode } from "../../src/erc7579-smartaccount/types/Types.sol";
 import {
@@ -269,6 +270,55 @@ contract KernelTest is Test {
         vm.prank(beneficiary, beneficiary);
         vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, 0, "AA24 signature error"));
         entryPoint.handleOps(ops, payable(beneficiary));
+    }
+
+    /// @dev A 4-of-5 MultiSig root validator must accept a correctly signed UserOp
+    ///      (threshold * 65 previously overflowed uint8 and froze the account)
+    function test_HandleOps_MultiSigRootThreshold4() public {
+        MultiSigValidator multisig = new MultiSigValidator();
+        address[] memory signers = new address[](5);
+        uint256[] memory keys = new uint256[](5);
+        for (uint256 i = 0; i < 5; i++) {
+            (signers[i], keys[i]) = makeAddrAndKey(string(abi.encodePacked("multisig-signer-", vm.toString(i))));
+        }
+        for (uint256 i = 0; i < 5; i++) {
+            for (uint256 j = i + 1; j < 5; j++) {
+                if (signers[j] < signers[i]) {
+                    (signers[i], signers[j]) = (signers[j], signers[i]);
+                    (keys[i], keys[j]) = (keys[j], keys[i]);
+                }
+            }
+        }
+
+        bytes memory initData = abi.encodeCall(
+            Kernel.initialize,
+            (
+                ValidatorLib.validatorToIdentifier(IValidator(address(multisig))),
+                IHook(HOOK_MODULE_INSTALLED),
+                abi.encode(signers, uint8(4)),
+                hex"",
+                new bytes[](0)
+            )
+        );
+        vm.prank(senderCreator);
+        address account = kernelFactory.createAccount(initData, bytes32(uint256(4)));
+        vm.deal(account, 10 ether);
+        entryPoint.depositTo{ value: 5 ether }(account);
+
+        address target = makeAddr("target");
+        PackedUserOperation memory userOp = _createUserOp(account, 0, target, 1 ether, hex"");
+        bytes32 userOpHash = entryPoint.getUserOpHash(userOp);
+        for (uint256 i = 0; i < 4; i++) {
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(keys[i], userOpHash);
+            userOp.signature = abi.encodePacked(userOp.signature, r, s, v);
+        }
+
+        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
+        ops[0] = userOp;
+        vm.prank(beneficiary, beneficiary);
+        entryPoint.handleOps(ops, payable(beneficiary));
+
+        assertEq(target.balance, 1 ether, "4-of-5 multisig account should execute");
     }
 
     /* //////////////////////////////////////////////////////////////

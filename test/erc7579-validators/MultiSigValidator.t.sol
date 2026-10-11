@@ -482,6 +482,70 @@ contract MultiSigValidatorTest is Test {
         assertEq(result, ERC1271_INVALID);
     }
 
+    // ============ Large Threshold Tests ============
+
+    /// @dev threshold * 65 must not overflow uint8 for threshold >= 4 (up to MAX_SIGNERS)
+    function test_ValidateUserOp_LargeThresholds_Succeed() public {
+        uint256 maxSigners = validator.MAX_SIGNERS();
+        for (uint256 n = 4; n <= maxSigners; n++) {
+            address account = makeAddr(string(abi.encodePacked("account-", vm.toString(n))));
+            (address[] memory signers, uint256[] memory keys) = _sortedSigners(n);
+
+            vm.prank(account);
+            validator.onInstall(abi.encode(signers, uint8(n)));
+
+            bytes32 hash = keccak256(abi.encode("large threshold", n));
+            bytes memory signatures = _createMultiSig(hash, keys);
+
+            PackedUserOperation memory userOp;
+            userOp.signature = signatures;
+
+            vm.startPrank(account);
+            assertEq(validator.validateUserOp(userOp, hash), SIG_VALIDATION_SUCCESS_UINT);
+            assertEq(validator.isValidSignatureWithSender(address(0), hash, signatures), ERC1271_MAGICVALUE);
+            vm.stopPrank();
+        }
+    }
+
+    /// @dev With threshold 4, three signatures must fail cleanly instead of panicking
+    function test_ValidateUserOp_Threshold4_ShortSignatureFails() public {
+        (address[] memory signers, uint256[] memory keys) = _sortedSigners(4);
+        vm.prank(smartAccount);
+        validator.onInstall(abi.encode(signers, uint8(4)));
+
+        bytes32 hash = keccak256("short");
+        uint256[] memory threeKeys = new uint256[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            threeKeys[i] = keys[i];
+        }
+        bytes memory signatures = _createMultiSig(hash, threeKeys);
+
+        PackedUserOperation memory userOp;
+        userOp.signature = signatures;
+
+        vm.startPrank(smartAccount);
+        assertEq(validator.validateUserOp(userOp, hash), SIG_VALIDATION_FAILED_UINT);
+        assertEq(validator.isValidSignatureWithSender(address(0), hash, signatures), ERC1271_INVALID);
+        vm.stopPrank();
+    }
+
+    /// @dev n fresh signers sorted ascending by address, with their keys
+    function _sortedSigners(uint256 n) internal returns (address[] memory signers, uint256[] memory keys) {
+        signers = new address[](n);
+        keys = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) {
+            (signers[i], keys[i]) = makeAddrAndKey(string(abi.encodePacked("large-signer-", vm.toString(i))));
+        }
+        for (uint256 i = 0; i < n; i++) {
+            for (uint256 j = i + 1; j < n; j++) {
+                if (signers[j] < signers[i]) {
+                    (signers[i], signers[j]) = (signers[j], signers[i]);
+                    (keys[i], keys[j]) = (keys[j], keys[i]);
+                }
+            }
+        }
+    }
+
     // ============ View Function Tests ============
 
     function test_GetSigners() public {
