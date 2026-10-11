@@ -18,7 +18,7 @@ Smart contract PoC for StableNet — ERC-4337 Account Abstraction, ERC-7579 Modu
 ```bash
 # Install Foundry
 curl -L https://foundry.paradigm.xyz | bash
-foundryup --install v1.8.3
+foundryup --install v1.8.3   # older foundryup releases: foundryup --version v1.8.3
 ```
 
 ### 2. Setup
