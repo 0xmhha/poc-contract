@@ -395,6 +395,7 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
      *      This function allows the WithdrawalManager to pull funds that are held
      *      in this vault, solving the issue where executeWithdrawal would fail
      *      because funds are held here, not in the WithdrawalManager.
+     *      Blocked while the vault is paused, like the direct withdraw path.
      * @param depositId The deposit ID to transfer funds from
      * @param token The token address (address(0) for native ETH)
      * @param amount The amount to transfer
@@ -402,6 +403,7 @@ contract StealthVault is IStealthVault, AccessControl, Pausable, ReentrancyGuard
     function transferToWithdrawalManager(bytes32 depositId, address token, uint256 amount)
         external
         onlyRole(WITHDRAWAL_MANAGER_ROLE)
+        whenNotPaused
         nonReentrant
     {
         Deposit storage deposit = deposits[depositId];
