@@ -140,6 +140,12 @@ contract DeployAllScript is DeploymentHelper {
     uint256 constant DEFAULT_CHALLENGE_BOND = 0.001 ether; // low for testing
     uint256 constant DEFAULT_CHALLENGER_REWARD = 0.0005 ether; // low for testing
 
+    /// @dev Dependency reads must retain freshly deployed addresses during FORCE_REDEPLOY.
+    ///      _getAddress is reserved for deciding whether a contract should be deployed.
+    function _deployedAddress(string memory key) internal view returns (address) {
+        return _addresses[key];
+    }
+
     function setUp() public { }
 
     function run() public {
@@ -214,7 +220,7 @@ contract DeployAllScript is DeploymentHelper {
             usdc.mint(admin, 1_000_000 * 10 ** 6);
             console.log("  [NEW] USDC:", address(usdc));
         } else {
-            console.log("  [SKIP] USDC:", _getAddress(DeploymentAddresses.KEY_USDC));
+            console.log("  [SKIP] USDC:", _deployedAddress(DeploymentAddresses.KEY_USDC));
         }
 
         // 2. EntryPoint (ERC-4337)
@@ -223,7 +229,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_ENTRYPOINT, address(entryPoint));
             console.log("  [NEW] EntryPoint:", address(entryPoint));
         } else {
-            console.log("  [SKIP] EntryPoint:", _getAddress(DeploymentAddresses.KEY_ENTRYPOINT));
+            console.log("  [SKIP] EntryPoint:", _deployedAddress(DeploymentAddresses.KEY_ENTRYPOINT));
         }
 
         console.log("");
@@ -235,7 +241,7 @@ contract DeployAllScript is DeploymentHelper {
     function _deployPhase1CoreSmartAccount() internal {
         console.log(">>> Phase 1: Core Smart Account");
 
-        address entryPointAddr = _getAddress(DeploymentAddresses.KEY_ENTRYPOINT);
+        address entryPointAddr = _deployedAddress(DeploymentAddresses.KEY_ENTRYPOINT);
         require(entryPointAddr != address(0), "EntryPoint must be deployed first");
 
         // 1. Kernel Implementation
@@ -244,7 +250,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_KERNEL, address(kernel));
             console.log("  [NEW] Kernel:", address(kernel));
         } else {
-            console.log("  [SKIP] Kernel:", _getAddress(DeploymentAddresses.KEY_KERNEL));
+            console.log("  [SKIP] Kernel:", _deployedAddress(DeploymentAddresses.KEY_KERNEL));
         }
 
         // 2. FactoryStaker
@@ -253,27 +259,29 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_FACTORY_STAKER, address(staker));
             console.log("  [NEW] FactoryStaker:", address(staker));
         } else {
-            console.log("  [SKIP] FactoryStaker:", _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER));
+            console.log("  [SKIP] FactoryStaker:", _deployedAddress(DeploymentAddresses.KEY_FACTORY_STAKER));
         }
 
         // 3. KernelFactory (depends on Kernel and FactoryStaker)
-        address kernelAddr = _getAddress(DeploymentAddresses.KEY_KERNEL);
+        address kernelAddr = _deployedAddress(DeploymentAddresses.KEY_KERNEL);
         if (_getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY) == address(0)) {
             KernelFactory factory = new KernelFactory(
-                kernelAddr, IEntryPoint(entryPointAddr), _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER)
+                kernelAddr, IEntryPoint(entryPointAddr), _deployedAddress(DeploymentAddresses.KEY_FACTORY_STAKER)
             );
             _setAddress(DeploymentAddresses.KEY_KERNEL_FACTORY, address(factory));
             console.log("  [NEW] KernelFactory:", address(factory));
         } else {
             _requireFactoryStaker(
-                _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY), _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER)
+                _deployedAddress(DeploymentAddresses.KEY_KERNEL_FACTORY),
+                _deployedAddress(DeploymentAddresses.KEY_FACTORY_STAKER)
             );
-            console.log("  [SKIP] KernelFactory:", _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY));
+            console.log("  [SKIP] KernelFactory:", _deployedAddress(DeploymentAddresses.KEY_KERNEL_FACTORY));
         }
 
         // 4. Let the staker relay account creation for this factory
         _approveFactoryOnStaker(
-            _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER), _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY)
+            _deployedAddress(DeploymentAddresses.KEY_FACTORY_STAKER),
+            _deployedAddress(DeploymentAddresses.KEY_KERNEL_FACTORY)
         );
 
         console.log("");
@@ -293,7 +301,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_ECDSA_VALIDATOR, address(validator));
             console.log("    [NEW] ECDSAValidator:", address(validator));
         } else {
-            console.log("    [SKIP] ECDSAValidator:", _getAddress(DeploymentAddresses.KEY_ECDSA_VALIDATOR));
+            console.log("    [SKIP] ECDSAValidator:", _deployedAddress(DeploymentAddresses.KEY_ECDSA_VALIDATOR));
         }
 
         if (_getAddress(DeploymentAddresses.KEY_WEIGHTED_VALIDATOR) == address(0)) {
@@ -301,7 +309,9 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_WEIGHTED_VALIDATOR, address(weighted));
             console.log("    [NEW] WeightedECDSAValidator:", address(weighted));
         } else {
-            console.log("    [SKIP] WeightedECDSAValidator:", _getAddress(DeploymentAddresses.KEY_WEIGHTED_VALIDATOR));
+            console.log(
+                "    [SKIP] WeightedECDSAValidator:", _deployedAddress(DeploymentAddresses.KEY_WEIGHTED_VALIDATOR)
+            );
         }
 
         if (_getAddress(DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR) == address(0)) {
@@ -309,7 +319,9 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR, address(multichain));
             console.log("    [NEW] MultiChainValidator:", address(multichain));
         } else {
-            console.log("    [SKIP] MultiChainValidator:", _getAddress(DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR));
+            console.log(
+                "    [SKIP] MultiChainValidator:", _deployedAddress(DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR)
+            );
         }
 
         if (_getAddress(DeploymentAddresses.KEY_MULTISIG_VALIDATOR) == address(0)) {
@@ -317,7 +329,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_MULTISIG_VALIDATOR, address(multisig));
             console.log("    [NEW] MultiSigValidator:", address(multisig));
         } else {
-            console.log("    [SKIP] MultiSigValidator:", _getAddress(DeploymentAddresses.KEY_MULTISIG_VALIDATOR));
+            console.log("    [SKIP] MultiSigValidator:", _deployedAddress(DeploymentAddresses.KEY_MULTISIG_VALIDATOR));
         }
 
         if (_getAddress(DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR) == address(0)) {
@@ -325,7 +337,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR, address(webauthn));
             console.log("    [NEW] WebAuthnValidator:", address(webauthn));
         } else {
-            console.log("    [SKIP] WebAuthnValidator:", _getAddress(DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR));
+            console.log("    [SKIP] WebAuthnValidator:", _deployedAddress(DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR));
         }
 
         // --- Hooks ---
@@ -336,7 +348,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_AUDIT_HOOK, address(auditHook));
             console.log("    [NEW] AuditHook:", address(auditHook));
         } else {
-            console.log("    [SKIP] AuditHook:", _getAddress(DeploymentAddresses.KEY_AUDIT_HOOK));
+            console.log("    [SKIP] AuditHook:", _deployedAddress(DeploymentAddresses.KEY_AUDIT_HOOK));
         }
 
         if (_getAddress(DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK) == address(0)) {
@@ -344,7 +356,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK, address(spendingHook));
             console.log("    [NEW] SpendingLimitHook:", address(spendingHook));
         } else {
-            console.log("    [SKIP] SpendingLimitHook:", _getAddress(DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK));
+            console.log("    [SKIP] SpendingLimitHook:", _deployedAddress(DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK));
         }
 
         // --- Fallbacks ---
@@ -356,7 +368,7 @@ contract DeployAllScript is DeploymentHelper {
             console.log("    [NEW] TokenReceiverFallback:", address(tokenReceiver));
         } else {
             console.log(
-                "    [SKIP] TokenReceiverFallback:", _getAddress(DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK)
+                "    [SKIP] TokenReceiverFallback:", _deployedAddress(DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK)
             );
         }
 
@@ -365,7 +377,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK, address(flashLoan));
             console.log("    [NEW] FlashLoanFallback:", address(flashLoan));
         } else {
-            console.log("    [SKIP] FlashLoanFallback:", _getAddress(DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK));
+            console.log("    [SKIP] FlashLoanFallback:", _deployedAddress(DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK));
         }
 
         // --- Executors ---
@@ -376,7 +388,9 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR, address(sessionKey));
             console.log("    [NEW] SessionKeyExecutor:", address(sessionKey));
         } else {
-            console.log("    [SKIP] SessionKeyExecutor:", _getAddress(DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR));
+            console.log(
+                "    [SKIP] SessionKeyExecutor:", _deployedAddress(DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR)
+            );
         }
 
         if (_getAddress(DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR) == address(0)) {
@@ -385,7 +399,8 @@ contract DeployAllScript is DeploymentHelper {
             console.log("    [NEW] RecurringPaymentExecutor:", address(recurring));
         } else {
             console.log(
-                "    [SKIP] RecurringPaymentExecutor:", _getAddress(DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR)
+                "    [SKIP] RecurringPaymentExecutor:",
+                _deployedAddress(DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR)
             );
         }
 
@@ -406,7 +421,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_KYC_REGISTRY, address(kyc));
             console.log("    [NEW] KYCRegistry:", address(kyc));
         } else {
-            console.log("    [SKIP] KYCRegistry:", _getAddress(DeploymentAddresses.KEY_KYC_REGISTRY));
+            console.log("    [SKIP] KYCRegistry:", _deployedAddress(DeploymentAddresses.KEY_KYC_REGISTRY));
         }
 
         if (_getAddress(DeploymentAddresses.KEY_AUDIT_LOGGER) == address(0)) {
@@ -414,7 +429,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_AUDIT_LOGGER, address(auditLogger));
             console.log("    [NEW] AuditLogger:", address(auditLogger));
         } else {
-            console.log("    [SKIP] AuditLogger:", _getAddress(DeploymentAddresses.KEY_AUDIT_LOGGER));
+            console.log("    [SKIP] AuditLogger:", _deployedAddress(DeploymentAddresses.KEY_AUDIT_LOGGER));
         }
 
         if (_getAddress(DeploymentAddresses.KEY_PROOF_OF_RESERVE) == address(0)) {
@@ -422,7 +437,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_PROOF_OF_RESERVE, address(por));
             console.log("    [NEW] ProofOfReserve:", address(por));
         } else {
-            console.log("    [SKIP] ProofOfReserve:", _getAddress(DeploymentAddresses.KEY_PROOF_OF_RESERVE));
+            console.log("    [SKIP] ProofOfReserve:", _deployedAddress(DeploymentAddresses.KEY_PROOF_OF_RESERVE));
         }
 
         if (_getAddress(DeploymentAddresses.KEY_REGULATORY_REGISTRY) == address(0)) {
@@ -436,7 +451,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_REGULATORY_REGISTRY, address(regulatory));
             console.log("    [NEW] RegulatoryRegistry:", address(regulatory));
         } else {
-            console.log("    [SKIP] RegulatoryRegistry:", _getAddress(DeploymentAddresses.KEY_REGULATORY_REGISTRY));
+            console.log("    [SKIP] RegulatoryRegistry:", _deployedAddress(DeploymentAddresses.KEY_REGULATORY_REGISTRY));
         }
 
         // --- Privacy ---
@@ -447,7 +462,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_ANNOUNCER, address(announcer));
             console.log("    [NEW] ERC5564Announcer:", address(announcer));
         } else {
-            console.log("    [SKIP] ERC5564Announcer:", _getAddress(DeploymentAddresses.KEY_ANNOUNCER));
+            console.log("    [SKIP] ERC5564Announcer:", _deployedAddress(DeploymentAddresses.KEY_ANNOUNCER));
         }
 
         if (_getAddress(DeploymentAddresses.KEY_REGISTRY) == address(0)) {
@@ -455,12 +470,12 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_REGISTRY, address(registry));
             console.log("    [NEW] ERC6538Registry:", address(registry));
         } else {
-            console.log("    [SKIP] ERC6538Registry:", _getAddress(DeploymentAddresses.KEY_REGISTRY));
+            console.log("    [SKIP] ERC6538Registry:", _deployedAddress(DeploymentAddresses.KEY_REGISTRY));
         }
 
         // PrivateBank (depends on Announcer and Registry)
-        address announcerAddr = _getAddress(DeploymentAddresses.KEY_ANNOUNCER);
-        address registryAddr = _getAddress(DeploymentAddresses.KEY_REGISTRY);
+        address announcerAddr = _deployedAddress(DeploymentAddresses.KEY_ANNOUNCER);
+        address registryAddr = _deployedAddress(DeploymentAddresses.KEY_REGISTRY);
         if (_getAddress(DeploymentAddresses.KEY_PRIVATE_BANK) == address(0)) {
             if (announcerAddr != address(0) && registryAddr != address(0)) {
                 PrivateBank privateBank = new PrivateBank(announcerAddr, registryAddr);
@@ -470,7 +485,7 @@ contract DeployAllScript is DeploymentHelper {
                 console.log("    [SKIP] PrivateBank: Missing dependencies");
             }
         } else {
-            console.log("    [SKIP] PrivateBank:", _getAddress(DeploymentAddresses.KEY_PRIVATE_BANK));
+            console.log("    [SKIP] PrivateBank:", _deployedAddress(DeploymentAddresses.KEY_PRIVATE_BANK));
         }
 
         // --- Permit2 ---
@@ -481,7 +496,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_PERMIT2, address(permit2));
             console.log("    [NEW] Permit2:", address(permit2));
         } else {
-            console.log("    [SKIP] Permit2:", _getAddress(DeploymentAddresses.KEY_PERMIT2));
+            console.log("    [SKIP] Permit2:", _deployedAddress(DeploymentAddresses.KEY_PERMIT2));
         }
 
         console.log("");
@@ -504,7 +519,7 @@ contract DeployAllScript is DeploymentHelper {
             priceOracleAddr = address(priceOracle);
             console.log("    [NEW] PriceOracle:", address(priceOracle));
         } else {
-            priceOracleAddr = _getAddress(DeploymentAddresses.KEY_PRICE_ORACLE);
+            priceOracleAddr = _deployedAddress(DeploymentAddresses.KEY_PRICE_ORACLE);
             console.log("    [SKIP] PriceOracle:", priceOracleAddr);
         }
 
@@ -514,7 +529,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_LENDING_POOL, address(lendingPool));
             console.log("    [NEW] LendingPool:", address(lendingPool));
         } else {
-            console.log("    [SKIP] LendingPool:", _getAddress(DeploymentAddresses.KEY_LENDING_POOL));
+            console.log("    [SKIP] LendingPool:", _deployedAddress(DeploymentAddresses.KEY_LENDING_POOL));
         }
 
         // StakingVault (uses NativeCoinAdapter as default staking token)
@@ -536,14 +551,14 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_STAKING_VAULT, address(stakingVault));
             console.log("    [NEW] StakingVault:", address(stakingVault));
         } else {
-            console.log("    [SKIP] StakingVault:", _getAddress(DeploymentAddresses.KEY_STAKING_VAULT));
+            console.log("    [SKIP] StakingVault:", _deployedAddress(DeploymentAddresses.KEY_STAKING_VAULT));
         }
 
         // --- Paymasters ---
         console.log("  --- Paymasters ---");
 
-        address entryPointAddr = _getAddress(DeploymentAddresses.KEY_ENTRYPOINT);
-        address permit2Addr = _getAddress(DeploymentAddresses.KEY_PERMIT2);
+        address entryPointAddr = _deployedAddress(DeploymentAddresses.KEY_ENTRYPOINT);
+        address permit2Addr = _deployedAddress(DeploymentAddresses.KEY_PERMIT2);
 
         // VerifyingPaymaster (depends on EntryPoint)
         if (_getAddress(DeploymentAddresses.KEY_VERIFYING_PAYMASTER) == address(0)) {
@@ -551,7 +566,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_VERIFYING_PAYMASTER, address(verifying));
             console.log("    [NEW] VerifyingPaymaster:", address(verifying));
         } else {
-            console.log("    [SKIP] VerifyingPaymaster:", _getAddress(DeploymentAddresses.KEY_VERIFYING_PAYMASTER));
+            console.log("    [SKIP] VerifyingPaymaster:", _deployedAddress(DeploymentAddresses.KEY_VERIFYING_PAYMASTER));
         }
 
         // SponsorPaymaster (depends on EntryPoint)
@@ -560,7 +575,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_SPONSOR_PAYMASTER, address(sponsor));
             console.log("    [NEW] SponsorPaymaster:", address(sponsor));
         } else {
-            console.log("    [SKIP] SponsorPaymaster:", _getAddress(DeploymentAddresses.KEY_SPONSOR_PAYMASTER));
+            console.log("    [SKIP] SponsorPaymaster:", _deployedAddress(DeploymentAddresses.KEY_SPONSOR_PAYMASTER));
         }
 
         // ERC20Paymaster (depends on EntryPoint, PriceOracle)
@@ -575,7 +590,7 @@ contract DeployAllScript is DeploymentHelper {
                 console.log("    [SKIP] ERC20Paymaster: Missing PriceOracle");
             }
         } else {
-            console.log("    [SKIP] ERC20Paymaster:", _getAddress(DeploymentAddresses.KEY_ERC20_PAYMASTER));
+            console.log("    [SKIP] ERC20Paymaster:", _deployedAddress(DeploymentAddresses.KEY_ERC20_PAYMASTER));
         }
 
         // Permit2Paymaster (depends on EntryPoint, PriceOracle, Permit2)
@@ -594,7 +609,7 @@ contract DeployAllScript is DeploymentHelper {
                 console.log("    [SKIP] Permit2Paymaster: Missing PriceOracle or Permit2");
             }
         } else {
-            console.log("    [SKIP] Permit2Paymaster:", _getAddress(DeploymentAddresses.KEY_PERMIT2_PAYMASTER));
+            console.log("    [SKIP] Permit2Paymaster:", _deployedAddress(DeploymentAddresses.KEY_PERMIT2_PAYMASTER));
         }
 
         console.log("");
@@ -606,9 +621,9 @@ contract DeployAllScript is DeploymentHelper {
     function _deployPhase5Plugins() internal {
         console.log(">>> Phase 5: Plugins");
 
-        address priceOracleAddr = _getAddress(DeploymentAddresses.KEY_PRICE_ORACLE);
+        address priceOracleAddr = _deployedAddress(DeploymentAddresses.KEY_PRICE_ORACLE);
         // Use UniswapV3 SwapRouter address from deployment or environment
-        address swapRouterAddr = _getAddress(DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER);
+        address swapRouterAddr = _deployedAddress(DeploymentAddresses.KEY_UNISWAP_SWAP_ROUTER);
         if (swapRouterAddr == address(0)) {
             swapRouterAddr = vm.envOr("UNISWAP_SWAP_ROUTER", address(0));
         }
@@ -623,7 +638,7 @@ contract DeployAllScript is DeploymentHelper {
                 console.log("  [SKIP] AutoSwapPlugin: Missing PriceOracle or UniswapV3 SwapRouter");
             }
         } else {
-            console.log("  [SKIP] AutoSwapPlugin:", _getAddress(DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN));
+            console.log("  [SKIP] AutoSwapPlugin:", _deployedAddress(DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN));
         }
 
         // MicroLoanPlugin (depends on PriceOracle)
@@ -641,7 +656,7 @@ contract DeployAllScript is DeploymentHelper {
                 console.log("  [SKIP] MicroLoanPlugin: Missing PriceOracle");
             }
         } else {
-            console.log("  [SKIP] MicroLoanPlugin:", _getAddress(DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN));
+            console.log("  [SKIP] MicroLoanPlugin:", _deployedAddress(DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN));
         }
 
         // OnRampPlugin (no external dependencies)
@@ -654,7 +669,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_ONRAMP_PLUGIN, address(onRamp));
             console.log("  [NEW] OnRampPlugin:", address(onRamp));
         } else {
-            console.log("  [SKIP] OnRampPlugin:", _getAddress(DeploymentAddresses.KEY_ONRAMP_PLUGIN));
+            console.log("  [SKIP] OnRampPlugin:", _deployedAddress(DeploymentAddresses.KEY_ONRAMP_PLUGIN));
         }
 
         console.log("");
@@ -675,11 +690,13 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_PERMISSION_MANAGER, address(permissionMgr));
             console.log("    [NEW] ERC7715PermissionManager:", address(permissionMgr));
         } else {
-            console.log("    [SKIP] ERC7715PermissionManager:", _getAddress(DeploymentAddresses.KEY_PERMISSION_MANAGER));
+            console.log(
+                "    [SKIP] ERC7715PermissionManager:", _deployedAddress(DeploymentAddresses.KEY_PERMISSION_MANAGER)
+            );
         }
 
         // SubscriptionManager (depends on PermissionManager)
-        address permissionMgrAddr = _getAddress(DeploymentAddresses.KEY_PERMISSION_MANAGER);
+        address permissionMgrAddr = _deployedAddress(DeploymentAddresses.KEY_PERMISSION_MANAGER);
         if (_getAddress(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER) == address(0)) {
             if (permissionMgrAddr != address(0)) {
                 SubscriptionManager subMgr = new SubscriptionManager(permissionMgrAddr);
@@ -693,7 +710,9 @@ contract DeployAllScript is DeploymentHelper {
                 console.log("    [SKIP] SubscriptionManager: Missing PermissionManager");
             }
         } else {
-            console.log("    [SKIP] SubscriptionManager:", _getAddress(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER));
+            console.log(
+                "    [SKIP] SubscriptionManager:", _deployedAddress(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER)
+            );
         }
 
         // MerchantRegistry (independent)
@@ -702,12 +721,12 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY, address(registry));
             console.log("    [NEW] MerchantRegistry:", address(registry));
         } else {
-            console.log("    [SKIP] MerchantRegistry:", _getAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY));
+            console.log("    [SKIP] MerchantRegistry:", _deployedAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY));
         }
 
         SubscriptionWiring.wireFromEnv(
-            SubscriptionManager(payable(_getAddress(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER))),
-            MerchantRegistry(_getAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY))
+            SubscriptionManager(payable(_deployedAddress(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER))),
+            MerchantRegistry(_deployedAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY))
         );
 
         // --- Bridge ---
@@ -727,7 +746,9 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER, address(fpv));
             console.log("    [NEW] FraudProofVerifier:", address(fpv));
         } else {
-            console.log("    [SKIP] FraudProofVerifier:", _getAddress(DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER));
+            console.log(
+                "    [SKIP] FraudProofVerifier:", _deployedAddress(DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER)
+            );
         }
 
         if (_getAddress(DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER) == address(0)) {
@@ -735,7 +756,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER, address(brl));
             console.log("    [NEW] BridgeRateLimiter:", address(brl));
         } else {
-            console.log("    [SKIP] BridgeRateLimiter:", _getAddress(DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER));
+            console.log("    [SKIP] BridgeRateLimiter:", _deployedAddress(DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER));
         }
 
         // Layer 1: Configuration required
@@ -745,7 +766,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_BRIDGE_VALIDATOR, address(bv));
             console.log("    [NEW] BridgeValidator:", address(bv));
         } else {
-            console.log("    [SKIP] BridgeValidator:", _getAddress(DeploymentAddresses.KEY_BRIDGE_VALIDATOR));
+            console.log("    [SKIP] BridgeValidator:", _deployedAddress(DeploymentAddresses.KEY_BRIDGE_VALIDATOR));
         }
 
         if (_getAddress(DeploymentAddresses.KEY_BRIDGE_GUARDIAN) == address(0)) {
@@ -754,7 +775,7 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_BRIDGE_GUARDIAN, address(bg));
             console.log("    [NEW] BridgeGuardian:", address(bg));
         } else {
-            console.log("    [SKIP] BridgeGuardian:", _getAddress(DeploymentAddresses.KEY_BRIDGE_GUARDIAN));
+            console.log("    [SKIP] BridgeGuardian:", _deployedAddress(DeploymentAddresses.KEY_BRIDGE_GUARDIAN));
         }
 
         if (_getAddress(DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER) == address(0)) {
@@ -763,15 +784,15 @@ contract DeployAllScript is DeploymentHelper {
             _setAddress(DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER, address(ov));
             console.log("    [NEW] OptimisticVerifier:", address(ov));
         } else {
-            console.log("    [SKIP] OptimisticVerifier:", _getAddress(DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER));
+            console.log("    [SKIP] OptimisticVerifier:", _deployedAddress(DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER));
         }
 
         // Layer 2: Main Bridge (depends on all above)
         if (_getAddress(DeploymentAddresses.KEY_SECURE_BRIDGE) == address(0)) {
-            address validatorAddr = _getAddress(DeploymentAddresses.KEY_BRIDGE_VALIDATOR);
-            address ovAddr = _getAddress(DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER);
-            address brlAddr = _getAddress(DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER);
-            address bgAddr = _getAddress(DeploymentAddresses.KEY_BRIDGE_GUARDIAN);
+            address validatorAddr = _deployedAddress(DeploymentAddresses.KEY_BRIDGE_VALIDATOR);
+            address ovAddr = _deployedAddress(DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER);
+            address brlAddr = _deployedAddress(DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER);
+            address bgAddr = _deployedAddress(DeploymentAddresses.KEY_BRIDGE_GUARDIAN);
 
             if (validatorAddr != address(0) && ovAddr != address(0) && brlAddr != address(0) && bgAddr != address(0)) {
                 SecureBridge sb = new SecureBridge(
@@ -787,7 +808,7 @@ contract DeployAllScript is DeploymentHelper {
                 console.log("    [SKIP] SecureBridge: Missing dependencies");
             }
         } else {
-            console.log("    [SKIP] SecureBridge:", _getAddress(DeploymentAddresses.KEY_SECURE_BRIDGE));
+            console.log("    [SKIP] SecureBridge:", _deployedAddress(DeploymentAddresses.KEY_SECURE_BRIDGE));
         }
 
         // Cross-contract authorizations; without them initiateBridge and completeBridge revert
@@ -832,67 +853,67 @@ contract DeployAllScript is DeploymentHelper {
         console.log("");
 
         console.log("Phase 0 - Base Infrastructure:");
-        console.log("  USDC:", _getAddress(DeploymentAddresses.KEY_USDC));
-        console.log("  EntryPoint:", _getAddress(DeploymentAddresses.KEY_ENTRYPOINT));
+        console.log("  USDC:", _deployedAddress(DeploymentAddresses.KEY_USDC));
+        console.log("  EntryPoint:", _deployedAddress(DeploymentAddresses.KEY_ENTRYPOINT));
 
         console.log("");
         console.log("Phase 1 - Core Smart Account:");
-        console.log("  Kernel:", _getAddress(DeploymentAddresses.KEY_KERNEL));
-        console.log("  KernelFactory:", _getAddress(DeploymentAddresses.KEY_KERNEL_FACTORY));
-        console.log("  FactoryStaker:", _getAddress(DeploymentAddresses.KEY_FACTORY_STAKER));
+        console.log("  Kernel:", _deployedAddress(DeploymentAddresses.KEY_KERNEL));
+        console.log("  KernelFactory:", _deployedAddress(DeploymentAddresses.KEY_KERNEL_FACTORY));
+        console.log("  FactoryStaker:", _deployedAddress(DeploymentAddresses.KEY_FACTORY_STAKER));
 
         console.log("");
         console.log("Phase 2 - ERC-7579 Modules:");
-        console.log("  ECDSAValidator:", _getAddress(DeploymentAddresses.KEY_ECDSA_VALIDATOR));
-        console.log("  WeightedECDSAValidator:", _getAddress(DeploymentAddresses.KEY_WEIGHTED_VALIDATOR));
-        console.log("  MultiChainValidator:", _getAddress(DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR));
-        console.log("  MultiSigValidator:", _getAddress(DeploymentAddresses.KEY_MULTISIG_VALIDATOR));
-        console.log("  WebAuthnValidator:", _getAddress(DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR));
-        console.log("  AuditHook:", _getAddress(DeploymentAddresses.KEY_AUDIT_HOOK));
-        console.log("  SpendingLimitHook:", _getAddress(DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK));
-        console.log("  TokenReceiverFallback:", _getAddress(DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK));
-        console.log("  FlashLoanFallback:", _getAddress(DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK));
-        console.log("  SessionKeyExecutor:", _getAddress(DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR));
-        console.log("  RecurringPaymentExecutor:", _getAddress(DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR));
+        console.log("  ECDSAValidator:", _deployedAddress(DeploymentAddresses.KEY_ECDSA_VALIDATOR));
+        console.log("  WeightedECDSAValidator:", _deployedAddress(DeploymentAddresses.KEY_WEIGHTED_VALIDATOR));
+        console.log("  MultiChainValidator:", _deployedAddress(DeploymentAddresses.KEY_MULTICHAIN_VALIDATOR));
+        console.log("  MultiSigValidator:", _deployedAddress(DeploymentAddresses.KEY_MULTISIG_VALIDATOR));
+        console.log("  WebAuthnValidator:", _deployedAddress(DeploymentAddresses.KEY_WEBAUTHN_VALIDATOR));
+        console.log("  AuditHook:", _deployedAddress(DeploymentAddresses.KEY_AUDIT_HOOK));
+        console.log("  SpendingLimitHook:", _deployedAddress(DeploymentAddresses.KEY_SPENDING_LIMIT_HOOK));
+        console.log("  TokenReceiverFallback:", _deployedAddress(DeploymentAddresses.KEY_TOKEN_RECEIVER_FALLBACK));
+        console.log("  FlashLoanFallback:", _deployedAddress(DeploymentAddresses.KEY_FLASH_LOAN_FALLBACK));
+        console.log("  SessionKeyExecutor:", _deployedAddress(DeploymentAddresses.KEY_SESSION_KEY_EXECUTOR));
+        console.log("  RecurringPaymentExecutor:", _deployedAddress(DeploymentAddresses.KEY_RECURRING_PAYMENT_EXECUTOR));
 
         console.log("");
         console.log("Phase 3 - Feature Modules:");
-        console.log("  KYCRegistry:", _getAddress(DeploymentAddresses.KEY_KYC_REGISTRY));
-        console.log("  AuditLogger:", _getAddress(DeploymentAddresses.KEY_AUDIT_LOGGER));
-        console.log("  ProofOfReserve:", _getAddress(DeploymentAddresses.KEY_PROOF_OF_RESERVE));
-        console.log("  RegulatoryRegistry:", _getAddress(DeploymentAddresses.KEY_REGULATORY_REGISTRY));
-        console.log("  ERC5564Announcer:", _getAddress(DeploymentAddresses.KEY_ANNOUNCER));
-        console.log("  ERC6538Registry:", _getAddress(DeploymentAddresses.KEY_REGISTRY));
-        console.log("  PrivateBank:", _getAddress(DeploymentAddresses.KEY_PRIVATE_BANK));
-        console.log("  Permit2:", _getAddress(DeploymentAddresses.KEY_PERMIT2));
+        console.log("  KYCRegistry:", _deployedAddress(DeploymentAddresses.KEY_KYC_REGISTRY));
+        console.log("  AuditLogger:", _deployedAddress(DeploymentAddresses.KEY_AUDIT_LOGGER));
+        console.log("  ProofOfReserve:", _deployedAddress(DeploymentAddresses.KEY_PROOF_OF_RESERVE));
+        console.log("  RegulatoryRegistry:", _deployedAddress(DeploymentAddresses.KEY_REGULATORY_REGISTRY));
+        console.log("  ERC5564Announcer:", _deployedAddress(DeploymentAddresses.KEY_ANNOUNCER));
+        console.log("  ERC6538Registry:", _deployedAddress(DeploymentAddresses.KEY_REGISTRY));
+        console.log("  PrivateBank:", _deployedAddress(DeploymentAddresses.KEY_PRIVATE_BANK));
+        console.log("  Permit2:", _deployedAddress(DeploymentAddresses.KEY_PERMIT2));
 
         console.log("");
         console.log("Phase 4 - DeFi & Paymasters:");
-        console.log("  PriceOracle:", _getAddress(DeploymentAddresses.KEY_PRICE_ORACLE));
-        console.log("  LendingPool:", _getAddress(DeploymentAddresses.KEY_LENDING_POOL));
-        console.log("  StakingVault:", _getAddress(DeploymentAddresses.KEY_STAKING_VAULT));
-        console.log("  VerifyingPaymaster:", _getAddress(DeploymentAddresses.KEY_VERIFYING_PAYMASTER));
-        console.log("  SponsorPaymaster:", _getAddress(DeploymentAddresses.KEY_SPONSOR_PAYMASTER));
-        console.log("  ERC20Paymaster:", _getAddress(DeploymentAddresses.KEY_ERC20_PAYMASTER));
-        console.log("  Permit2Paymaster:", _getAddress(DeploymentAddresses.KEY_PERMIT2_PAYMASTER));
+        console.log("  PriceOracle:", _deployedAddress(DeploymentAddresses.KEY_PRICE_ORACLE));
+        console.log("  LendingPool:", _deployedAddress(DeploymentAddresses.KEY_LENDING_POOL));
+        console.log("  StakingVault:", _deployedAddress(DeploymentAddresses.KEY_STAKING_VAULT));
+        console.log("  VerifyingPaymaster:", _deployedAddress(DeploymentAddresses.KEY_VERIFYING_PAYMASTER));
+        console.log("  SponsorPaymaster:", _deployedAddress(DeploymentAddresses.KEY_SPONSOR_PAYMASTER));
+        console.log("  ERC20Paymaster:", _deployedAddress(DeploymentAddresses.KEY_ERC20_PAYMASTER));
+        console.log("  Permit2Paymaster:", _deployedAddress(DeploymentAddresses.KEY_PERMIT2_PAYMASTER));
 
         console.log("");
         console.log("Phase 5 - Plugins:");
-        console.log("  AutoSwapPlugin:", _getAddress(DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN));
-        console.log("  MicroLoanPlugin:", _getAddress(DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN));
-        console.log("  OnRampPlugin:", _getAddress(DeploymentAddresses.KEY_ONRAMP_PLUGIN));
+        console.log("  AutoSwapPlugin:", _deployedAddress(DeploymentAddresses.KEY_AUTO_SWAP_PLUGIN));
+        console.log("  MicroLoanPlugin:", _deployedAddress(DeploymentAddresses.KEY_MICRO_LOAN_PLUGIN));
+        console.log("  OnRampPlugin:", _deployedAddress(DeploymentAddresses.KEY_ONRAMP_PLUGIN));
 
         console.log("");
         console.log("Phase 6 - Subscription & Bridge:");
-        console.log("  ERC7715PermissionManager:", _getAddress(DeploymentAddresses.KEY_PERMISSION_MANAGER));
-        console.log("  SubscriptionManager:", _getAddress(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER));
-        console.log("  MerchantRegistry:", _getAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY));
-        console.log("  FraudProofVerifier:", _getAddress(DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER));
-        console.log("  BridgeRateLimiter:", _getAddress(DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER));
-        console.log("  BridgeValidator:", _getAddress(DeploymentAddresses.KEY_BRIDGE_VALIDATOR));
-        console.log("  BridgeGuardian:", _getAddress(DeploymentAddresses.KEY_BRIDGE_GUARDIAN));
-        console.log("  OptimisticVerifier:", _getAddress(DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER));
-        console.log("  SecureBridge:", _getAddress(DeploymentAddresses.KEY_SECURE_BRIDGE));
+        console.log("  ERC7715PermissionManager:", _deployedAddress(DeploymentAddresses.KEY_PERMISSION_MANAGER));
+        console.log("  SubscriptionManager:", _deployedAddress(DeploymentAddresses.KEY_SUBSCRIPTION_MANAGER));
+        console.log("  MerchantRegistry:", _deployedAddress(DeploymentAddresses.KEY_MERCHANT_REGISTRY));
+        console.log("  FraudProofVerifier:", _deployedAddress(DeploymentAddresses.KEY_FRAUD_PROOF_VERIFIER));
+        console.log("  BridgeRateLimiter:", _deployedAddress(DeploymentAddresses.KEY_BRIDGE_RATE_LIMITER));
+        console.log("  BridgeValidator:", _deployedAddress(DeploymentAddresses.KEY_BRIDGE_VALIDATOR));
+        console.log("  BridgeGuardian:", _deployedAddress(DeploymentAddresses.KEY_BRIDGE_GUARDIAN));
+        console.log("  OptimisticVerifier:", _deployedAddress(DeploymentAddresses.KEY_OPTIMISTIC_VERIFIER));
+        console.log("  SecureBridge:", _deployedAddress(DeploymentAddresses.KEY_SECURE_BRIDGE));
 
         console.log("");
         console.log("Addresses saved to:", _getDeploymentPath());
