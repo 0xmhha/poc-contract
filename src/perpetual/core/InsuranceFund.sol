@@ -222,6 +222,7 @@ contract InsuranceFund is IInsuranceFund, ReentrancyGuard {
         _totalBalance -= actualUsed;
         _totalUsed += actualUsed;
 
+        if (actualUsed > 0) collateralToken.safeTransfer(msg.sender, actualUsed);
         emit PerpetualEvents.LossCovered(bytes32(uint256(marketId)), actualUsed, _totalBalance);
 
         return actualUsed;

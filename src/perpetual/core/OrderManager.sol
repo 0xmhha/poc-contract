@@ -6,6 +6,7 @@ import { PerpetualTypes } from "../libraries/PerpetualTypes.sol";
 import { PerpetualMath } from "../libraries/PerpetualMath.sol";
 import { PerpetualErrors } from "../libraries/PerpetualErrors.sol";
 import { PerpetualEvents } from "../libraries/PerpetualEvents.sol";
+import { PerpetualPrice } from "../libraries/PerpetualPrice.sol";
 import { Constants } from "../../common/libraries/Constants.sol";
 
 /**
@@ -60,6 +61,7 @@ contract OrderManager is IOrderManager {
 
     /// @notice 가격 피드 주소 (시장가 주문용)
     address private _priceFeed;
+    mapping(uint32 => address) private _marketPriceOracles;
 
     // ============ Modifiers ============
 
@@ -260,18 +262,10 @@ contract OrderManager is IOrderManager {
             revert PerpetualErrors.ZeroAmount();
         }
 
-        // TODO: 실제 구현 시 가격 피드에서 현재 가격 조회
-        // 임시: 가상의 현재 가격 사용
-        uint128 currentPrice = 50000e18; // 예시: $50,000
-
-        // 슬리피지 적용
-        if (side == PerpetualTypes.PositionSide.Long) {
-            // 롱: 최대 슬리피지만큼 높은 가격 허용
-            fillPrice = uint128(PerpetualMath.mulDiv(currentPrice, BPS_PRECISION + maxSlippage, BPS_PRECISION));
-        } else {
-            // 숏: 최대 슬리피지만큼 낮은 가격 허용
-            fillPrice = uint128(PerpetualMath.mulDiv(currentPrice, BPS_PRECISION - maxSlippage, BPS_PRECISION));
-        }
+        if (maxSlippage > BPS_PRECISION) revert PerpetualErrors.InvalidParameter("invalid slippage");
+        address oracle = _marketPriceOracles[marketId];
+        // This reference venue fills at the mark; tolerance is not an execution surcharge.
+        fillPrice = PerpetualPrice.read(oracle == address(0) ? _priceFeed : oracle, marketId);
 
         fillSize = size;
 
@@ -434,6 +428,11 @@ contract OrderManager is IOrderManager {
         }
 
         return false;
+    }
+
+    function setMarketPriceOracle(uint32 marketId, address oracle) external override onlyAuthorized {
+        if (oracle == address(0)) revert PerpetualErrors.ZeroAddress();
+        _marketPriceOracles[marketId] = oracle;
     }
 
     // ============ Admin Functions ============

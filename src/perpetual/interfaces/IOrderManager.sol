@@ -9,6 +9,9 @@ import { PerpetualTypes } from "../libraries/PerpetualTypes.sol";
  * @notice 주문 관리 인터페이스
  */
 interface IOrderManager {
+    /// @notice Configures a market's validated mark-price feed.
+    function setMarketPriceOracle(uint32 marketId, address oracle) external;
+
     // ============ View Functions ============
 
     /**

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { IADLEngine } from "../interfaces/IADLEngine.sol";
 import { IPositionManager } from "../interfaces/IPositionManager.sol";
 import { PerpetualTypes } from "../libraries/PerpetualTypes.sol";
 import { PerpetualMath } from "../libraries/PerpetualMath.sol";
 import { PerpetualErrors } from "../libraries/PerpetualErrors.sol";
 import { PerpetualEvents } from "../libraries/PerpetualEvents.sol";
+import { PerpetualPrice } from "../libraries/PerpetualPrice.sol";
 import { Constants } from "../../common/libraries/Constants.sol";
 
 /**
@@ -26,6 +28,8 @@ contract PositionManager is IPositionManager {
 
     uint256 private constant PRECISION = Constants.PRECISION;
     uint256 private constant BPS_PRECISION = Constants.BPS_PRECISION;
+
+    uint256 public constant MAX_POSITIONS_PER_MARKET_SIDE = 200;
 
     // ============ State Variables ============
 
@@ -55,6 +59,12 @@ contract PositionManager is IPositionManager {
 
     /// @notice PerpetualEngine 주소 (권한 있는 호출자)
     address private _engine;
+
+    address private _liquidator;
+    address private _adlEngine;
+    mapping(uint32 => address) private _marketOracles;
+    mapping(uint32 => mapping(PerpetualTypes.PositionSide => bytes32[])) private _marketPositions;
+    mapping(bytes32 => uint256) private _marketPositionIndex;
 
     // ============ Modifiers ============
 
@@ -139,9 +149,7 @@ contract PositionManager is IPositionManager {
 
         // 청산가
         PerpetualTypes.MarketConfig storage config = _marketConfigs[pos.marketId];
-        result.liquidationPrice = PerpetualMath.calculateLiquidationPrice(
-            pos.entryPrice, pos.margin, pos.size, config.maintenanceMarginBps, isLong
-        );
+        result.liquidationPrice = _liquidationPrice(pos);
 
         // 순자산
         int256 equitySigned = int256(uint256(pos.margin)) + result.unrealizedPnL - result.accumulatedFunding;
@@ -189,12 +197,7 @@ contract PositionManager is IPositionManager {
             return 0;
         }
 
-        PerpetualTypes.MarketConfig storage config = _marketConfigs[pos.marketId];
-        bool isLong = pos.side == PerpetualTypes.PositionSide.Long;
-
-        return PerpetualMath.calculateLiquidationPrice(
-            pos.entryPrice, pos.margin, pos.size, config.maintenanceMarginBps, isLong
-        );
+        return _liquidationPrice(pos);
     }
 
     /// @inheritdoc IPositionManager
@@ -234,6 +237,34 @@ contract PositionManager is IPositionManager {
         return _openInterest[marketId][side];
     }
 
+    function getMarkPrice(uint32 marketId) external view override returns (uint128) {
+        return uint128(_getMarkPrice(marketId));
+    }
+
+    function getFundingPayment(bytes32 key, uint128 size) external view override returns (int256) {
+        PerpetualTypes.Position storage pos = _positions[key];
+        if (pos.openedAt == 0) revert PerpetualErrors.PositionNotFound(key);
+        return PerpetualMath.calculateFundingPayment(
+            size,
+            _cumulativeFundingIndex[pos.marketId],
+            pos.lastFundingIndex,
+            pos.side == PerpetualTypes.PositionSide.Long
+        );
+    }
+
+    function getMarketConfig(uint32 marketId) external view override returns (PerpetualTypes.MarketConfig memory) {
+        return _marketConfigs[marketId];
+    }
+
+    function getMarketPositions(uint32 marketId, PerpetualTypes.PositionSide side)
+        external
+        view
+        override
+        returns (bytes32[] memory)
+    {
+        return _marketPositions[marketId][side];
+    }
+
     // ============ State-Changing Functions ============
 
     /// @inheritdoc IPositionManager
@@ -256,7 +287,15 @@ contract PositionManager is IPositionManager {
             revert PerpetualErrors.ZeroAmount();
         }
 
+        if (_marketPositions[marketId][side].length >= MAX_POSITIONS_PER_MARKET_SIDE) {
+            revert PerpetualErrors.InvalidParameter("market position limit reached");
+        }
         positionKey = _computePositionKey(trader, marketId, side);
+
+        if (entryPrice == 0) revert PerpetualErrors.InvalidPriceData(marketId, 0);
+        if (size > _marketConfigs[marketId].maxPositionSize) {
+            revert PerpetualErrors.PositionLimitExceeded(marketId, size, _marketConfigs[marketId].maxPositionSize);
+        }
 
         // 기존 포지션 확인
         if (_positions[positionKey].openedAt != 0) {
@@ -294,6 +333,9 @@ contract PositionManager is IPositionManager {
         // 트레이더 포지션 목록에 추가
         _traderPositions[trader].push(positionKey);
         _traderPositionIndex[trader][positionKey] = _traderPositions[trader].length;
+
+        _marketPositions[marketId][side].push(positionKey);
+        _marketPositionIndex[positionKey] = _marketPositions[marketId][side].length;
 
         // OI 업데이트
         _openInterest[marketId][side] = newOI;
@@ -363,6 +405,8 @@ contract PositionManager is IPositionManager {
             revert PerpetualErrors.ExceedsPositionSize(positionKey, reduceSize, pos.size);
         }
 
+        _requireNoDeficit(pos.marketId);
+
         bool isLong = pos.side == PerpetualTypes.PositionSide.Long;
 
         // 실현 PnL 계산
@@ -405,6 +449,8 @@ contract PositionManager is IPositionManager {
         if (pos.status != PerpetualTypes.PositionStatus.Open) {
             revert PerpetualErrors.PositionNotOpen(positionKey);
         }
+
+        _requireNoDeficit(pos.marketId);
 
         bool isLong = pos.side == PerpetualTypes.PositionSide.Long;
 
@@ -465,6 +511,8 @@ contract PositionManager is IPositionManager {
         if (removeMargin > pos.margin) {
             revert PerpetualErrors.CannotRemoveMargin(positionKey, removeMargin, pos.margin);
         }
+
+        _requireNoDeficit(pos.marketId);
 
         // 마진 제거 후 청산가 확인
         uint128 newMargin = pos.margin - removeMargin;
@@ -571,7 +619,14 @@ contract PositionManager is IPositionManager {
      * @param marketId 마켓 ID
      * @param config 마켓 설정
      */
-    function setMarketConfig(uint32 marketId, PerpetualTypes.MarketConfig calldata config) external onlyAdmin {
+    function setMarketConfig(uint32 marketId, PerpetualTypes.MarketConfig calldata config)
+        external
+        override
+        onlyAuthorized
+    {
+        if (config.maintenanceMarginBps >= BPS_PRECISION) {
+            revert PerpetualErrors.InvalidParameter("invalid maintenance margin");
+        }
         _marketConfigs[marketId] = config;
     }
 
@@ -629,6 +684,16 @@ contract PositionManager is IPositionManager {
      * @param positionKey 포지션 키
      */
     function _removeFromTraderPositions(address trader, bytes32 positionKey) internal {
+        PerpetualTypes.Position storage pos = _positions[positionKey];
+        bytes32[] storage keys = _marketPositions[pos.marketId][pos.side];
+        uint256 marketIndex = _marketPositionIndex[positionKey];
+        if (marketIndex != 0) {
+            bytes32 lastKey = keys[keys.length - 1];
+            keys[marketIndex - 1] = lastKey;
+            _marketPositionIndex[lastKey] = marketIndex;
+            keys.pop();
+            delete _marketPositionIndex[positionKey];
+        }
         uint256 indexPlusOne = _traderPositionIndex[trader][positionKey];
         if (indexPlusOne == 0) return;
 
@@ -645,23 +710,98 @@ contract PositionManager is IPositionManager {
         delete _traderPositionIndex[trader][positionKey];
     }
 
-    /**
-     * @notice 마크 가격 조회 (임시 구현)
-     * @param marketId 마켓 ID
-     * @return 마크 가격
-     */
+    function setMarketOracle(uint32 marketId, address oracle) external override onlyAuthorized {
+        if (oracle == address(0)) revert PerpetualErrors.ZeroAddress();
+        _marketOracles[marketId] = oracle;
+    }
+
+    function setLiquidator(address liquidator) external onlyAdmin {
+        if (liquidator == address(0)) revert PerpetualErrors.ZeroAddress();
+        _liquidator = liquidator;
+    }
+
+    function setADLEngine(address adlEngine) external onlyAdmin {
+        if (adlEngine == address(0)) revert PerpetualErrors.ZeroAddress();
+        _adlEngine = adlEngine;
+    }
+
+    function reduceForLiquidation(bytes32 key, uint128 size, uint128 price)
+        external
+        override
+        returns (uint256 releasedMargin, int256 pnl)
+    {
+        if (msg.sender != _liquidator) revert PerpetualErrors.Unauthorized(msg.sender);
+        PerpetualTypes.PositionResult memory result = this.getPositionResult(key);
+        if (!result.isLiquidatable) {
+            revert PerpetualErrors.PositionNotLiquidatable(
+                key, result.marginRatio, _marketConfigs[_positions[key].marketId].maintenanceMarginBps
+            );
+        }
+        return _reduceForSettlement(key, size, price, true);
+    }
+
+    function reduceForADL(bytes32 key, uint128 size, uint128 price)
+        external
+        override
+        returns (uint256 releasedMargin, int256 pnl)
+    {
+        if (msg.sender != _adlEngine) revert PerpetualErrors.Unauthorized(msg.sender);
+        return _reduceForSettlement(key, size, price, false);
+    }
+
+    function _reduceForSettlement(bytes32 key, uint128 size, uint128 price, bool liquidation)
+        internal
+        returns (uint256 releasedMargin, int256 pnl)
+    {
+        PerpetualTypes.Position storage pos = _positions[key];
+        if (pos.openedAt == 0) revert PerpetualErrors.PositionNotFound(key);
+        if (pos.status != PerpetualTypes.PositionStatus.Open) revert PerpetualErrors.PositionNotOpen(key);
+        if (size == 0) revert PerpetualErrors.ZeroSize();
+        if (size > pos.size) revert PerpetualErrors.ExceedsPositionSize(key, size, pos.size);
+        uint256 markPrice = _getMarkPrice(pos.marketId);
+        if (price == 0 || (liquidation && price != markPrice)) {
+            revert PerpetualErrors.InvalidPriceData(pos.marketId, int256(uint256(price)));
+        }
+        bool isLong = pos.side == PerpetualTypes.PositionSide.Long;
+        pnl = PerpetualMath.calculateRealizedPnL(pos.entryPrice, price, size, isLong)
+            - PerpetualMath.calculateFundingPayment(
+                size, _cumulativeFundingIndex[pos.marketId], pos.lastFundingIndex, isLong
+            );
+        releasedMargin = PerpetualMath.mulDiv(pos.margin, size, pos.size);
+        pos.size -= size;
+        pos.margin -= uint128(releasedMargin);
+        _openInterest[pos.marketId][pos.side] -= size;
+        if (pos.size == 0) {
+            pos.status = liquidation ? PerpetualTypes.PositionStatus.Liquidated : PerpetualTypes.PositionStatus.Closed;
+            _removeFromTraderPositions(pos.trader, key);
+        }
+        emit PerpetualEvents.PositionDecreased(key, pos.trader, size, price, pnl, pos.size);
+        if (liquidation && pos.size != 0) emit PerpetualEvents.PartialLiquidation(key, size, pos.size, price);
+    }
+
+    function _liquidationPrice(PerpetualTypes.Position storage pos) internal view returns (uint256) {
+        if (pos.size == 0) return 0;
+        bool isLong = pos.side == PerpetualTypes.PositionSide.Long;
+        int256 funding = PerpetualMath.calculateFundingPayment(
+            pos.size, _cumulativeFundingIndex[pos.marketId], pos.lastFundingIndex, isLong
+        );
+        int256 margin = int256(uint256(pos.margin)) - funding;
+        int256 entryValue = int256(PerpetualMath.mulDiv(pos.size, pos.entryPrice, PRECISION));
+        int256 numerator = isLong ? entryValue - margin : entryValue + margin;
+        if (numerator <= 0) return 0;
+        uint256 maintenance = _marketConfigs[pos.marketId].maintenanceMarginBps;
+        uint256 denominator = isLong ? BPS_PRECISION - maintenance : BPS_PRECISION + maintenance;
+        return PerpetualMath.mulDiv(uint256(numerator), PRECISION * BPS_PRECISION, uint256(pos.size) * denominator);
+    }
+
+    function _requireNoDeficit(uint32 marketId) internal view {
+        if (_adlEngine != address(0) && IADLEngine(_adlEngine).getMarketDeficit(marketId) != 0) {
+            revert PerpetualErrors.InvalidParameter("market has unresolved ADL debt");
+        }
+    }
+
     function _getMarkPrice(uint32 marketId) internal view returns (uint256) {
-        // TODO: 실제 오라클 연동
-        // 임시로 1e18 반환 (1:1)
-        if (markPriceOracle == address(0)) {
-            return PRECISION;
-        }
-        // 실제 구현 시 오라클 호출
-        (bool success, bytes memory data) =
-            markPriceOracle.staticcall(abi.encodeWithSignature("getMarkPrice(uint32)", marketId));
-        if (success && data.length >= 32) {
-            return abi.decode(data, (uint256));
-        }
-        return PRECISION;
+        address oracle = _marketOracles[marketId];
+        return PerpetualPrice.read(oracle == address(0) ? markPriceOracle : oracle, marketId);
     }
 }

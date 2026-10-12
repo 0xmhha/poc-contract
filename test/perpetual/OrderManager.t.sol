@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import { MarkPriceMock } from "./mocks/MarkPriceMock.sol";
 import { Test, Vm } from "forge-std/Test.sol";
 import { OrderManager } from "../../src/perpetual/core/OrderManager.sol";
 import { PerpetualEngine } from "../../src/perpetual/PerpetualEngine.sol";
@@ -22,6 +23,10 @@ contract OrderManagerTest is Test {
 
     function setUp() public {
         om = new OrderManager(admin);
+        MarkPriceMock oracle = new MarkPriceMock();
+        oracle.setPrice(MARKET, 50000e18);
+        vm.prank(admin);
+        om.setPriceFeed(address(oracle));
     }
 
     // ============ Indexer conformance ============
@@ -194,7 +199,7 @@ contract OrderManagerTest is Test {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs[0].topics[0], PerpetualEvents.MarketOrderExecuted.selector);
         assertEq(size, 3e18);
-        assertGt(price, 0);
+        assertEq(price, 50000e18, "slippage tolerance must not change the fill price");
     }
 
     // ============ PerpetualEngine market registration ============

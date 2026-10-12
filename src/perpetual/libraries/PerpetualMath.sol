@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Constants } from "../../common/libraries/Constants.sol";
 
 /**
@@ -29,9 +30,8 @@ library PerpetualMath {
      */
     function mulDiv(uint256 a, uint256 b, uint256 denominator) internal pure returns (uint256 result) {
         require(denominator > 0, "Division by zero");
-        // 오버플로우 방지를 위해 unchecked 사용하지 않음
-        uint256 prod = a * b;
-        result = prod / denominator;
+        // Use a full-width intermediate product for large position and price values.
+        result = Math.mulDiv(a, b, denominator);
     }
 
     /**

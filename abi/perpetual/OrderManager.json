@@ -506,6 +506,24 @@
   {
     "inputs": [
       {
+        "internalType": "uint32",
+        "name": "marketId",
+        "type": "uint32"
+      },
+      {
+        "internalType": "address",
+        "name": "oracle",
+        "type": "address"
+      }
+    ],
+    "name": "setMarketPriceOracle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "priceFeed",
         "type": "address"
@@ -800,12 +818,39 @@
   {
     "inputs": [
       {
+        "internalType": "string",
+        "name": "param",
+        "type": "string"
+      }
+    ],
+    "name": "InvalidParameter",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "price",
         "type": "uint256"
       }
     ],
     "name": "InvalidPrice",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "marketId",
+        "type": "uint32"
+      },
+      {
+        "internalType": "int256",
+        "name": "price",
+        "type": "int256"
+      }
+    ],
+    "name": "InvalidPriceData",
     "type": "error"
   },
   {
@@ -961,6 +1006,17 @@
   {
     "inputs": [
       {
+        "internalType": "uint32",
+        "name": "marketId",
+        "type": "uint32"
+      }
+    ],
+    "name": "PriceNotAvailable",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "orderId",
         "type": "bytes32"
@@ -993,6 +1049,27 @@
       }
     ],
     "name": "SameSideOrders",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "marketId",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "lastUpdate",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxAge",
+        "type": "uint256"
+      }
+    ],
+    "name": "StalePriceData",
     "type": "error"
   },
   {

@@ -9,6 +9,27 @@ import { PerpetualTypes } from "../libraries/PerpetualTypes.sol";
  * @notice 포지션 관리 인터페이스
  */
 interface IPositionManager {
+    /// @notice Current validated mark price used by trading and settlement.
+    function getMarkPrice(uint32 marketId) external view returns (uint128);
+    /// @notice Funding liability for an exact position slice, without prorating rounded totals.
+    function getFundingPayment(bytes32 key, uint128 size) external view returns (int256);
+    function getMarketConfig(uint32 marketId) external view returns (PerpetualTypes.MarketConfig memory);
+    function getMarketPositions(uint32 marketId, PerpetualTypes.PositionSide side)
+        external
+        view
+        returns (bytes32[] memory);
+    function setMarketConfig(uint32 marketId, PerpetualTypes.MarketConfig calldata config) external;
+    function setMarketOracle(uint32 marketId, address oracle) external;
+
+    /// @notice Liquidator-only reduction; returns proportional margin and funding-adjusted PnL.
+    function reduceForLiquidation(bytes32 key, uint128 size, uint128 price)
+        external
+        returns (uint256 releasedMargin, int256 pnl);
+    /// @notice ADL-only reduction at the registered liquidation mark price.
+    function reduceForADL(bytes32 key, uint128 size, uint128 price)
+        external
+        returns (uint256 releasedMargin, int256 pnl);
+
     // ============ View Functions ============
 
     /**

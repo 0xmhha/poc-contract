@@ -24,7 +24,7 @@ import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
  * - 거래 진입점 (포지션 오픈/종료, 주문 생성/취소)
  * - 컴포넌트 통합 (Position, Margin, Order, Liquidator, InsuranceFund, ADL)
  * @custom:status TESTNET ONLY. Reference implementation for indexer trading venues; not audited.
- *      Prices are hard-coded placeholders (see _getMarketPrice); there is no oracle integration.
+ *      Trading requires a configured mark-price oracle; settlement remains testnet-only.
  */
 contract PerpetualEngine is IPerpetualEngine, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
@@ -251,7 +251,8 @@ contract PerpetualEngine is IPerpetualEngine, ReentrancyGuard, Pausable {
         }
 
         // 토큰 전송
-        collateralToken.safeTransferFrom(msg.sender, _components.marginManager, amount);
+        collateralToken.safeTransferFrom(msg.sender, address(this), amount);
+        collateralToken.forceApprove(_components.marginManager, amount);
 
         // MarginManager에 입금 처리
         IMarginManager(_components.marginManager).depositMargin(msg.sender, amount);
@@ -292,6 +293,7 @@ contract PerpetualEngine is IPerpetualEngine, ReentrancyGuard, Pausable {
 
         // 필요 마진 계산
         uint256 requiredMargin = PerpetualMath.calculateRequiredMargin(size, fillPrice, leverage);
+        if (requiredMargin > type(uint128).max) revert PerpetualErrors.InvalidParameter("margin overflow");
 
         // 마진 락
         IMarginManager(_components.marginManager).lockMargin(msg.sender, requiredMargin);
@@ -443,6 +445,7 @@ contract PerpetualEngine is IPerpetualEngine, ReentrancyGuard, Pausable {
         whenNotPaused
         onlyExistingMarket(marketId)
     {
+        if (mode != PerpetualTypes.MarginMode.Isolated) revert PerpetualErrors.InvalidMarginMode(mode);
         IMarginManager(_components.marginManager).setMarginMode(msg.sender, marketId, mode);
     }
 
@@ -481,6 +484,9 @@ contract PerpetualEngine is IPerpetualEngine, ReentrancyGuard, Pausable {
         market.exists = true;
 
         _marketIds.push(marketId);
+        if (_components.positionManager != address(0)) {
+            IPositionManager(_components.positionManager).setMarketConfig(marketId, config);
+        }
 
         emit PerpetualEvents.MarketCreated(marketId, address(0), address(collateralToken), config.maxLeverage);
 
@@ -509,6 +515,9 @@ contract PerpetualEngine is IPerpetualEngine, ReentrancyGuard, Pausable {
         onlyExistingMarket(marketId)
     {
         _markets[marketId].config = config;
+        if (_components.positionManager != address(0)) {
+            IPositionManager(_components.positionManager).setMarketConfig(marketId, config);
+        }
     }
 
     /// @inheritdoc IPerpetualEngine
@@ -526,6 +535,18 @@ contract PerpetualEngine is IPerpetualEngine, ReentrancyGuard, Pausable {
         _components.liquidator = liquidator;
         _components.insuranceFund = insuranceFund;
         _components.adlEngine = adlEngine;
+        for (uint256 i = 0; i < _marketIds.length; i++) {
+            uint32 marketId = _marketIds[i];
+            if (positionManager != address(0)) {
+                IPositionManager(positionManager).setMarketConfig(marketId, _markets[marketId].config);
+                if (_oracleConfigs[marketId].markOracle != address(0)) {
+                    IPositionManager(positionManager).setMarketOracle(marketId, _oracleConfigs[marketId].markOracle);
+                }
+            }
+            if (orderManager != address(0) && _oracleConfigs[marketId].markOracle != address(0)) {
+                IOrderManager(orderManager).setMarketPriceOracle(marketId, _oracleConfigs[marketId].markOracle);
+            }
+        }
     }
 
     /// @inheritdoc IPerpetualEngine
@@ -535,7 +556,10 @@ contract PerpetualEngine is IPerpetualEngine, ReentrancyGuard, Pausable {
         onlyAdmin
         onlyExistingMarket(marketId)
     {
+        if (markOracle == address(0)) revert PerpetualErrors.ZeroAddress();
         _oracleConfigs[marketId] = OracleConfig({ indexOracle: indexOracle, markOracle: markOracle });
+        IPositionManager(_components.positionManager).setMarketOracle(marketId, markOracle);
+        IOrderManager(_components.orderManager).setMarketPriceOracle(marketId, markOracle);
     }
 
     /// @inheritdoc IPerpetualEngine
@@ -582,29 +606,10 @@ contract PerpetualEngine is IPerpetualEngine, ReentrancyGuard, Pausable {
     /**
      * @notice 시장 가격 조회
      * @param marketId 마켓 ID
-     * @param side 포지션 방향
-     * @param isClose 종료 여부
      * @return price 가격
      */
-    function _getMarketPrice(uint32 marketId, PerpetualTypes.PositionSide side, bool isClose)
-        internal
-        view
-        returns (uint128 price)
-    {
-        // TODO: 실제 구현 시 오라클에서 가격 조회
-        // 임시: 고정 가격 반환
-        price = 50000e18;
-
-        // 종료 시 반대 방향 가격 적용 (스프레드 고려)
-        if (isClose) {
-            if (side == PerpetualTypes.PositionSide.Long) {
-                // 롱 종료 = 매도 = 낮은 가격
-                price = uint128(PerpetualMath.mulDiv(price, 9995, 10000)); // -0.05%
-            } else {
-                // 숏 종료 = 매수 = 높은 가격
-                price = uint128(PerpetualMath.mulDiv(price, 10005, 10000)); // +0.05%
-            }
-        }
+    function _getMarketPrice(uint32 marketId, PerpetualTypes.PositionSide, bool) internal view returns (uint128 price) {
+        price = IPositionManager(_components.positionManager).getMarkPrice(marketId);
     }
 
     /**

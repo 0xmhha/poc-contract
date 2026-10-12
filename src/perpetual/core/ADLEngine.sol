@@ -2,436 +2,363 @@
 pragma solidity ^0.8.20;
 
 import { IADLEngine } from "../interfaces/IADLEngine.sol";
+import { IPositionManager } from "../interfaces/IPositionManager.sol";
+import { IMarginManager } from "../interfaces/IMarginManager.sol";
+import { IInsuranceFund } from "../interfaces/IInsuranceFund.sol";
 import { PerpetualTypes } from "../libraries/PerpetualTypes.sol";
 import { PerpetualMath } from "../libraries/PerpetualMath.sol";
 import { PerpetualErrors } from "../libraries/PerpetualErrors.sol";
 import { PerpetualEvents } from "../libraries/PerpetualEvents.sol";
 import { Constants } from "../../common/libraries/Constants.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/**
- * @title ADLEngine
- * @author StableNet Team
- * @notice 자동 디레버리징(ADL) 엔진 컨트랙트
- * @dev
- * - ADL 우선순위 계산
- * - ADL 대상 선정
- * - ADL 실행
- * - 우선순위 큐 관리
- */
-contract ADLEngine is IADLEngine {
-    using PerpetualMath for uint256;
-
-    // ============ Constants ============
-
+/// @notice Testnet isolated-margin ADL: reduces profitable opposite-side positions
+///         and withholds realized profit to resolve registered, insurance-uncovered debt.
+/// @dev Positions and funding-adjusted priorities are read live. No arbitrary debt can
+///      be supplied by keepers, and no fees or unrelated collateral fund the haircut.
+contract ADLEngine is IADLEngine, ReentrancyGuard {
     uint256 private constant PRECISION = Constants.PRECISION;
     uint256 private constant BPS_PRECISION = Constants.BPS_PRECISION;
-
-    /// @notice 최대 ADL 레벨
     uint8 public constant MAX_ADL_LEVEL = 5;
-
-    /// @notice ADL 배치 최대 크기
     uint256 public constant MAX_ADL_BATCH_SIZE = 50;
+    uint256[5] public DEFAULT_LEVEL_THRESHOLDS = [8000, 6000, 4000, 2000, 1000];
 
-    /// @notice 기본 레벨별 임계값 (BPS)
-    uint256[5] public DEFAULT_LEVEL_THRESHOLDS = [800, 600, 400, 200, 100]; // 80%, 60%, 40%, 20%, 10%
+    struct Bankruptcy {
+        uint32 marketId;
+        PerpetualTypes.PositionSide side;
+        uint128 remainingSize;
+        uint128 settlementMarkPrice;
+        uint256 remainingDeficit;
+    }
 
-    // ============ State Variables ============
-
-    /// @notice 마켓별 ADL 활성화 상태
-    mapping(uint32 => bool) private _adlActive;
-
-    /// @notice 마켓별 ADL 레벨
-    mapping(uint32 => uint8) private _adlLevels;
-
-    /// @notice 마켓별 ADL 통계
-    mapping(uint32 => ADLStats) private _adlStats;
-
-    /// @notice 레벨별 임계값 (BPS)
-    mapping(uint8 => uint256) private _levelThresholds;
-
-    /// @notice 포지션별 ADL 우선순위
-    mapping(bytes32 => uint256) private _adlPriorities;
-
-    /// @notice 마켓별 방향별 우선순위 큐 (포지션 키 배열)
-    mapping(uint32 => mapping(PerpetualTypes.PositionSide => bytes32[])) private _priorityQueues;
-
-    /// @notice 관리자 주소
-    address private _admin;
-
-    /// @notice PerpetualEngine 주소
-    address private _engine;
-
-    /// @notice InsuranceFund 주소
-    address private _insuranceFund;
-
-    /// @notice PositionManager 주소
-    address private _positionManager;
-
-    /// @notice ADL 통계
     struct ADLStats {
         uint256 totalADLEvents;
         uint256 totalADLVolume;
         uint256 lastADLTime;
     }
 
-    // ============ Modifiers ============
+    mapping(bytes32 => Bankruptcy) private _bankruptcies;
+    mapping(bytes32 => bool) private _registered;
+    mapping(uint32 => uint256) private _marketDeficits;
+    mapping(uint32 => bool) private _adlActive;
+    mapping(uint32 => uint8) private _adlLevels;
+    mapping(uint32 => ADLStats) private _adlStats;
+    mapping(uint8 => uint256) private _levelThresholds;
+    mapping(uint32 => mapping(PerpetualTypes.PositionSide => bytes32[])) private _priorityQueues;
+    address private _admin;
+    address private _engine;
+    address private _liquidator;
+    IInsuranceFund private _insuranceFund;
+    IPositionManager private _positionManager;
+    IMarginManager private _marginManager;
+
+    event BankruptcyRegistered(bytes32 indexed positionKey, uint32 indexed marketId, uint128 size, uint256 deficit);
+    event DeficitResolved(bytes32 indexed positionKey, uint256 haircut, uint256 remainingDeficit);
 
     modifier onlyAuthorized() {
-        if (msg.sender != _admin && msg.sender != _engine) {
-            revert PerpetualErrors.Unauthorized(msg.sender);
-        }
+        if (msg.sender != _admin && msg.sender != _engine) revert PerpetualErrors.Unauthorized(msg.sender);
         _;
     }
 
     modifier onlyAdmin() {
-        if (msg.sender != _admin) {
-            revert PerpetualErrors.Unauthorized(msg.sender);
-        }
+        if (msg.sender != _admin) revert PerpetualErrors.Unauthorized(msg.sender);
         _;
     }
 
-    // ============ Constructor ============
-
-    /**
-     * @notice 컨트랙트 초기화
-     * @param admin 관리자 주소
-     */
     constructor(address admin) {
-        if (admin == address(0)) {
-            revert PerpetualErrors.ZeroAddress();
-        }
+        if (admin == address(0)) revert PerpetualErrors.ZeroAddress();
         _admin = admin;
-
-        // 기본 레벨 임계값 설정
         for (uint8 i = 0; i < MAX_ADL_LEVEL; i++) {
             _levelThresholds[i + 1] = DEFAULT_LEVEL_THRESHOLDS[i];
         }
     }
 
-    // ============ View Functions ============
-
-    /// @inheritdoc IADLEngine
-    function isADLActive(uint32 marketId) external view override returns (bool isActive) {
+    function isADLActive(uint32 marketId) external view override returns (bool) {
         return _adlActive[marketId];
     }
 
-    /// @inheritdoc IADLEngine
-    function getADLPriority(bytes32 positionKey) external view override returns (uint256 priority) {
-        return _adlPriorities[positionKey];
+    function getADLLevel(uint32 marketId) external view override returns (uint8) {
+        return _adlLevels[marketId];
     }
 
-    /// @inheritdoc IADLEngine
+    function getMarketDeficit(uint32 marketId) external view override returns (uint256) {
+        return _marketDeficits[marketId];
+    }
+
+    function getBankruptcy(bytes32 key) external view returns (Bankruptcy memory) {
+        return _bankruptcies[key];
+    }
+
+    function getADLPriority(bytes32 key) external view override returns (uint256) {
+        return _info(key).priority;
+    }
+
+    function getADLInfo(bytes32 key) external view override returns (PerpetualTypes.ADLInfo memory) {
+        return _info(key);
+    }
+
     function getADLTargets(uint32 marketId, PerpetualTypes.PositionSide side, uint256 limit)
         external
         view
         override
-        returns (bytes32[] memory positionKeys)
+        returns (bytes32[] memory)
     {
-        bytes32[] storage queue = _priorityQueues[marketId][side];
-        uint256 count = queue.length > limit ? limit : queue.length;
-
-        positionKeys = new bytes32[](count);
-        for (uint256 i = 0; i < count; i++) {
-            positionKeys[i] = queue[i];
-        }
+        return _targets(marketId, side, limit);
     }
 
-    /// @inheritdoc IADLEngine
-    function getADLInfo(bytes32 positionKey) external view override returns (PerpetualTypes.ADLInfo memory info) {
-        info = PerpetualTypes.ADLInfo({
-            positionKey: positionKey,
-            trader: address(0), // TODO: PositionManager에서 조회
-            priority: _adlPriorities[positionKey],
-            unrealizedPnL: 0, // TODO: PositionManager에서 조회
-            leverage: 0 // TODO: PositionManager에서 조회
-        });
+    function shouldTriggerADL(uint32 marketId) external view override returns (bool, uint256 deficit) {
+        if (address(_insuranceFund) == address(0)) revert PerpetualErrors.NotInitialized();
+        deficit = _marketDeficits[marketId];
+        if (deficit > 0) return (true, deficit);
+        uint256 threshold =
+            PerpetualMath.mulDiv(_insuranceFund.getTargetAmount(), _insuranceFund.getADLThreshold(), BPS_PRECISION);
+        uint256 balance = _insuranceFund.getTotalBalance();
+        return (balance < threshold, balance < threshold ? threshold - balance : 0);
     }
 
-    /// @inheritdoc IADLEngine
-    function shouldTriggerADL(uint32 marketId) external view override returns (bool shouldTrigger, uint256 deficit) {
-        // TODO: InsuranceFund에서 ADL 트리거 여부 확인
-        // 임시 구현
-        return (false, 0);
-    }
-
-    /// @inheritdoc IADLEngine
-    function getADLLevel(uint32 marketId) external view override returns (uint8 level) {
-        return _adlLevels[marketId];
-    }
-
-    /// @inheritdoc IADLEngine
-    function getADLStats(uint32 marketId)
-        external
-        view
-        override
-        returns (uint256 totalADLEvents, uint256 totalADLVolume, uint256 lastADLTime)
-    {
+    function getADLStats(uint32 marketId) external view override returns (uint256, uint256, uint256) {
         ADLStats storage stats = _adlStats[marketId];
         return (stats.totalADLEvents, stats.totalADLVolume, stats.lastADLTime);
     }
 
-    // ============ State-Changing Functions ============
+    function registerBankruptcy(
+        bytes32 key,
+        uint32 marketId,
+        PerpetualTypes.PositionSide side,
+        uint128 size,
+        uint256 deficit
+    ) external override {
+        if (msg.sender != _liquidator) revert PerpetualErrors.Unauthorized(msg.sender);
+        _requireConfigured();
+        PerpetualTypes.Position memory pos = _positionManager.getPosition(key);
+        if (
+            _registered[key] || size == 0 || deficit == 0 || pos.openedAt == 0
+                || pos.status != PerpetualTypes.PositionStatus.Liquidated || pos.marketId != marketId
+                || pos.side != side
+        ) {
+            revert PerpetualErrors.InvalidParameter("invalid bankruptcy");
+        }
+        _registered[key] = true;
+        _bankruptcies[key] = Bankruptcy(marketId, side, size, _positionManager.getMarkPrice(marketId), deficit);
+        _marketDeficits[marketId] += deficit;
+        _adlActive[marketId] = true;
+        uint256 ratio = _insuranceFund.getFundingRatio();
+        uint8 level = 1;
+        for (uint8 i = 1; i <= MAX_ADL_LEVEL; i++) {
+            if (ratio < _levelThresholds[i]) level = i;
+        }
+        _adlLevels[marketId] = level;
+        emit BankruptcyRegistered(key, marketId, size, deficit);
+    }
 
-    /// @inheritdoc IADLEngine
-    function executeADL(bytes32 bankruptPositionKey, bytes32 counterpartyPositionKey, uint128 adlSize)
+    function executeADL(bytes32 bankruptKey, bytes32 counterpartyKey, uint128 size)
         external
         override
         onlyAuthorized
-        returns (uint128 executedSize)
+        nonReentrant
+        returns (uint128)
     {
-        // ADL 활성화 확인
-        // TODO: 마켓 ID 조회 필요
-        uint32 marketId = 0; // 임시
-
-        if (!_adlActive[marketId]) {
-            revert PerpetualErrors.ADLNotRequired();
-        }
-
-        // 상대방 포지션 유효성 확인
-        uint256 priority = _adlPriorities[counterpartyPositionKey];
-        if (priority == 0) {
-            revert PerpetualErrors.NotADLCandidate(counterpartyPositionKey);
-        }
-
-        // TODO: 실제 ADL 실행 로직
-        // 1. 파산 포지션 정보 조회
-        // 2. 상대방 포지션 정보 조회
-        // 3. ADL 가격 계산 (파산 포지션의 파산 가격)
-        // 4. 상대방 포지션 감소
-        // 5. 파산 포지션 정리
-
-        executedSize = adlSize;
-
-        // 통계 업데이트
-        _adlStats[marketId].totalADLEvents++;
-        _adlStats[marketId].totalADLVolume += adlSize;
-        _adlStats[marketId].lastADLTime = block.timestamp;
-
-        emit PerpetualEvents.ADLExecuted(bankruptPositionKey, counterpartyPositionKey, marketId, adlSize, 0);
-
-        return executedSize;
+        return _execute(bankruptKey, counterpartyKey, size);
     }
 
-    /// @inheritdoc IADLEngine
-    function batchExecuteADL(
-        bytes32 bankruptPositionKey,
-        bytes32[] calldata counterpartyPositionKeys,
-        uint128[] calldata adlSizes
-    ) external override onlyAuthorized returns (uint128 totalExecuted) {
-        if (counterpartyPositionKeys.length != adlSizes.length) {
-            revert PerpetualErrors.InvalidParameter("array length mismatch");
-        }
-        if (counterpartyPositionKeys.length > MAX_ADL_BATCH_SIZE) {
-            revert PerpetualErrors.InvalidParameter("batch size exceeded");
-        }
-
-        for (uint256 i = 0; i < counterpartyPositionKeys.length; i++) {
-            uint128 executed = this.executeADL(bankruptPositionKey, counterpartyPositionKeys[i], adlSizes[i]);
-            totalExecuted += executed;
-        }
-
-        return totalExecuted;
-    }
-
-    /// @inheritdoc IADLEngine
-    function autoExecuteADL(bytes32 bankruptPositionKey)
+    function batchExecuteADL(bytes32 bankruptKey, bytes32[] calldata keys, uint128[] calldata sizes)
         external
         override
         onlyAuthorized
+        nonReentrant
+        returns (uint128 totalExecuted)
+    {
+        if (keys.length != sizes.length) revert PerpetualErrors.InvalidParameter("array length mismatch");
+        if (keys.length > MAX_ADL_BATCH_SIZE) revert PerpetualErrors.InvalidParameter("batch size exceeded");
+        for (uint256 i = 0; i < keys.length; i++) {
+            totalExecuted += _execute(bankruptKey, keys[i], sizes[i]);
+        }
+    }
+
+    function autoExecuteADL(bytes32 bankruptKey)
+        external
+        override
+        onlyAuthorized
+        nonReentrant
         returns (uint128 totalExecuted, uint256 adlCount)
     {
-        // TODO: 마켓 ID 및 방향 조회
-        uint32 marketId = 0;
-        PerpetualTypes.PositionSide oppositeSide = PerpetualTypes.PositionSide.Long;
-
-        // ADL 대상 조회
-        bytes32[] storage queue = _priorityQueues[marketId][oppositeSide];
-
-        if (queue.length == 0) {
-            revert PerpetualErrors.NoADLCandidates(marketId, oppositeSide);
-        }
-
-        // TODO: 파산 포지션의 남은 크기만큼 ADL 실행
-        uint128 remainingSize = 0; // 파산 포지션 크기
-
-        uint256 i = 0;
-        while (remainingSize > 0 && i < queue.length) {
-            bytes32 counterpartyKey = queue[i];
-            // TODO: 상대방 포지션 크기 조회
-            uint128 counterpartySize = 0;
-
-            uint128 adlSize = remainingSize > counterpartySize ? counterpartySize : remainingSize;
-
-            uint128 executed = this.executeADL(bankruptPositionKey, counterpartyKey, adlSize);
-            totalExecuted += executed;
-            remainingSize -= executed;
+        _requireConfigured();
+        Bankruptcy storage debt = _bankruptcies[bankruptKey];
+        if (!_adlActive[debt.marketId] || debt.remainingDeficit == 0) revert PerpetualErrors.ADLNotRequired();
+        PerpetualTypes.PositionSide side = _opposite(debt.side);
+        bytes32[] memory targets = _targets(debt.marketId, side, MAX_ADL_BATCH_SIZE);
+        for (uint256 i = 0; i < targets.length && debt.remainingSize != 0; i++) {
+            PerpetualTypes.Position memory pos = _positionManager.getPosition(targets[i]);
+            uint128 size = pos.size < debt.remainingSize ? pos.size : debt.remainingSize;
+            if (!_canSettle(debt, targets[i], pos, size)) continue;
+            totalExecuted += _execute(bankruptKey, targets[i], size);
             adlCount++;
-            i++;
         }
-
-        return (totalExecuted, adlCount);
+        if (adlCount == 0) revert PerpetualErrors.NoADLCandidates(debt.marketId, side);
     }
 
-    /// @inheritdoc IADLEngine
+    function updatePriorityQueue(uint32 marketId, PerpetualTypes.PositionSide side) external override onlyAuthorized {
+        bytes32[] memory targets = _targets(marketId, side, MAX_ADL_BATCH_SIZE);
+        _priorityQueues[marketId][side] = targets;
+        emit PerpetualEvents.ADLPriorityUpdated(marketId, side, targets.length == 0 ? 0 : _info(targets[0]).priority);
+    }
+
     function setADLActive(uint32 marketId, bool active) external override onlyAdmin {
         _adlActive[marketId] = active;
     }
 
-    /// @inheritdoc IADLEngine
-    function setADLLevelThreshold(uint8 level, uint256 threshold) external override onlyAdmin {
-        if (level == 0 || level > MAX_ADL_LEVEL) {
-            revert PerpetualErrors.InvalidParameter("invalid ADL level");
-        }
-        if (threshold > BPS_PRECISION) {
-            revert PerpetualErrors.InvalidParameter("threshold exceeds 100%");
-        }
-
-        _levelThresholds[level] = threshold;
-    }
-
-    /// @inheritdoc IADLEngine
-    function updatePriorityQueue(uint32 marketId, PerpetualTypes.PositionSide side) external override onlyAuthorized {
-        // TODO: PositionManager에서 모든 오픈 포지션 조회
-        // 우선순위 계산 및 정렬
-
-        // 우선순위 = PnL 비율 * 레버리지
-        // 높은 수익 + 높은 레버리지 = 높은 ADL 우선순위
-
-        emit PerpetualEvents.ADLPriorityUpdated(marketId, side, 0);
-    }
-
-    // ============ Admin Functions ============
-
-    /**
-     * @notice 엔진 주소 설정
-     * @param engine 엔진 주소
-     */
-    function setEngine(address engine) external onlyAdmin {
-        if (engine == address(0)) {
-            revert PerpetualErrors.ZeroAddress();
-        }
-        _engine = engine;
-    }
-
-    /**
-     * @notice InsuranceFund 주소 설정
-     * @param insuranceFund InsuranceFund 주소
-     */
-    function setInsuranceFund(address insuranceFund) external onlyAdmin {
-        if (insuranceFund == address(0)) {
-            revert PerpetualErrors.ZeroAddress();
-        }
-        _insuranceFund = insuranceFund;
-    }
-
-    /**
-     * @notice PositionManager 주소 설정
-     * @param positionManager PositionManager 주소
-     */
-    function setPositionManager(address positionManager) external onlyAdmin {
-        if (positionManager == address(0)) {
-            revert PerpetualErrors.ZeroAddress();
-        }
-        _positionManager = positionManager;
-    }
-
-    /**
-     * @notice ADL 레벨 수동 설정 (긴급 상황)
-     * @param marketId 마켓 ID
-     * @param level ADL 레벨
-     */
     function setADLLevel(uint32 marketId, uint8 level) external onlyAdmin {
-        if (level > MAX_ADL_LEVEL) {
-            revert PerpetualErrors.InvalidParameter("invalid ADL level");
-        }
+        if (level > MAX_ADL_LEVEL) revert PerpetualErrors.InvalidParameter("invalid ADL level");
         _adlLevels[marketId] = level;
     }
 
-    // ============ Internal Functions ============
+    function setADLLevelThreshold(uint8 level, uint256 threshold) external override onlyAdmin {
+        if (level == 0 || level > MAX_ADL_LEVEL || threshold > BPS_PRECISION) {
+            revert PerpetualErrors.InvalidParameter("invalid ADL threshold");
+        }
+        _levelThresholds[level] = threshold;
+    }
 
-    /**
-     * @notice ADL 우선순위 계산
-     * @param unrealizedPnL 미실현 PnL
-     * @param margin 마진
-     * @param leverage 레버리지
-     * @return priority ADL 우선순위
-     */
-    function _calculatePriority(int256 unrealizedPnL, uint256 margin, uint256 leverage)
+    function setEngine(address engine) external onlyAdmin {
+        if (engine == address(0)) revert PerpetualErrors.ZeroAddress();
+        _engine = engine;
+    }
+
+    function setLiquidator(address liquidator) external onlyAdmin {
+        if (liquidator == address(0)) revert PerpetualErrors.ZeroAddress();
+        _liquidator = liquidator;
+    }
+
+    function setPositionManager(address manager) external onlyAdmin {
+        if (manager == address(0)) revert PerpetualErrors.ZeroAddress();
+        _positionManager = IPositionManager(manager);
+    }
+
+    function setMarginManager(address manager) external onlyAdmin {
+        if (manager == address(0)) revert PerpetualErrors.ZeroAddress();
+        _marginManager = IMarginManager(manager);
+    }
+
+    function setInsuranceFund(address fund) external onlyAdmin {
+        if (fund == address(0)) revert PerpetualErrors.ZeroAddress();
+        _insuranceFund = IInsuranceFund(fund);
+    }
+
+    function _requireConfigured() internal view {
+        if (
+            address(_positionManager) == address(0) || address(_marginManager) == address(0)
+                || address(_insuranceFund) == address(0)
+        ) revert PerpetualErrors.NotInitialized();
+    }
+
+    function _info(bytes32 key) internal view returns (PerpetualTypes.ADLInfo memory info) {
+        _requireConfigured();
+        PerpetualTypes.Position memory pos = _positionManager.getPosition(key);
+        if (pos.openedAt == 0) revert PerpetualErrors.PositionNotFound(key);
+        info.positionKey = key;
+        info.trader = pos.trader;
+        if (pos.status != PerpetualTypes.PositionStatus.Open) return info;
+        PerpetualTypes.PositionResult memory result = _positionManager.getPositionResult(key);
+        info.unrealizedPnL = result.unrealizedPnL - result.accumulatedFunding;
+        if (result.equity != 0) {
+            uint256 value = PerpetualMath.mulDiv(pos.size, _positionManager.getMarkPrice(pos.marketId), PRECISION);
+            info.leverage = PerpetualMath.mulDiv(value, PRECISION, result.equity);
+            if (info.unrealizedPnL > 0) {
+                uint256 pnlRatio = PerpetualMath.mulDiv(uint256(info.unrealizedPnL), PRECISION, result.equity);
+                info.priority = PerpetualMath.mulDiv(pnlRatio, info.leverage, PRECISION);
+            }
+        }
+    }
+
+    function _targets(uint32 marketId, PerpetualTypes.PositionSide side, uint256 limit)
         internal
-        pure
-        returns (uint256 priority)
+        view
+        returns (bytes32[] memory targets)
     {
-        // 수익 포지션만 ADL 대상
-        if (unrealizedPnL <= 0) {
-            return 0;
+        _requireConfigured();
+        bytes32[] memory keys = _positionManager.getMarketPositions(marketId, side);
+        uint256 capacity = limit < MAX_ADL_BATCH_SIZE ? limit : MAX_ADL_BATCH_SIZE;
+        if (capacity > keys.length) capacity = keys.length;
+        targets = new bytes32[](capacity);
+        uint256[] memory priorities = new uint256[](capacity);
+        uint256 count;
+        for (uint256 i = 0; i < keys.length && capacity != 0; i++) {
+            uint256 priority = _info(keys[i]).priority;
+            if (priority == 0) continue;
+            uint256 index;
+            while (index < count && priority <= priorities[index]) index++;
+            if (index == capacity) continue;
+            if (count < capacity) count++;
+            for (uint256 j = count - 1; j > index; j--) {
+                targets[j] = targets[j - 1];
+                priorities[j] = priorities[j - 1];
+            }
+            targets[index] = keys[i];
+            priorities[index] = priority;
         }
-
-        // 우선순위 = (PnL / margin) * leverage
-        // 높은 수익률 + 높은 레버리지 = 높은 우선순위
-        if (margin == 0) {
-            return 0;
-        }
-
-        uint256 pnlRatio = PerpetualMath.mulDiv(uint256(unrealizedPnL), PRECISION, margin);
-        priority = pnlRatio * leverage;
-
-        return priority;
+        assembly ("memory-safe") { mstore(targets, count) }
     }
 
-    /**
-     * @notice 우선순위 큐 삽입 (정렬된 위치에)
-     * @param marketId 마켓 ID
-     * @param side 방향
-     * @param positionKey 포지션 키
-     * @param priority 우선순위
-     */
-    function _insertToPriorityQueue(
-        uint32 marketId,
-        PerpetualTypes.PositionSide side,
-        bytes32 positionKey,
-        uint256 priority
-    ) internal {
-        bytes32[] storage queue = _priorityQueues[marketId][side];
-
-        // 우선순위 저장
-        _adlPriorities[positionKey] = priority;
-
-        // 정렬된 위치 찾기 (내림차순)
-        uint256 insertIdx = queue.length;
-        for (uint256 i = 0; i < queue.length; i++) {
-            if (priority > _adlPriorities[queue[i]]) {
-                insertIdx = i;
-                break;
-            }
+    function _execute(bytes32 bankruptKey, bytes32 counterpartyKey, uint128 size) internal returns (uint128) {
+        _requireConfigured();
+        Bankruptcy storage debt = _bankruptcies[bankruptKey];
+        if (!_adlActive[debt.marketId] || debt.remainingDeficit == 0) revert PerpetualErrors.ADLNotRequired();
+        PerpetualTypes.Position memory pos = _positionManager.getPosition(counterpartyKey);
+        if (
+            pos.openedAt == 0 || pos.status != PerpetualTypes.PositionStatus.Open || pos.marketId != debt.marketId
+                || pos.side != _opposite(debt.side) || _info(counterpartyKey).priority == 0
+        ) {
+            revert PerpetualErrors.NotADLCandidate(counterpartyKey);
         }
-
-        // 삽입
-        queue.push(bytes32(0)); // 공간 확보
-        for (uint256 i = queue.length - 1; i > insertIdx; i--) {
-            queue[i] = queue[i - 1];
+        if (size == 0) revert PerpetualErrors.ZeroSize();
+        if (size > pos.size || size > debt.remainingSize) {
+            revert PerpetualErrors.ExceedsPositionSize(
+                counterpartyKey, size, pos.size < debt.remainingSize ? pos.size : debt.remainingSize
+            );
         }
-        queue[insertIdx] = positionKey;
+        uint256 haircut = PerpetualMath.mulDivRoundUp(debt.remainingDeficit, size, debt.remainingSize);
+        if (!_canSettle(debt, counterpartyKey, pos, size)) revert PerpetualErrors.NotADLCandidate(counterpartyKey);
+        uint128 price = debt.settlementMarkPrice;
+        (uint256 released, int256 pnl) = _positionManager.reduceForADL(counterpartyKey, size, price);
+        if (pnl <= 0 || uint256(pnl) < haircut) revert PerpetualErrors.NotADLCandidate(counterpartyKey);
+        _marginManager.settleADL(pos.trader, released, pnl, haircut);
+        debt.remainingSize -= size;
+        debt.remainingDeficit -= haircut;
+        _marketDeficits[debt.marketId] -= haircut;
+        if (debt.remainingDeficit == 0) debt.remainingSize = 0;
+        if (_marketDeficits[debt.marketId] == 0) {
+            _adlActive[debt.marketId] = false;
+            _adlLevels[debt.marketId] = 0;
+        }
+        ADLStats storage stats = _adlStats[debt.marketId];
+        stats.totalADLEvents++;
+        stats.totalADLVolume += size;
+        stats.lastADLTime = block.timestamp;
+        emit PerpetualEvents.ADLExecuted(bankruptKey, counterpartyKey, debt.marketId, size, price);
+        emit DeficitResolved(bankruptKey, haircut, debt.remainingDeficit);
+        return size;
     }
 
-    /**
-     * @notice 우선순위 큐에서 제거
-     * @param marketId 마켓 ID
-     * @param side 방향
-     * @param positionKey 포지션 키
-     */
-    function _removeFromPriorityQueue(uint32 marketId, PerpetualTypes.PositionSide side, bytes32 positionKey) internal {
-        bytes32[] storage queue = _priorityQueues[marketId][side];
+    function _canSettle(Bankruptcy storage debt, bytes32 key, PerpetualTypes.Position memory pos, uint128 size)
+        internal
+        view
+        returns (bool)
+    {
+        bool isLong = pos.side == PerpetualTypes.PositionSide.Long;
+        int256 funding = _positionManager.getFundingPayment(key, size);
+        int256 settlementPnL =
+            PerpetualMath.calculateRealizedPnL(pos.entryPrice, debt.settlementMarkPrice, size, isLong) - funding;
+        int256 livePnL = PerpetualMath.calculateRealizedPnL(
+            pos.entryPrice, _positionManager.getMarkPrice(pos.marketId), size, isLong
+        ) - funding;
+        uint256 haircut = PerpetualMath.mulDivRoundUp(debt.remainingDeficit, size, debt.remainingSize);
+        return settlementPnL > 0 && uint256(settlementPnL) >= haircut && settlementPnL - int256(haircut) <= livePnL;
+    }
 
-        for (uint256 i = 0; i < queue.length; i++) {
-            if (queue[i] == positionKey) {
-                // 마지막 요소와 교체 후 삭제
-                queue[i] = queue[queue.length - 1];
-                queue.pop();
-
-                // 우선순위 삭제
-                delete _adlPriorities[positionKey];
-                break;
-            }
-        }
+    function _opposite(PerpetualTypes.PositionSide side) internal pure returns (PerpetualTypes.PositionSide) {
+        return
+            side == PerpetualTypes.PositionSide.Long
+                ? PerpetualTypes.PositionSide.Short
+                : PerpetualTypes.PositionSide.Long;
     }
 }

@@ -79,6 +79,7 @@ interface IInsuranceFund {
      * @param amount 사용 금액
      * @return actualUsed 실제 사용된 금액
      */
+    /// @dev Transfers the covered collateral to the authorized caller.
     function coverLoss(uint32 marketId, uint256 amount) external returns (uint256 actualUsed);
 
     /**

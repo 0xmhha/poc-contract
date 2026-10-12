@@ -7,6 +7,7 @@ import { PerpetualMath } from "../libraries/PerpetualMath.sol";
 import { PerpetualErrors } from "../libraries/PerpetualErrors.sol";
 import { PerpetualEvents } from "../libraries/PerpetualEvents.sol";
 import { Constants } from "../../common/libraries/Constants.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -57,6 +58,9 @@ contract MarginManager is IMarginManager, ReentrancyGuard {
         int256 unrealizedPnL; // 미실현 PnL (외부에서 업데이트)
     }
 
+    address private _liquidator;
+    address private _adlEngine;
+
     // ============ Modifiers ============
 
     modifier onlyAuthorized() {
@@ -84,6 +88,8 @@ contract MarginManager is IMarginManager, ReentrancyGuard {
         if (admin == address(0) || collateral == address(0)) {
             revert PerpetualErrors.ZeroAddress();
         }
+        // This reference ledger uses 18 decimals for both collateral and prices.
+        if (IERC20Metadata(collateral).decimals() != 18) revert PerpetualErrors.TokenNotSupported(collateral);
         _admin = admin;
         collateralToken = IERC20(collateral);
     }
@@ -325,6 +331,51 @@ contract MarginManager is IMarginManager, ReentrancyGuard {
     /// @inheritdoc IMarginManager
     function updateUnrealizedPnL(address trader, int256 unrealizedPnL) external override onlyAuthorized {
         _crossMarginAccounts[trader].unrealizedPnL = unrealizedPnL;
+    }
+
+    function settleLiquidation(address trader, uint256 releasedMargin, int256 pnl, uint256 fee)
+        external
+        override
+        nonReentrant
+        returns (uint256 deficit)
+    {
+        if (msg.sender != _liquidator) revert PerpetualErrors.Unauthorized(msg.sender);
+        int256 equity = int256(releasedMargin) + pnl;
+        if (equity < 0) deficit = uint256(-equity);
+        _settleSlice(trader, releasedMargin, pnl, fee);
+        if (fee != 0) collateralToken.safeTransfer(msg.sender, fee);
+    }
+
+    function settleADL(address trader, uint256 releasedMargin, int256 pnl, uint256 haircut)
+        external
+        override
+        nonReentrant
+    {
+        if (msg.sender != _adlEngine) revert PerpetualErrors.Unauthorized(msg.sender);
+        if (pnl <= 0 || haircut > uint256(pnl)) revert PerpetualErrors.InvalidParameter("haircut exceeds profit");
+        _settleSlice(trader, releasedMargin, pnl - int256(haircut), 0);
+    }
+
+    function _settleSlice(address trader, uint256 releasedMargin, int256 pnl, uint256 fee) internal {
+        CrossMarginAccountData storage data = _crossMarginAccounts[trader];
+        if (releasedMargin > data.lockedMargin || releasedMargin > data.balance) {
+            revert PerpetualErrors.InsufficientMargin(trader, releasedMargin, data.lockedMargin);
+        }
+        int256 equity = int256(releasedMargin) + pnl;
+        uint256 remaining = equity > 0 ? uint256(equity) : 0;
+        if (fee > remaining) revert PerpetualErrors.InvalidParameter("fee exceeds equity");
+        data.lockedMargin -= releasedMargin;
+        data.balance = data.balance - releasedMargin + remaining - fee;
+    }
+
+    function setLiquidator(address liquidator) external onlyAdmin {
+        if (liquidator == address(0)) revert PerpetualErrors.ZeroAddress();
+        _liquidator = liquidator;
+    }
+
+    function setADLEngine(address adlEngine) external onlyAdmin {
+        if (adlEngine == address(0)) revert PerpetualErrors.ZeroAddress();
+        _adlEngine = adlEngine;
     }
 
     // ============ Admin Functions ============
