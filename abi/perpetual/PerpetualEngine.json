@@ -1177,6 +1177,17 @@
   {
     "inputs": [
       {
+        "internalType": "enum PerpetualTypes.MarginMode",
+        "name": "mode",
+        "type": "uint8"
+      }
+    ],
+    "name": "InvalidMarginMode",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "string",
         "name": "param",
         "type": "string"

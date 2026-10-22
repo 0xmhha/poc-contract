@@ -12,7 +12,7 @@ import { MarginManager } from "../../src/perpetual/core/MarginManager.sol";
 /**
  * @title DeployPerpetualScript
  * @notice Deploys the perpetual order book used as indexer-go's perp_orderbook venue
- * @dev TESTNET ONLY. Prices are placeholders and liquidation is not implemented.
+ * @dev TESTNET ONLY. Requires 18-decimal collateral and manually configured mark-price oracles.
  *      Not part of DeployAll on purpose.
  *
  * Deployed Contracts:
@@ -55,7 +55,7 @@ contract DeployPerpetualScript is DeploymentHelper {
             positionManager = new PositionManager(admin);
             marginManager = new MarginManager(admin, collateral);
 
-            // Liquidator, InsuranceFund and ADLEngine are not deployed: their logic is placeholder.
+            // Liquidation and ADL require separate deployment and settlement wiring; this script leaves them disabled.
             engine.setComponents(
                 address(positionManager),
                 address(marginManager),

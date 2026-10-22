@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { IPositionManager } from "../interfaces/IPositionManager.sol";
+import { IMarginManager } from "../interfaces/IMarginManager.sol";
+import { IInsuranceFund } from "../interfaces/IInsuranceFund.sol";
+import { IADLEngine } from "../interfaces/IADLEngine.sol";
 import { ILiquidator } from "../interfaces/ILiquidator.sol";
 import { PerpetualTypes } from "../libraries/PerpetualTypes.sol";
 import { PerpetualMath } from "../libraries/PerpetualMath.sol";
@@ -21,7 +25,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
  * - 청산 수수료 분배
  * - 청산자 보상 관리
  * @custom:status TESTNET ONLY. Reference implementation for indexer trading venues; not audited.
- *      liquidate() is a placeholder that liquidates nothing.
+ *      Uses isolated-margin settlement and records uncovered losses for ADL.
  */
 contract Liquidator is ILiquidator, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -86,6 +90,10 @@ contract Liquidator is ILiquidator, ReentrancyGuard {
         uint256 totalFeeCollected;
     }
 
+    IPositionManager private _positionManager;
+    IMarginManager private _marginManager;
+    IADLEngine private _adlEngine;
+
     // ============ Modifiers ============
 
     modifier onlyAuthorized() {
@@ -132,11 +140,12 @@ contract Liquidator is ILiquidator, ReentrancyGuard {
         override
         returns (bool isLiquidatable, string memory reason)
     {
-        // TODO: 실제 구현 시 PositionManager에서 포지션 정보 조회
-        // 마진 비율 확인 및 청산 가능 여부 판단
-
-        // 임시: 항상 false 반환
-        return (false, "position not found");
+        _requireConfigured();
+        PerpetualTypes.Position memory pos = _positionManager.getPosition(positionKey);
+        if (pos.openedAt == 0) return (false, "position not found");
+        if (pos.status != PerpetualTypes.PositionStatus.Open) return (false, "position not open");
+        if (!_positionManager.isLiquidatable(positionKey)) return (false, "above maintenance margin");
+        return (true, "");
     }
 
     /// @inheritdoc ILiquidator
@@ -146,22 +155,27 @@ contract Liquidator is ILiquidator, ReentrancyGuard {
         override
         returns (PerpetualTypes.LiquidationInfo memory info)
     {
-        // TODO: 실제 구현 시 PositionManager에서 포지션 정보 조회
-        // 청산 정보 생성
-
+        _requireConfigured();
+        PerpetualTypes.Position memory pos = _positionManager.getPosition(positionKey);
+        if (pos.openedAt == 0) revert PerpetualErrors.PositionNotFound(positionKey);
+        if (pos.status != PerpetualTypes.PositionStatus.Open) revert PerpetualErrors.PositionNotOpen(positionKey);
+        PerpetualTypes.PositionResult memory result = _positionManager.getPositionResult(positionKey);
+        uint128 price = _positionManager.getMarkPrice(pos.marketId);
+        uint256 fee = _totalFee(PerpetualMath.mulDiv(pos.size, price, PRECISION));
+        if (fee > result.equity) fee = result.equity;
         info = PerpetualTypes.LiquidationInfo({
             positionKey: positionKey,
-            trader: address(0),
-            marketId: 0,
-            side: PerpetualTypes.PositionSide.Long,
-            size: 0,
-            price: 0,
-            pnl: 0,
-            liquidationFee: 0,
-            remainingMargin: 0,
+            trader: pos.trader,
+            marketId: pos.marketId,
+            side: pos.side,
+            size: pos.size,
+            price: price,
+            pnl: result.unrealizedPnL - result.accumulatedFunding,
+            liquidationFee: fee,
+            remainingMargin: result.equity - fee,
             isPartial: false,
             liquidator: address(0),
-            timestamp: 0
+            timestamp: uint64(block.timestamp)
         });
     }
 
@@ -172,17 +186,17 @@ contract Liquidator is ILiquidator, ReentrancyGuard {
         override
         returns (uint256 liquidatorFee, uint256 protocolFee, uint256 insuranceFundFee)
     {
-        uint256 totalValue = positionSize; // 실제로는 size * price
-
-        liquidatorFee = PerpetualMath.mulDiv(totalValue, _liquidatorFeeBps, BPS_PRECISION);
-        protocolFee = PerpetualMath.mulDiv(totalValue, _protocolFeeBps, BPS_PRECISION);
-        insuranceFundFee = PerpetualMath.mulDiv(totalValue, _insuranceFeeBps, BPS_PRECISION);
+        _requireConfigured();
+        uint256 value = PerpetualMath.mulDiv(positionSize, _positionManager.getMarkPrice(marketId), PRECISION);
+        liquidatorFee = PerpetualMath.mulDiv(value, _liquidatorFeeBps, BPS_PRECISION);
+        protocolFee = PerpetualMath.mulDiv(value, _protocolFeeBps, BPS_PRECISION);
+        insuranceFundFee = PerpetualMath.mulDiv(value, _insuranceFeeBps, BPS_PRECISION);
     }
 
     /// @inheritdoc ILiquidator
-    function getLiquidationPrice(bytes32 positionKey) external view override returns (uint256 liquidationPrice) {
-        // TODO: 실제 구현 시 PositionManager에서 포지션 정보 조회 후 청산가 계산
-        return 0;
+    function getLiquidationPrice(bytes32 positionKey) external view override returns (uint256) {
+        _requireConfigured();
+        return _positionManager.getLiquidationPrice(positionKey);
     }
 
     /// @inheritdoc ILiquidator
@@ -204,28 +218,9 @@ contract Liquidator is ILiquidator, ReentrancyGuard {
     // ============ State-Changing Functions ============
 
     /// @inheritdoc ILiquidator
-    function liquidate(bytes32 positionKey)
-        external
-        override
-        nonReentrant
-        returns (uint256 liquidatedSize, uint256 liquidatorReward)
-    {
-        // 청산 가능 여부 확인
-        (bool canLiq, string memory reason) = this.canLiquidate(positionKey);
-        if (!canLiq) {
-            revert PerpetualErrors.PositionNotLiquidatable(positionKey, 0, 0);
-        }
-
-        // TODO: 실제 구현 시 PositionManager를 통해 포지션 청산 실행
-        // 1. 포지션 정보 조회
-        // 2. 청산가 계산
-        // 3. 포지션 종료
-        // 4. 수수료 분배
-        // 5. 잔여 마진 처리
-
-        // 임시 구현
-        liquidatedSize = 0;
-        liquidatorReward = 0;
+    function liquidate(bytes32 positionKey) external override nonReentrant returns (uint256, uint256) {
+        _requireConfigured();
+        return _liquidate(positionKey, _positionManager.getPosition(positionKey).size, msg.sender);
     }
 
     /// @inheritdoc ILiquidator
@@ -233,19 +228,9 @@ contract Liquidator is ILiquidator, ReentrancyGuard {
         external
         override
         nonReentrant
-        returns (uint256 actualLiquidatedSize, uint256 liquidatorReward)
+        returns (uint256, uint256)
     {
-        // 청산 가능 여부 확인
-        (bool canLiq,) = this.canLiquidate(positionKey);
-        if (!canLiq) {
-            revert PerpetualErrors.PositionNotLiquidatable(positionKey, 0, 0);
-        }
-
-        // 부분 청산 허용 여부 확인
-        // TODO: 실제 구현
-
-        actualLiquidatedSize = liquidateSize;
-        liquidatorReward = 0;
+        return _liquidate(positionKey, liquidateSize, msg.sender);
     }
 
     /// @inheritdoc ILiquidator
@@ -258,21 +243,20 @@ contract Liquidator is ILiquidator, ReentrancyGuard {
         if (positionKeys.length > MAX_BATCH_LIQUIDATIONS) {
             revert PerpetualErrors.InvalidParameter("too many positions");
         }
-
+        _requireConfigured();
         for (uint256 i = 0; i < positionKeys.length; i++) {
-            (bool canLiq,) = this.canLiquidate(positionKeys[i]);
-            if (canLiq) {
-                try this.liquidate(positionKeys[i]) returns (uint256, uint256 reward) {
-                    liquidatedCount++;
-                    totalReward += reward;
-                } catch {
-                    // 개별 청산 실패는 무시하고 계속 진행
-                    continue;
-                }
-            }
+            // Each subcall rolls back independently. The original keeper receives rewards.
+            try this.liquidateFor(positionKeys[i], msg.sender) returns (uint256, uint256 reward) {
+                liquidatedCount++;
+                totalReward += reward;
+            } catch { }
         }
+    }
 
-        return (liquidatedCount, totalReward);
+    /// @notice Self-call boundary for atomic best-effort batch liquidation.
+    function liquidateFor(bytes32 positionKey, address keeper) external returns (uint256, uint256) {
+        if (msg.sender != address(this)) revert PerpetualErrors.Unauthorized(msg.sender);
+        return _liquidate(positionKey, _positionManager.getPosition(positionKey).size, keeper);
     }
 
     /// @inheritdoc ILiquidator
@@ -296,8 +280,9 @@ contract Liquidator is ILiquidator, ReentrancyGuard {
         onlyAdmin
     {
         // 총 수수료가 5%를 넘지 않도록
-        if (liquidatorFeeBps + protocolFeeBps + insuranceFeeBps > 500) {
-            revert PerpetualErrors.InvalidFeeRate(liquidatorFeeBps + protocolFeeBps + insuranceFeeBps, 500);
+        uint256 total = uint256(liquidatorFeeBps) + protocolFeeBps + insuranceFeeBps;
+        if (total > 500) {
+            revert PerpetualErrors.InvalidFeeRate(total, 500);
         }
 
         _liquidatorFeeBps = liquidatorFeeBps;
@@ -353,36 +338,90 @@ contract Liquidator is ILiquidator, ReentrancyGuard {
         emit PerpetualEvents.ProtocolFeesWithdrawn(recipient, amount);
     }
 
-    // ============ Internal Functions ============
+    function setPositionManager(address manager) external onlyAdmin {
+        if (manager == address(0)) revert PerpetualErrors.ZeroAddress();
+        _positionManager = IPositionManager(manager);
+    }
 
-    /**
-     * @notice 청산 수수료 분배
-     * @param positionValue 포지션 가치
-     * @param liquidator 청산자 주소
-     */
-    function _distributeFees(uint256 positionValue, address liquidator) internal {
-        uint256 liquidatorFee = PerpetualMath.mulDiv(positionValue, _liquidatorFeeBps, BPS_PRECISION);
-        uint256 protocolFee = PerpetualMath.mulDiv(positionValue, _protocolFeeBps, BPS_PRECISION);
-        uint256 insuranceFee = PerpetualMath.mulDiv(positionValue, _insuranceFeeBps, BPS_PRECISION);
+    function setMarginManager(address manager) external onlyAdmin {
+        if (manager == address(0)) revert PerpetualErrors.ZeroAddress();
+        _marginManager = IMarginManager(manager);
+    }
 
-        // 청산자 보상 적립
-        _pendingRewards[liquidator] += liquidatorFee;
+    function setADLEngine(address adlEngine) external onlyAdmin {
+        if (adlEngine == address(0)) revert PerpetualErrors.ZeroAddress();
+        _adlEngine = IADLEngine(adlEngine);
+    }
 
-        // 프로토콜 수수료 적립
-        _accumulatedProtocolFees += protocolFee;
-
-        // 보험 기금 수수료 전송
-        if (_insuranceFund != address(0) && insuranceFee > 0) {
-            collateralToken.safeTransfer(_insuranceFund, insuranceFee);
+    function _requireConfigured() internal view {
+        if (
+            address(_positionManager) == address(0) || address(_marginManager) == address(0)
+                || _insuranceFund == address(0)
+        ) {
+            revert PerpetualErrors.NotInitialized();
         }
     }
 
-    /**
-     * @notice 청산 통계 업데이트
-     * @param marketId 마켓 ID
-     * @param liquidatedValue 청산 가치
-     * @param fee 수수료
-     */
+    function _totalFee(uint256 value) internal view returns (uint256) {
+        return PerpetualMath.mulDiv(value, _liquidatorFeeBps, BPS_PRECISION)
+            + PerpetualMath.mulDiv(value, _protocolFeeBps, BPS_PRECISION)
+            + PerpetualMath.mulDiv(value, _insuranceFeeBps, BPS_PRECISION);
+    }
+
+    function _liquidate(bytes32 key, uint128 size, address keeper) internal returns (uint256, uint256 reward) {
+        _requireConfigured();
+        PerpetualTypes.Position memory pos = _positionManager.getPosition(key);
+        if (pos.openedAt == 0) revert PerpetualErrors.PositionNotFound(key);
+        if (pos.status != PerpetualTypes.PositionStatus.Open) revert PerpetualErrors.PositionNotOpen(key);
+        if (size == 0) revert PerpetualErrors.ZeroSize();
+        if (size > pos.size) revert PerpetualErrors.ExceedsPositionSize(key, size, pos.size);
+        PerpetualTypes.PositionResult memory result = _positionManager.getPositionResult(key);
+        if (!result.isLiquidatable) {
+            revert PerpetualErrors.PositionNotLiquidatable(
+                key, result.marginRatio, _positionManager.getMarketConfig(pos.marketId).maintenanceMarginBps
+            );
+        }
+        if (size != pos.size) {
+            uint128 minSize = _minLiquidationSizes[pos.marketId];
+            if (size < minSize || pos.size - size < minSize || result.equity == 0) {
+                revert PerpetualErrors.PartialLiquidationNotAllowed(key);
+            }
+        }
+        uint128 price = _positionManager.getMarkPrice(pos.marketId);
+        (uint256 released, int256 pnl) = _positionManager.reduceForLiquidation(key, size, price);
+        int256 equity = int256(released) + pnl;
+        uint256 value = PerpetualMath.mulDiv(size, price, PRECISION);
+        uint256 fee = _totalFee(value);
+        uint256 available = equity > 0 ? uint256(equity) : 0;
+        if (fee > available) fee = available;
+        uint256 deficit = _marginManager.settleLiquidation(pos.trader, released, pnl, fee);
+        reward = _distributeFees(pos.marketId, fee, keeper);
+        if (deficit > 0) {
+            uint256 covered = IInsuranceFund(_insuranceFund).coverLoss(pos.marketId, deficit);
+            if (covered > 0) collateralToken.safeTransfer(address(_marginManager), covered);
+            if (deficit > covered) {
+                if (address(_adlEngine) == address(0)) revert PerpetualErrors.NotInitialized();
+                _adlEngine.registerBankruptcy(key, pos.marketId, pos.side, size, deficit - covered);
+            }
+        }
+        _updateStats(pos.marketId, value, fee);
+        emit PerpetualEvents.PositionLiquidated(key, pos.trader, keeper, size, price, pnl, fee);
+        return (size, reward);
+    }
+
+    function _distributeFees(uint32 marketId, uint256 fee, address keeper) internal returns (uint256 reward) {
+        if (fee == 0) return 0;
+        uint256 totalBps = uint256(_liquidatorFeeBps) + _protocolFeeBps + _insuranceFeeBps;
+        reward = PerpetualMath.mulDiv(fee, _liquidatorFeeBps, totalBps);
+        uint256 insuranceFee = PerpetualMath.mulDiv(fee, _insuranceFeeBps, totalBps);
+        _pendingRewards[keeper] += reward;
+        _accumulatedProtocolFees += fee - reward - insuranceFee;
+        if (insuranceFee > 0) {
+            collateralToken.forceApprove(_insuranceFund, insuranceFee);
+            IInsuranceFund(_insuranceFund).deposit(marketId, insuranceFee);
+        }
+    }
+
     function _updateStats(uint32 marketId, uint256 liquidatedValue, uint256 fee) internal {
         LiquidationStats storage stats = _liquidationStats[marketId];
         stats.totalLiquidations++;

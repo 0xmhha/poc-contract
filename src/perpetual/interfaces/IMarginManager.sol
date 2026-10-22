@@ -9,6 +9,13 @@ import { PerpetualTypes } from "../libraries/PerpetualTypes.sol";
  * @notice 마진 관리 인터페이스
  */
 interface IMarginManager {
+    /// @notice Settles an isolated margin slice and transfers collected fees to the caller.
+    function settleLiquidation(address trader, uint256 releasedMargin, int256 pnl, uint256 fee)
+        external
+        returns (uint256 deficit);
+    /// @notice Settles an ADL slice, withholding profit to resolve registered bad debt.
+    function settleADL(address trader, uint256 releasedMargin, int256 pnl, uint256 haircut) external;
+
     // ============ View Functions ============
 
     /**

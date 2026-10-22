@@ -9,6 +9,18 @@ import { PerpetualTypes } from "../libraries/PerpetualTypes.sol";
  * @notice 자동 디레버리징(ADL) 엔진 인터페이스
  */
 interface IADLEngine {
+    /// @notice Registers an insurance-uncovered liquidation deficit; callable only by Liquidator.
+    function registerBankruptcy(
+        bytes32 key,
+        uint32 marketId,
+        PerpetualTypes.PositionSide side,
+        uint128 size,
+        uint256 deficit
+    ) external;
+
+    /// @notice Outstanding registered debt for a market, independent of the pause flag.
+    function getMarketDeficit(uint32 marketId) external view returns (uint256);
+
     // ============ View Functions ============
 
     /**
