@@ -7,13 +7,17 @@ import { PackedUserOperation } from "../../src/erc4337-entrypoint/interfaces/Pac
 import { Kernel } from "../../src/erc7579-smartaccount/Kernel.sol";
 import { KernelFactory } from "../../src/erc7579-smartaccount/factory/KernelFactory.sol";
 import { FactoryStaker } from "../../src/erc7579-smartaccount/factory/FactoryStaker.sol";
+import { ValidationManager } from "../../src/erc7579-smartaccount/core/ValidationManager.sol";
+import { IPolicy, ISigner } from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
 import { IValidator, IHook } from "../../src/erc7579-smartaccount/interfaces/IERC7579Modules.sol";
-import { ValidationId } from "../../src/erc7579-smartaccount/types/Types.sol";
+import { PermissionId, ValidationId } from "../../src/erc7579-smartaccount/types/Types.sol";
 import {
     HOOK_MODULE_INSTALLED,
     CALLTYPE_SINGLE,
     EXECTYPE_DEFAULT,
-    EXEC_MODE_DEFAULT
+    EXEC_MODE_DEFAULT,
+    MODULE_TYPE_POLICY,
+    MODULE_TYPE_SIGNER
 } from "../../src/erc7579-smartaccount/types/Constants.sol";
 import { ValidatorLib } from "../../src/erc7579-smartaccount/utils/ValidationTypeLib.sol";
 import { ExecLib, ExecModePayload } from "../../src/erc7579-smartaccount/utils/ExecLib.sol";
@@ -28,6 +32,7 @@ import { ECDSA } from "solady/utils/ECDSA.sol";
 ///      1. checks the deployment left KernelFactory approved on FactoryStaker
 ///      2. UserOp #1: deploys an ECDSA Kernel account through initCode (FactoryStaker) and sends 0.1 ETH
 ///      3. UserOp #2: a second transfer from the deployed account (no initCode)
+///      4. checks ERC-1271 accepts a passing permission policy and rejects a failing one (#32)
 ///      Signs with anvil key 1 as the account owner. Refuses to run unless the node is anvil.
 contract AnvilSmokeScript is Script {
     // anvil default account 1 (public test key)
@@ -40,7 +45,7 @@ contract AnvilSmokeScript is Script {
     address internal recipient = address(0xBEEF);
 
     function run() external {
-        require(_isAnvil(), "anvil only");
+        require(block.chainid == 31337 && _isAnvil(), "Anvil 31337 only");
         string memory json = vm.readFile(string.concat("deployments/", vm.toString(block.chainid), "/addresses.json"));
         entryPoint = IEntryPoint(vm.parseJsonAddress(json, ".entryPoint"));
         factory = KernelFactory(vm.parseJsonAddress(json, ".kernelFactory"));
@@ -74,10 +79,48 @@ contract AnvilSmokeScript is Script {
         require(recipient.balance == recipientBefore + 0.3 ether, "transfer #2");
         vm.stopBroadcast();
 
+        _checkPermissionSignatures(account);
         console.log("account:", account);
         console.log("accountId:", Kernel(payable(account)).accountId());
         console.log("recipient received (wei):", recipient.balance - recipientBefore);
         console.log("SMOKE OK");
+    }
+
+    function _checkPermissionSignatures(address account) internal {
+        vm.startBroadcast();
+        AnvilPermissionSigner signer = new AnvilPermissionSigner();
+        AnvilSignaturePolicy rejecting = new AnvilSignaturePolicy(1);
+        AnvilSignaturePolicy passing = new AnvilSignaturePolicy(0);
+        vm.stopBroadcast();
+        vm.startBroadcast(OWNER_KEY);
+        _installPermission(account, PermissionId.wrap(0xaabbccdd), rejecting, signer);
+        _installPermission(account, PermissionId.wrap(0xddccbbaa), passing, signer);
+        vm.stopBroadcast();
+        bytes32 digest = keccak256("anvil permission signature policy");
+        require(
+            Kernel(payable(account)).isValidSignature(digest, hex"02aabbccddff") != 0x1626ba7e,
+            "rejecting signature policy was bypassed"
+        );
+        require(
+            Kernel(payable(account)).isValidSignature(digest, hex"02ddccbbaaff") == 0x1626ba7e,
+            "passing signature policy was rejected"
+        );
+        console.log("PERMISSION POLICY OK");
+    }
+
+    function _installPermission(address account, PermissionId id, IPolicy policy, ISigner signer) internal {
+        ValidationId[] memory ids = new ValidationId[](1);
+        ids[0] = ValidatorLib.permissionToIdentifier(id);
+        ValidationManager.ValidationConfig[] memory configs = new ValidationManager.ValidationConfig[](1);
+        uint32 nonce = Kernel(payable(account)).currentNonce();
+        configs[0] =
+            ValidationManager.ValidationConfig({ nonce: nonce == 0 ? 1 : nonce, hook: IHook(HOOK_MODULE_INSTALLED) });
+        bytes[] memory entries = new bytes[](2);
+        entries[0] = abi.encodePacked(bytes2(0), address(policy));
+        entries[1] = abi.encodePacked(bytes2(0), address(signer));
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encode(entries);
+        Kernel(payable(account)).installValidations(ids, configs, data, new bytes[](1));
     }
 
     function _isAnvil() internal returns (bool) {
@@ -126,5 +169,57 @@ contract AnvilSmokeScript is Script {
         PackedUserOperation[] memory ops = new PackedUserOperation[](1);
         ops[0] = op;
         entryPoint.handleOps(ops, payable(msg.sender));
+    }
+}
+
+/// @dev Local-only fixtures for the ERC-1271 permission-policy smoke test.
+contract AnvilSignaturePolicy is IPolicy {
+    uint256 private immutable _verdict;
+
+    constructor(uint256 verdict) {
+        require(block.chainid == 31337, "local fixture only");
+        _verdict = verdict;
+    }
+    function onInstall(bytes calldata) external payable { }
+    function onUninstall(bytes calldata) external payable { }
+
+    function isModuleType(uint256 t) external pure returns (bool) {
+        return t == MODULE_TYPE_POLICY;
+    }
+
+    function isInitialized(address) external pure returns (bool) {
+        return true;
+    }
+
+    function checkUserOpPolicy(bytes32, PackedUserOperation calldata) external payable returns (uint256) {
+        return 0;
+    }
+
+    function checkSignaturePolicy(bytes32, address, bytes32, bytes calldata) external view returns (uint256) {
+        return _verdict;
+    }
+}
+
+contract AnvilPermissionSigner is ISigner {
+    constructor() {
+        require(block.chainid == 31337, "local fixture only");
+    }
+    function onInstall(bytes calldata) external payable { }
+    function onUninstall(bytes calldata) external payable { }
+
+    function isModuleType(uint256 t) external pure returns (bool) {
+        return t == MODULE_TYPE_SIGNER;
+    }
+
+    function isInitialized(address) external pure returns (bool) {
+        return true;
+    }
+
+    function checkUserOpSignature(bytes32, PackedUserOperation calldata, bytes32) external payable returns (uint256) {
+        return 0;
+    }
+
+    function checkSignature(bytes32, address, bytes32, bytes calldata) external pure returns (bytes4) {
+        return 0x1626ba7e;
     }
 }
